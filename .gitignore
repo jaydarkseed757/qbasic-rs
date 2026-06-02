@@ -1,0 +1,17 @@
+# Test scratch output
+tests/tmp/
+
+# Rust build artifacts
+/target
+
+# Generated transpiler output (created by build-all.sh)
+/bin
+
+# Excluded per request
+CLAUDE.md
+
+# Local Claude / agent session data
+.claude/
+
+# macOS
+.DS_Store

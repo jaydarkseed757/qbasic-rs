@@ -1,0 +1,26 @@
+' Test: math built-ins — INT, FIX, ABS, SQR, SGN, MOD, \, ^
+PRINT INT(3.9)
+PRINT INT(-3.1)
+PRINT FIX(3.9)
+PRINT FIX(-3.9)
+PRINT ABS(-5)
+PRINT ABS(5)
+PRINT SQR(9)
+PRINT SGN(-7)
+PRINT SGN(0)
+PRINT SGN(3)
+
+' MOD and integer division
+PRINT 10 MOD 3
+PRINT 10 \ 3
+PRINT -7 MOD 3
+
+' Power
+PRINT 2 ^ 10
+PRINT 3 ^ 0
+
+' More INT/FIX edge cases
+PRINT INT(2.0)
+PRINT FIX(-2.0)
+
+PRINT "done"

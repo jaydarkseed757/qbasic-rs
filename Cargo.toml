@@ -1,0 +1,23 @@
+[workspace]
+members = [".", "runtime"]
+
+# Patch minifb to forward keyDown:/keyUp: from the frame-view directly to the
+# window so key_callback fires on macOS 14+ where interpretKeyEvents: swallows
+# printable characters (digits, letters) and never reaches OSXWindow.keyDown:.
+[patch.crates-io]
+minifb = { path = "vendor/minifb-0.27.0" }
+
+[package]
+name = "qbasic-transpiler"
+version = "0.1.0"
+edition = "2021"
+description = "QBasic to Rust transpiler"
+
+[[bin]]
+name = "qbc"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+thiserror = "1"
+anyhow = "1"

@@ -1,0 +1,19 @@
+ 13 
+Hello
+World!
+World
+HELLO, WORLD!
+hello, world!
+ 8 
+ 0 
+A
+ 65 
+    
+****
+ 42
+ 3.14 
+ 0 
+ 0 
+
+ell
+done

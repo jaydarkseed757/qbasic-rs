@@ -1,0 +1,2450 @@
+//! QBasic runtime library — linked by every transpiled program.
+#![allow(non_snake_case, dead_code, unused_variables)]
+
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::io::{BufRead, Write, Seek, SeekFrom};
+use minifb::{Key, KeyRepeat};
+
+mod sound;
+use sound::MmlState;
+
+/// Helpers for integration tests — parse MML without requiring an audio device.
+pub mod sound_test_helpers {
+    use crate::sound::{MmlState, parse_mml_for_test};
+    pub fn default_mml_state() -> MmlState { MmlState::default() }
+    pub fn parse_mml_test(mml: &str, state: &mut MmlState) -> Vec<(f32, u64)> {
+        parse_mml_for_test(mml, state)
+    }
+}
+
+// ── IBM PC 8×8 bitmap font (ASCII 0x20..=0x7E) ────────────────────────────────
+// Each entry is 8 bytes: one byte per row, MSB = leftmost pixel.
+// Source: classic IBM PC BIOS / CP437 character ROM.
+static FONT_8X8: [[u8; 8]; 128] = [
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], // 0x00 NUL
+    [0x7E,0x81,0xA5,0x81,0xBD,0x99,0x81,0x7E], // 0x01
+    [0x7E,0xFF,0xDB,0xFF,0xC3,0xE7,0xFF,0x7E], // 0x02
+    [0x6C,0xFE,0xFE,0xFE,0x7C,0x38,0x10,0x00], // 0x03
+    [0x10,0x38,0x7C,0xFE,0x7C,0x38,0x10,0x00], // 0x04
+    [0x38,0x7C,0x38,0xFE,0xFE,0xD6,0x10,0x38], // 0x05
+    [0x10,0x10,0x38,0x7C,0xFE,0x7C,0x10,0x38], // 0x06
+    [0x00,0x00,0x18,0x3C,0x3C,0x18,0x00,0x00], // 0x07
+    [0xFF,0xFF,0xE7,0xC3,0xC3,0xE7,0xFF,0xFF], // 0x08
+    [0x00,0x3C,0x66,0x42,0x42,0x66,0x3C,0x00], // 0x09
+    [0xFF,0xC3,0x99,0xBD,0xBD,0x99,0xC3,0xFF], // 0x0A
+    [0x0F,0x07,0x0F,0x7D,0xCC,0xCC,0xCC,0x78], // 0x0B
+    [0x3C,0x66,0x66,0x66,0x3C,0x18,0x7E,0x18], // 0x0C
+    [0x3F,0x33,0x3F,0x30,0x30,0x70,0xF0,0xE0], // 0x0D
+    [0x7F,0x63,0x7F,0x63,0x63,0x67,0xE6,0xC0], // 0x0E
+    [0x99,0x5A,0x3C,0xE7,0xE7,0x3C,0x5A,0x99], // 0x0F
+    [0x80,0xE0,0xF8,0xFE,0xF8,0xE0,0x80,0x00], // 0x10
+    [0x02,0x0E,0x3E,0xFE,0x3E,0x0E,0x02,0x00], // 0x11
+    [0x18,0x3C,0x7E,0x18,0x18,0x7E,0x3C,0x18], // 0x12
+    [0x66,0x66,0x66,0x66,0x66,0x00,0x66,0x00], // 0x13
+    [0x7F,0xDB,0xDB,0x7B,0x1B,0x1B,0x1B,0x00], // 0x14
+    [0x3E,0x63,0x38,0x6C,0x6C,0x38,0xCC,0x78], // 0x15
+    [0x00,0x00,0x00,0x00,0x7E,0x7E,0x7E,0x00], // 0x16
+    [0x18,0x3C,0x7E,0x18,0x7E,0x3C,0x18,0xFF], // 0x17
+    [0x18,0x3C,0x7E,0x18,0x18,0x18,0x18,0x00], // 0x18
+    [0x18,0x18,0x18,0x18,0x7E,0x3C,0x18,0x00], // 0x19
+    [0x00,0x18,0x0C,0xFE,0x0C,0x18,0x00,0x00], // 0x1A
+    [0x00,0x30,0x60,0xFE,0x60,0x30,0x00,0x00], // 0x1B
+    [0x00,0x00,0xC0,0xC0,0xC0,0xFE,0x00,0x00], // 0x1C
+    [0x00,0x24,0x66,0xFF,0x66,0x24,0x00,0x00], // 0x1D
+    [0x00,0x18,0x3C,0x7E,0xFF,0xFF,0x00,0x00], // 0x1E
+    [0x00,0xFF,0xFF,0x7E,0x3C,0x18,0x00,0x00], // 0x1F
+    // ── Printable ASCII 0x20..0x7F ─────────────────────────────────────────────
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00], // 0x20 ' '
+    [0x18,0x18,0x18,0x18,0x18,0x00,0x18,0x00], // 0x21 '!'
+    [0x66,0x66,0x24,0x00,0x00,0x00,0x00,0x00], // 0x22 '"'
+    [0x36,0x36,0x7F,0x36,0x7F,0x36,0x36,0x00], // 0x23 '#'
+    [0x0C,0x3E,0x03,0x1E,0x30,0x1F,0x0C,0x00], // 0x24 '$'
+    [0x60,0x63,0x30,0x18,0x0C,0x63,0x03,0x00], // 0x25 '%'
+    [0x1C,0x36,0x36,0x1C,0x7B,0x33,0x7B,0x00], // 0x26 '&'
+    [0x06,0x06,0x0C,0x00,0x00,0x00,0x00,0x00], // 0x27 '\''
+    [0x18,0x0C,0x06,0x06,0x06,0x0C,0x18,0x00], // 0x28 '('
+    [0x06,0x0C,0x18,0x18,0x18,0x0C,0x06,0x00], // 0x29 ')'
+    [0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00], // 0x2A '*'
+    [0x00,0x0C,0x0C,0x3F,0x0C,0x0C,0x00,0x00], // 0x2B '+'
+    [0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x06], // 0x2C ','
+    [0x00,0x00,0x00,0x3F,0x00,0x00,0x00,0x00], // 0x2D '-'
+    [0x00,0x00,0x00,0x00,0x00,0x18,0x18,0x00], // 0x2E '.'
+    [0x00,0x03,0x06,0x0C,0x18,0x30,0x60,0x00], // 0x2F '/'
+    [0x3C,0x66,0x6E,0x76,0x66,0x66,0x3C,0x00], // 0x30 '0'
+    [0x18,0x38,0x18,0x18,0x18,0x18,0x7E,0x00], // 0x31 '1'
+    [0x3C,0x66,0x06,0x1C,0x30,0x60,0x7E,0x00], // 0x32 '2'
+    [0x3C,0x66,0x06,0x1C,0x06,0x66,0x3C,0x00], // 0x33 '3'
+    [0x0E,0x1E,0x36,0x66,0x7F,0x06,0x0F,0x00], // 0x34 '4'
+    [0x7E,0x60,0x7C,0x06,0x06,0x66,0x3C,0x00], // 0x35 '5'
+    [0x1C,0x30,0x60,0x7C,0x66,0x66,0x3C,0x00], // 0x36 '6'
+    [0x7E,0x66,0x06,0x0C,0x18,0x18,0x18,0x00], // 0x37 '7'
+    [0x3C,0x66,0x66,0x3C,0x66,0x66,0x3C,0x00], // 0x38 '8'
+    [0x3C,0x66,0x66,0x3E,0x06,0x0C,0x38,0x00], // 0x39 '9'
+    [0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x00], // 0x3A ':'
+    [0x00,0x18,0x18,0x00,0x00,0x18,0x18,0x30], // 0x3B ';'
+    [0x06,0x0C,0x18,0x30,0x18,0x0C,0x06,0x00], // 0x3C '<'
+    [0x00,0x00,0x3F,0x00,0x00,0x3F,0x00,0x00], // 0x3D '='
+    [0x60,0x30,0x18,0x0C,0x18,0x30,0x60,0x00], // 0x3E '>'
+    [0x3C,0x66,0x06,0x0C,0x0C,0x00,0x0C,0x00], // 0x3F '?'
+    [0x3C,0x66,0x6E,0x6A,0x6E,0x60,0x3C,0x00], // 0x40 '@'
+    [0x18,0x3C,0x66,0x66,0x7E,0x66,0x66,0x00], // 0x41 'A'
+    [0x7C,0x66,0x66,0x7C,0x66,0x66,0x7C,0x00], // 0x42 'B'
+    [0x3C,0x66,0x60,0x60,0x60,0x66,0x3C,0x00], // 0x43 'C'
+    [0x78,0x6C,0x66,0x66,0x66,0x6C,0x78,0x00], // 0x44 'D'
+    [0x7E,0x60,0x60,0x7C,0x60,0x60,0x7E,0x00], // 0x45 'E'
+    [0x7E,0x60,0x60,0x7C,0x60,0x60,0x60,0x00], // 0x46 'F'
+    [0x3C,0x66,0x60,0x6E,0x66,0x66,0x3C,0x00], // 0x47 'G'
+    [0x66,0x66,0x66,0x7E,0x66,0x66,0x66,0x00], // 0x48 'H'
+    [0x3C,0x18,0x18,0x18,0x18,0x18,0x3C,0x00], // 0x49 'I'
+    [0x1E,0x0C,0x0C,0x0C,0x0C,0x6C,0x38,0x00], // 0x4A 'J'
+    [0x66,0x6C,0x78,0x70,0x78,0x6C,0x66,0x00], // 0x4B 'K'
+    [0x60,0x60,0x60,0x60,0x60,0x60,0x7E,0x00], // 0x4C 'L'
+    [0x63,0x77,0x7F,0x6B,0x63,0x63,0x63,0x00], // 0x4D 'M'
+    [0x66,0x76,0x7E,0x7E,0x6E,0x66,0x66,0x00], // 0x4E 'N'
+    [0x3C,0x66,0x66,0x66,0x66,0x66,0x3C,0x00], // 0x4F 'O'
+    [0x7C,0x66,0x66,0x7C,0x60,0x60,0x60,0x00], // 0x50 'P'
+    [0x3C,0x66,0x66,0x66,0x6E,0x3C,0x0E,0x00], // 0x51 'Q'
+    [0x7C,0x66,0x66,0x7C,0x6C,0x66,0x66,0x00], // 0x52 'R'
+    [0x3C,0x66,0x60,0x3C,0x06,0x66,0x3C,0x00], // 0x53 'S'
+    [0x7E,0x18,0x18,0x18,0x18,0x18,0x18,0x00], // 0x54 'T'
+    [0x66,0x66,0x66,0x66,0x66,0x66,0x3C,0x00], // 0x55 'U'
+    [0x66,0x66,0x66,0x66,0x66,0x3C,0x18,0x00], // 0x56 'V'
+    [0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00], // 0x57 'W'
+    [0x66,0x66,0x3C,0x18,0x3C,0x66,0x66,0x00], // 0x58 'X'
+    [0x66,0x66,0x66,0x3C,0x18,0x18,0x18,0x00], // 0x59 'Y'
+    [0x7E,0x06,0x0C,0x18,0x30,0x60,0x7E,0x00], // 0x5A 'Z'
+    [0x3C,0x30,0x30,0x30,0x30,0x30,0x3C,0x00], // 0x5B '['
+    [0x00,0x60,0x30,0x18,0x0C,0x06,0x03,0x00], // 0x5C '\\'
+    [0x3C,0x0C,0x0C,0x0C,0x0C,0x0C,0x3C,0x00], // 0x5D ']'
+    [0x18,0x3C,0x66,0x00,0x00,0x00,0x00,0x00], // 0x5E '^'
+    [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF], // 0x5F '_'
+    [0x18,0x18,0x0C,0x00,0x00,0x00,0x00,0x00], // 0x60 '`'
+    [0x00,0x00,0x3C,0x06,0x3E,0x66,0x3E,0x00], // 0x61 'a'
+    [0x60,0x60,0x7C,0x66,0x66,0x66,0x7C,0x00], // 0x62 'b'
+    [0x00,0x00,0x3C,0x66,0x60,0x66,0x3C,0x00], // 0x63 'c'
+    [0x06,0x06,0x3E,0x66,0x66,0x66,0x3E,0x00], // 0x64 'd'
+    [0x00,0x00,0x3C,0x66,0x7E,0x60,0x3C,0x00], // 0x65 'e'
+    [0x1C,0x30,0x7E,0x30,0x30,0x30,0x30,0x00], // 0x66 'f'
+    [0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x3C], // 0x67 'g'
+    [0x60,0x60,0x7C,0x66,0x66,0x66,0x66,0x00], // 0x68 'h'
+    [0x18,0x00,0x38,0x18,0x18,0x18,0x3C,0x00], // 0x69 'i'
+    [0x06,0x00,0x06,0x06,0x06,0x06,0x6C,0x38], // 0x6A 'j'
+    [0x60,0x60,0x66,0x6C,0x78,0x6C,0x66,0x00], // 0x6B 'k'
+    [0x38,0x18,0x18,0x18,0x18,0x18,0x3C,0x00], // 0x6C 'l'
+    [0x00,0x00,0x66,0x7F,0x7F,0x6B,0x63,0x00], // 0x6D 'm'
+    [0x00,0x00,0x7C,0x66,0x66,0x66,0x66,0x00], // 0x6E 'n'
+    [0x00,0x00,0x3C,0x66,0x66,0x66,0x3C,0x00], // 0x6F 'o'
+    [0x00,0x00,0x7C,0x66,0x66,0x7C,0x60,0x60], // 0x70 'p'
+    [0x00,0x00,0x3E,0x66,0x66,0x3E,0x06,0x06], // 0x71 'q'
+    [0x00,0x00,0x6C,0x76,0x60,0x60,0x60,0x00], // 0x72 'r'
+    [0x00,0x00,0x3C,0x60,0x3C,0x06,0x7C,0x00], // 0x73 's'
+    [0x30,0x30,0x7C,0x30,0x30,0x34,0x18,0x00], // 0x74 't'
+    [0x00,0x00,0x66,0x66,0x66,0x66,0x3E,0x00], // 0x75 'u'
+    [0x00,0x00,0x66,0x66,0x66,0x3C,0x18,0x00], // 0x76 'v'
+    [0x00,0x00,0x63,0x6B,0x7F,0x3E,0x36,0x00], // 0x77 'w'
+    [0x00,0x00,0x66,0x3C,0x18,0x3C,0x66,0x00], // 0x78 'x'
+    [0x00,0x00,0x66,0x66,0x66,0x3E,0x06,0x3C], // 0x79 'y'
+    [0x00,0x00,0x7E,0x0C,0x18,0x30,0x7E,0x00], // 0x7A 'z'
+    [0x0C,0x18,0x18,0x70,0x18,0x18,0x0C,0x00], // 0x7B '{'
+    [0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00], // 0x7C '|'
+    [0x30,0x18,0x18,0x0E,0x18,0x18,0x30,0x00], // 0x7D '}'
+    [0x00,0x6E,0x3B,0x00,0x00,0x00,0x00,0x00], // 0x7E '~'
+    [0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF], // 0x7F DEL
+];
+
+// ── EGA palette ───────────────────────────────────────────────────────────────
+
+pub const EGA: [(u8, u8, u8); 16] = [
+    (0,0,0),       (0,0,170),     (0,170,0),     (0,170,170),
+    (170,0,0),     (170,0,170),   (170,85,0),    (170,170,170),
+    (85,85,85),    (85,85,255),   (85,255,85),   (85,255,255),
+    (255,85,85),   (255,85,255),  (255,255,85),  (255,255,255),
+];
+
+// ── File I/O types ───────────────────────────────────────────────────────────
+
+enum QbFile {
+    /// FOR INPUT / OUTPUT / APPEND — text sequential access.
+    Sequential {
+        reader: Option<std::io::BufReader<std::fs::File>>,
+        writer: Option<std::io::BufWriter<std::fs::File>>,
+    },
+    /// FOR RANDOM — fixed-length binary record access.
+    Random {
+        file:       std::fs::File,
+        record_len: usize,
+        cur_record: i64,  // 0-based current record pointer (incremented on sequential GET/PUT)
+    },
+}
+
+// ── Runtime struct ────────────────────────────────────────────────────────────
+
+pub struct Runtime {
+    // Text state
+    pub fg_color: u8,
+    pub bg_color: u8,
+    cursor_row: usize,  // 1-based text row
+    cursor_col: usize,  // 1-based text col
+    cursor_visible: bool, // LOCATE's cursor-visibility arg (3rd param); no blinking
+                          // cursor is rendered in the windowed runtime, so this is
+                          // tracked for fidelity/future use but has no visual effect.
+    // Graphics
+    pub screen_mode: u8,
+    pub width:  u32,
+    pub height: u32,
+    char_w: u32,        // character cell width in pixels (always 8)
+    char_h: u32,        // character cell height in pixels (8 or 14 depending on mode)
+    fb: Vec<u8>,           // palette-indexed pixels
+    palette_rgb: [(u8,u8,u8); 16],  // remappable palette (PALETTE statement)
+    window: Option<minifb::Window>,
+    /// Window title and dimensions — stored here so we can create the window
+    /// lazily on the first SCREEN call instead of at Runtime::new() time.
+    /// This lets text-only programs (no SCREEN) run without opening a GUI window.
+    win_title: String,
+    last_present: std::time::Instant,  // for auto frame pacing
+    pset_counter: u32,                 // cheap throttle for auto_present checks
+    fullspeed: bool,                   // when true, skip auto_present() throttle (REM QBC FULLSPEED)
+    frame_interval_ms: u64,            // target ms between frames (REM QBC FPS n); default 16 ≈ 60fps
+    slowmo: f64,                       // SLEEP duration multiplier (REM QBC SLOWMO n); default 1.0
+    win_w: usize,                      // output window width  (REM QBC SCALE n); default 960
+    win_h: usize,                      // output window height (REM QBC SCALE n); default 600
+    /// Keys harvested from the window on every update — never lost between frames.
+    key_queue: std::collections::VecDeque<String>,
+    // RNG (LCG matching QB's generator)
+    rng: u32,
+    // VIEW / WINDOW logical coordinate system
+    view_x1: f64, view_y1: f64, view_x2: f64, view_y2: f64,
+    view_active: bool,
+    win_x1: f64, win_y1: f64, win_x2: f64, win_y2: f64,
+    win_active: bool,
+    // Graphics cursor (in logical coords; updated by pset/line/line_to)
+    gfx_x: f64,
+    gfx_y: f64,
+    // DRAW state: persists across DRAW calls in the same screen session
+    draw_scale: f64,   // S value; pixels_per_unit = draw_scale / 4.0
+    draw_color: u8,    // C value (current DRAW color)
+    // PLAY MML state: persists across PLAY calls (tempo, octave, length, mode)
+    mml_state: MmlState,
+    /// Open file handles — keyed by QB file number (1-255).
+    files: std::collections::HashMap<u8, QbFile>,
+    /// VIEW PRINT text viewport — 1-based row numbers (inclusive).
+    /// vp_top=1, vp_bot=0 means "not set" (use full screen).
+    vp_top: u32,
+    vp_bot: u32,
+    /// True once any explicit SCREEN N call has been made.
+    /// Controls two behaviours:
+    ///   • wait_for_key() only blocks when true (so text-only programs exit
+    ///     immediately without hanging the integration-test timeout)
+    ///   • print_gfx() only suppresses stdout when true (so text-only programs
+    ///     still produce stdout output that the test suite can capture)
+    had_screen_call: bool,
+    /// ON ERROR support: set true when a trappable error occurs (OPEN failure,
+    /// SCREEN mode unavailable, etc.).  The emitter checks this after every
+    /// fallible statement and, if true, dispatches to the error-handler label.
+    /// Cleared by the emitted error-dispatch code (RESUME / RESUME NEXT).
+    pub error_pending: bool,
+    /// QB ERR system variable — holds the QB error code for the last error.
+    /// 53 = "file not found", 24/25 = printer errors, 0 = no error.
+    pub err_code: f64,
+}
+
+// Default output window size — both text and graphics modes scale into this.
+// Text  (640×400) → 960×600 at 1.5× (exact integer: 960/640=1.5, 600/400=1.5)
+// SCREEN 7 (320×200) → 960×600 at 3×  (exact integer: 960/320=3,  600/200=3)
+// Override per-program with REM QBC SCALE n (multiplies 960×600 by n).
+const DEFAULT_WIN_W: usize = 960;
+const DEFAULT_WIN_H: usize = 600;
+
+impl Runtime {
+    /// Create a Runtime with no window — for tests and headless rendering.
+    /// All graphics operations write to the framebuffer normally; `present()`
+    /// and `auto_present()` are no-ops.
+    pub fn headless() -> Self {
+        Self {
+            fg_color:     7,
+            bg_color:     0,
+            cursor_row:   1,
+            cursor_col:   1,
+            cursor_visible: true,
+            screen_mode:  0,
+            width:        640,
+            height:       400,
+            char_w:       8,
+            char_h:       16,
+            fb:           vec![0u8; 640 * 400],
+            palette_rgb:  EGA,
+            window:             None,
+            win_title:          "QBasic".to_string(),
+            last_present:       std::time::Instant::now(),
+            pset_counter:       0,
+            fullspeed:          false,
+            frame_interval_ms:  16,
+            slowmo:             1.0,
+            win_w:              DEFAULT_WIN_W,
+            win_h:              DEFAULT_WIN_H,
+            key_queue:    std::collections::VecDeque::new(),
+            rng:          0,
+            view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
+            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false,
+            gfx_x: 0.0, gfx_y: 0.0,
+            draw_scale: 4.0,
+            draw_color: 7,
+            mml_state: MmlState::default(),
+            had_screen_call: false,
+            files: std::collections::HashMap::new(),
+            vp_top: 1,
+            vp_bot: 0, // 0 = unset (use full height)
+            error_pending: false,
+            err_code: 0.0,
+        }
+    }
+
+    /// Create a Runtime with default window title and size.
+    pub fn new() -> Self {
+        Self::new_configured("QBasic", DEFAULT_WIN_W, DEFAULT_WIN_H)
+    }
+
+    /// Create a Runtime with a custom window title and output dimensions.
+    /// Used by `REM QBC TITLE` and/or `REM QBC SCALE` directives; the emitter
+    /// calls this constructor instead of `new()` when either is present.
+    pub fn new_configured(title: &str, win_w: usize, win_h: usize) -> Self {
+        // Open the window immediately so that even text-only programs display
+        // output in the GUI rather than the terminal.  Window creation is
+        // attempted with .ok() so it fails gracefully in headless environments.
+        let mut window = {
+            let opts = minifb::WindowOptions {
+                scale: minifb::Scale::X1,
+                resize: false,
+                ..minifb::WindowOptions::default()
+            };
+            minifb::Window::new(title, win_w, win_h, opts).ok()
+        };
+        // Disable minifb's built-in frame-rate limiter (default 250 FPS = 4ms).
+        // It sleeps inside *both* update() and update_with_buffer(), which makes
+        // per-pixel INKEY$ polling catastrophic (mandel: ~73k pixels × 4ms ≈ 5
+        // min). set_target_fps(0) = no waiting; we do our own pacing via
+        // frame_interval_ms / auto_present().
+        if let Some(w) = window.as_mut() { w.set_target_fps(0); }
+        Self {
+            fg_color:          7,
+            bg_color:          0,
+            cursor_row:        1,
+            cursor_col:        1,
+            cursor_visible:    true,
+            screen_mode:       0,
+            width:             640,   // pixel width of text-mode fb
+            height:            400,   // pixel height of text-mode fb
+            char_w:            8,
+            char_h:            16,    // 8×16 font → 80×25 text grid
+            fb:                vec![0u8; 640 * 400],
+            palette_rgb:       EGA,
+            window,
+            win_title:         title.to_string(),
+            last_present:      std::time::Instant::now(),
+            pset_counter:      0,
+            fullspeed:         false,
+            frame_interval_ms: 16,
+            slowmo:            1.0,
+            win_w,
+            win_h,
+            key_queue:    std::collections::VecDeque::new(),
+            rng:          0,
+            view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
+            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false,
+            gfx_x: 0.0, gfx_y: 0.0,
+            draw_scale: 4.0,
+            draw_color: 7,
+            mml_state: MmlState::default(),
+            had_screen_call: false,
+            files: std::collections::HashMap::new(),
+            vp_top: 1,
+            vp_bot: 0, // 0 = unset (use full height)
+            error_pending: false,
+            err_code: 0.0,
+        }
+    }
+
+    // ── Screen / color / cursor ───────────────────────────────────────────────
+
+    pub fn screen(&mut self, mode: f64) {
+        self.screen_mode = mode as u8;
+        self.had_screen_call = true;
+        // Pixel framebuffer dimensions per mode.
+        // Mode 0 (text): 80×25 chars × 8×16 px = 640×400 pixels.
+        let (w, h) = match mode as u8 {
+            0  => (640, 400),
+            1  => (320, 200),
+            2  => (640, 200),
+            7  => (320, 200),
+            8  => (640, 200),
+            9  => (640, 350),
+            12 => (640, 480),
+            13 => (320, 200),
+            _  => (640, 400),
+        };
+        self.width  = w;
+        self.height = h;
+        self.fb     = vec![0u8; (w * h) as usize];
+        self.palette_rgb = EGA;
+        self.char_w = 8;
+        self.char_h = match mode as u8 { 0 => 16, 9 => 14, _ => 8 };
+        // Window is now opened eagerly in new_configured(); nothing to do here
+        // except ensure it's alive (creation may have failed on headless systems).
+        self.cursor_row = 1;
+        self.cursor_col = 1;
+        // Reset logical coordinate system and DRAW state
+        self.view_active = false;
+        self.win_active  = false;
+        self.gfx_x = 0.0;
+        self.gfx_y = 0.0;
+        self.draw_scale = 4.0;
+        self.draw_color = self.fg_color;
+    }
+
+    /// CLS [arg] — 0 or no arg = full screen, 1 = text area, 2 = viewport only.
+    pub fn cls(&mut self, arg: u8) {
+        let bg = self.bg_color;
+        let max_rows = (self.height / self.char_h) as u32;
+        let top = if arg == 2 && self.vp_bot > 0 { self.vp_top } else { 1 };
+        let bot = if arg == 2 && self.vp_bot > 0 { self.vp_bot } else { max_rows };
+        if top == 1 && bot == max_rows {
+            // Full clear
+            self.fb.iter_mut().for_each(|p| *p = bg);
+        } else {
+            // Partial clear — only the viewport rows
+            let px_top = ((top - 1) * self.char_h * self.width) as usize;
+            let px_bot = (bot * self.char_h * self.width) as usize;
+            let end = px_bot.min(self.fb.len());
+            if px_top < end {
+                self.fb[px_top..end].iter_mut().for_each(|p| *p = bg);
+            }
+        }
+        // Move cursor to top of the cleared region
+        self.cursor_row = top as usize;
+        self.cursor_col = 1;
+        self.present();
+    }
+
+    /// VIEW PRINT [top TO bot] — set or reset the text scrolling viewport.
+    /// Bare VIEW PRINT (top=None) resets to full screen.
+    pub fn view_print(&mut self, top: Option<f64>, bot: Option<f64>) {
+        match (top, bot) {
+            (Some(t), Some(b)) => {
+                self.vp_top = (t as u32).max(1);
+                self.vp_bot = (b as u32).max(self.vp_top);
+            }
+            _ => {
+                // Reset to full screen
+                self.vp_top = 1;
+                self.vp_bot = 0;
+            }
+        }
+    }
+
+    pub fn color(&mut self, fg: f64, bg: Option<f64>) {
+        if self.screen_mode == 1 {
+            // CGA SCREEN 1: COLOR bg_ega_idx, palette_selector
+            // fg selects the background color (EGA index 0–15).
+            // bg selects CGA palette 0 (green/red/yellow) or 1 (cyan/magenta/white).
+            let bg_ega = (fg as i64).rem_euclid(16) as usize;
+            self.palette_rgb[0] = EGA[bg_ega];
+            self.bg_color = 0;
+            let palette_sel = bg.map(|b| (b as i64).rem_euclid(2)).unwrap_or(1);
+            // CGA palette 1: cyan(3), magenta(5), white(15)
+            // CGA palette 0: green(2), red(4), yellow(14)
+            let (c1, c2, c3): (usize, usize, usize) = if palette_sel == 1 {
+                (3, 5, 15)
+            } else {
+                (2, 4, 14)
+            };
+            self.palette_rgb[1] = EGA[c1];
+            self.palette_rgb[2] = EGA[c2];
+            self.palette_rgb[3] = EGA[c3];
+            self.fg_color = 3; // default fg = brightest CGA color
+        } else {
+            self.fg_color = (fg as i64).rem_euclid(16) as u8;
+            if let Some(b) = bg {
+                self.bg_color = (b as i64).rem_euclid(16) as u8;
+            }
+        }
+    }
+
+    /// PALETTE attr, color64 — remap a palette attribute index to an EGA 64-color value.
+    /// EGA 64-color encoding: bits [5:4:3] = RGB high, bits [2:1:0] = RGB low (bright).
+    /// Formula: R = 170*((v>>2)&1) + 85*((v>>5)&1), same pattern for G (bits 1,4) and B (bits 0,3).
+    pub fn palette(&mut self, attr: f64, color64: f64) {
+        let idx = (attr as i64).rem_euclid(16) as usize;
+        let v = color64 as u64;
+        let r = (170 * ((v >> 2) & 1) + 85 * ((v >> 5) & 1)) as u8;
+        let g = (170 * ((v >> 1) & 1) + 85 * ((v >> 4) & 1)) as u8;
+        let b = (170 * ((v >> 0) & 1) + 85 * ((v >> 3) & 1)) as u8;
+        self.palette_rgb[idx] = (r, g, b);
+    }
+
+    /// LOCATE [row][,[col][,[cursor]]] — move the text cursor and/or set its
+    /// visibility. Any argument may be omitted (`None`); omitted row/col leave
+    /// the cursor where it is (QB semantics) rather than moving it to (0,0).
+    /// The `cursor` arg (0 = hide, non-zero = show) is recorded but has no
+    /// visual effect — the windowed runtime draws no blinking cursor.
+    pub fn locate(&mut self, row: Option<f64>, col: Option<f64>, cursor: Option<f64>) {
+        if let Some(r) = row { self.cursor_row = r as usize; }
+        if let Some(c) = col { self.cursor_col = c as usize; }
+        if let Some(v) = cursor { self.cursor_visible = v != 0.0; }
+        // Cursor position tracked internally; draw_char_fb() renders at this position.
+    }
+
+    /// Whether the text cursor is currently set visible (LOCATE's 3rd arg).
+    pub fn cursor_visible(&self) -> bool { self.cursor_visible }
+
+    // ── Print ─────────────────────────────────────────────────────────────────
+
+    pub fn print(&mut self, args: &[String]) {
+        for s in args { self.print_gfx(s, false); }
+    }
+
+    pub fn println(&mut self, args: &[String]) {
+        for s in args { self.print_gfx(s, false); }
+        self.print_gfx("", true);
+    }
+
+    /// Render a literal string to the framebuffer — used by emitted INPUT prompts.
+    pub fn print_str(&mut self, s: &str) {
+        self.print_gfx(s, false);
+    }
+
+    /// Advance to the next 14-column print zone (QB PRINT comma separator).
+    /// Emits spaces to reach the next zone boundary; updates cursor_col.
+    pub fn print_zone(&mut self) {
+        const ZONE: usize = 14;
+        let next_zone = ((self.cursor_col.saturating_sub(1)) / ZONE + 1) * ZONE + 1;
+        if next_zone > self.cursor_col {
+            let spaces = " ".repeat(next_zone - self.cursor_col);
+            self.print_gfx(&spaces, false);
+        }
+    }
+
+    pub fn tab(&self, col: f64) -> String {
+        let target = col as usize;
+        if target > self.cursor_col {
+            " ".repeat(target - self.cursor_col)
+        } else {
+            String::new()
+        }
+    }
+
+    // ── Graphics-mode text rendering ──────────────────────────────────────────
+
+    /// Render a single character glyph at (cursor_col, cursor_row) in the framebuffer.
+    /// The glyph bitmap is 8×8; in modes with char_h > 8 (e.g. mode 9 = 14px) the
+    /// remaining rows below the glyph are filled with the background color so the full
+    /// character cell is cleared on each write.
+    fn draw_char_fb(&mut self, ch: char) {
+        let idx = (ch as usize) & 0x7F;
+        let glyph = FONT_8X8[idx];
+        let px = ((self.cursor_col as u32).saturating_sub(1)) * self.char_w;
+        let py = ((self.cursor_row as u32).saturating_sub(1)) * self.char_h;
+        let fg = self.fg_color;
+        let bg = self.bg_color;
+        // Draw 8-row bitmap glyph
+        for row in 0..8u32 {
+            let bits = glyph[row as usize];
+            for col in 0..self.char_w {
+                let set = col < 8 && (bits >> (7 - col)) & 1 == 1;
+                let x = px + col;
+                let y = py + row;
+                if x < self.width && y < self.height {
+                    self.fb[(y * self.width + x) as usize] = if set { fg } else { bg };
+                }
+            }
+        }
+        // Fill descender rows (rows 8..char_h-1) with background
+        for row in 8..self.char_h {
+            for col in 0..self.char_w {
+                let x = px + col;
+                let y = py + row;
+                if x < self.width && y < self.height {
+                    self.fb[(y * self.width + x) as usize] = bg;
+                }
+            }
+        }
+    }
+
+    /// Advance the text cursor by one column; wrap + scroll as needed.
+    fn cursor_advance(&mut self) {
+        self.cursor_col += 1;
+        let max_col = (self.width / self.char_w) as usize;
+        if self.cursor_col > max_col {
+            self.cursor_col = 1;
+            self.cursor_row += 1;
+            self.scroll_if_needed();
+        }
+    }
+
+    /// Scroll the framebuffer up by one character row if the cursor is past the bottom.
+    fn scroll_if_needed(&mut self) {
+        let max_rows = (self.height / self.char_h) as u32;
+        // Determine the effective scroll region
+        let bot = if self.vp_bot > 0 && self.vp_bot <= max_rows {
+            self.vp_bot
+        } else {
+            max_rows
+        };
+        let top = if self.vp_top >= 1 { self.vp_top } else { 1 };
+
+        if self.cursor_row > bot as usize {
+            let w = self.width as usize;
+            let ch = self.char_h as usize;
+            let top_px  = ((top  - 1) as usize) * ch * w;
+            let bot_px  = (bot         as usize) * ch * w;
+            let row_px  = ch * w;
+            // Scroll the viewport region up by one row
+            if bot_px > top_px + row_px && bot_px <= self.fb.len() {
+                self.fb.copy_within(top_px + row_px..bot_px, top_px);
+            }
+            // Clear the last row of the viewport
+            let clear_start = (bot_px - row_px).min(self.fb.len());
+            let clear_end   = bot_px.min(self.fb.len());
+            let bg = self.bg_color;
+            self.fb[clear_start..clear_end].iter_mut().for_each(|p| *p = bg);
+            self.cursor_row = bot as usize;
+        }
+    }
+
+    /// Render a string to the framebuffer at the current text cursor.
+    /// If `newline` is true, advances to the next row after rendering.
+    /// Calls `present()` at the end so text appears immediately.
+    fn print_gfx(&mut self, s: &str, newline: bool) {
+        // When no explicit SCREEN call has been made the program is in text
+        // mode and the integration-test runner captures stdout — echo there so
+        // tests keep working.  With a SCREEN call the program is a real
+        // graphics program; window-only output is correct and desirable.
+        // If the window failed to open (headless environment) always fall back
+        // to stdout so tests running in CI still capture output.
+        let use_stdout = !self.had_screen_call || self.window.is_none();
+        if use_stdout {
+            if newline {
+                println!("{s}");
+            } else {
+                print!("{s}");
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+            }
+            // If the window IS open, also render there (text-only programs see
+            // output in both the terminal and the GUI window).
+            // Do NOT update cursor_col here — the window branch below is
+            // authoritative for cursor tracking so that the draw position is
+            // correct. Without this guard the column would advance twice
+            // (once here, once in the window loop), shifting every subsequent
+            // character one string-width to the right.
+            if self.window.is_none() {
+                // Headless: track cursor column for TAB() calculations.
+                for ch in s.chars() {
+                    match ch {
+                        '\n' | '\r' => { self.cursor_col = 1; }
+                        _ => { self.cursor_col += 1; }
+                    }
+                }
+                if newline { self.cursor_col = 1; }
+                return;
+            }
+            // Window is open — fall through to the framebuffer render which
+            // will draw the text and advance cursor_col correctly.
+        }
+        for ch in s.chars() {
+            match ch {
+                '\r' => { self.cursor_col = 1; }
+                '\n' => { self.cursor_col = 1; self.cursor_row += 1; }
+                _ => {
+                    self.draw_char_fb(ch);
+                    self.cursor_advance();
+                }
+            }
+        }
+        if newline {
+            self.cursor_col = 1;
+            self.cursor_row += 1;
+            self.scroll_if_needed();
+        }
+        self.present();
+    }
+
+    // ── Input ─────────────────────────────────────────────────────────────────
+
+    /// Blocking line input with echo to the framebuffer window.
+    pub fn input_line(&mut self) -> String {
+        let mut buf        = String::new();
+        let mut blink      = true;
+        let mut last_blink = std::time::Instant::now();
+
+        loop {
+            // ── Blink cursor ──────────────────────────────────────────────────
+            if last_blink.elapsed() >= std::time::Duration::from_millis(500) {
+                blink = !blink;
+                last_blink = std::time::Instant::now();
+                let (sr, sc, sf) = (self.cursor_row, self.cursor_col, self.fg_color);
+                self.fg_color = if blink { sf } else { self.bg_color };
+                self.draw_char_fb('\u{7F}'); // IBM font: DEL = solid block
+                self.cursor_row = sr;
+                self.cursor_col = sc;
+                self.fg_color   = sf;
+            }
+
+            // ── Pump OS events (MUST happen every frame for keys to register) ─
+            self.present();
+
+            // ── Read keys ─────────────────────────────────────────────────────
+            let keys: Vec<Key> = match self.window.as_mut() {
+                Some(w) => { if !w.is_open() { std::process::exit(0); } w.get_keys_pressed(KeyRepeat::Yes) }
+                None    => vec![],
+            };
+            let shift = self.window.as_ref()
+                .map(|w| w.is_key_down(Key::LeftShift) || w.is_key_down(Key::RightShift))
+                .unwrap_or(false);
+
+            for key in keys {
+                match key {
+                    Key::Enter => {
+                        // Erase cursor, newline, done
+                        let sf = self.fg_color;
+                        self.fg_color = self.bg_color;
+                        self.draw_char_fb(' ');
+                        self.fg_color = sf;
+                        self.print_gfx("", true);
+                        return buf;
+                    }
+                    Key::Backspace => {
+                        if !buf.is_empty() {
+                            buf.pop();
+                            if self.cursor_col > 1 { self.cursor_col -= 1; }
+                            let sf = self.fg_color;
+                            self.fg_color = self.bg_color;
+                            self.draw_char_fb(' ');
+                            self.fg_color = sf;
+                        }
+                    }
+                    Key::Escape => {}
+                    k => {
+                        if let Some(ch) = window_key_to_char(k, shift) {
+                            buf.push(ch);
+                            self.draw_char_fb(ch);
+                            self.cursor_advance();
+                        }
+                    }
+                }
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(16));
+        }
+    }
+
+    // ── File I/O ─────────────────────────────────────────────────────────────
+
+    /// OPEN path FOR INPUT|OUTPUT|APPEND AS #n
+    pub fn open_seq(&mut self, path: &str, mode: &str, file_num: u8) {
+        let result = match mode {
+            "input" => std::fs::File::open(path).ok().map(|f| QbFile::Sequential {
+                reader: Some(std::io::BufReader::new(f)),
+                writer: None,
+            }),
+            "output" => std::fs::File::create(path).ok().map(|f| QbFile::Sequential {
+                reader: None,
+                writer: Some(std::io::BufWriter::new(f)),
+            }),
+            "append" => std::fs::OpenOptions::new().append(true).create(true).open(path)
+                .ok().map(|f| QbFile::Sequential {
+                    reader: None,
+                    writer: Some(std::io::BufWriter::new(f)),
+                }),
+            _ => None,
+        };
+        if let Some(fh) = result {
+            self.files.insert(file_num, fh);
+        } else {
+            // File open failed — QB error 53 = "file not found"
+            self.err_code = 53.0;
+            self.error_pending = true;
+        }
+    }
+
+    /// OPEN path FOR RANDOM AS #n LEN = rec_len
+    pub fn open_random(&mut self, path: &str, file_num: u8, record_len: usize) {
+        if let Ok(file) = std::fs::OpenOptions::new()
+            .read(true).write(true).create(true).open(path)
+        {
+            self.files.insert(file_num, QbFile::Random {
+                file, record_len, cur_record: 0,
+            });
+        } else {
+            self.err_code = 53.0;
+            self.error_pending = true;
+        }
+    }
+
+    /// CLOSE #n
+    pub fn close_file(&mut self, file_num: u8) {
+        self.files.remove(&file_num);
+    }
+
+    /// CLOSE (all)
+    pub fn close_all(&mut self) {
+        self.files.clear();
+    }
+
+    /// For FIELD statement: just records how many bytes this file's records are.
+    /// The actual field layout is handled in emitted code.
+    pub fn set_field(&mut self, _file_num: u8, _total_len: usize) {}
+
+    /// GET #n, recnum — reads a fixed-length record (0-based index) into a Vec<u8>.
+    /// Returns a vec of `record_len` bytes (space-padded if short/missing).
+    pub fn read_record(&mut self, file_num: u8, rec_idx: Option<i64>) -> Vec<u8> {
+        if let Some(QbFile::Random { file, record_len, cur_record }) =
+            self.files.get_mut(&file_num)
+        {
+            let idx = match rec_idx {
+                Some(n) => { *cur_record = n; n }
+                None    => { let n = *cur_record; *cur_record += 1; n }
+            };
+            let offset = (idx as u64) * (*record_len as u64);
+            let rlen = *record_len;
+            let _ = file.seek(SeekFrom::Start(offset));
+            let mut buf = vec![b' '; rlen];
+            let _ = std::io::Read::read(file, &mut buf);
+            buf
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// PUT #n, recnum — writes a fixed-length record at the given 0-based index.
+    pub fn write_record(&mut self, file_num: u8, rec_idx: Option<i64>, data: &[u8]) {
+        if let Some(QbFile::Random { file, record_len, cur_record }) =
+            self.files.get_mut(&file_num)
+        {
+            let idx = match rec_idx {
+                Some(n) => { *cur_record = n; n }
+                None    => { let n = *cur_record; *cur_record += 1; n }
+            };
+            let offset = (idx as u64) * (*record_len as u64);
+            let rlen = *record_len;
+            let _ = file.seek(SeekFrom::Start(offset));
+            // Pad or truncate data to exactly record_len bytes
+            let mut buf = vec![b' '; rlen];
+            let copy_len = data.len().min(rlen);
+            buf[..copy_len].copy_from_slice(&data[..copy_len]);
+            let _ = file.write_all(&buf);
+            let _ = file.flush();
+        }
+    }
+
+    /// INPUT #n — read one line from a sequential file (strips trailing \n/\r).
+    pub fn read_file_line(&mut self, file_num: u8) -> String {
+        if let Some(QbFile::Sequential { reader: Some(r), .. }) =
+            self.files.get_mut(&file_num)
+        {
+            let mut line = String::new();
+            let _ = r.read_line(&mut line);
+            line.trim_end_matches(['\n', '\r']).to_string()
+        } else {
+            String::new()
+        }
+    }
+
+    /// PRINT #n / WRITE #n — write a string to a sequential file.
+    pub fn write_file(&mut self, file_num: u8, s: &str) {
+        if let Some(QbFile::Sequential { writer: Some(w), .. }) =
+            self.files.get_mut(&file_num)
+        {
+            let _ = w.write_all(s.as_bytes());
+        }
+    }
+
+    /// EOF(n) — true if at end of sequential file or file not open.
+    pub fn eof_check(&self, file_num: u8) -> bool {
+        // For sequential files we check if the reader is exhausted.
+        // BufReader has no reliable is_eof; use fill_buf to check.
+        true // conservative: most programs only check EOF in loops; let read return "" to signal it
+    }
+
+    // ── DATA / READ ───────────────────────────────────────────────────────────
+
+    pub fn read_data(&self) -> String { String::new() }
+
+    // ── RNG ───────────────────────────────────────────────────────────────────
+
+    pub fn randomize(&mut self, seed: f64) {
+        self.rng = seed.abs() as u32;
+    }
+
+    pub fn rnd(&mut self) -> f64 {
+        self.rng = self.rng.wrapping_mul(214013).wrapping_add(2531011);
+        ((self.rng >> 16) & 0x7FFF) as f64 / 32768.0
+    }
+
+    // ── Graphics ──────────────────────────────────────────────────────────────
+
+    /// Called from pset() to automatically present at ~60fps during any
+    /// animation loop that writes pixels, with no explicit present() needed
+    /// Set fullspeed mode — skip the auto_present() frame throttle entirely.
+    /// Activated by `REM QBC FULLSPEED` in the source file.
+    pub fn set_fullspeed(&mut self, v: bool) { self.fullspeed = v; }
+
+    /// Set target frame rate for auto_present() throttle (default 60 fps).
+    /// Activated by `REM QBC FPS n` in the source file.
+    pub fn set_fps(&mut self, fps: f64) {
+        self.frame_interval_ms = (1000.0 / fps.max(1.0)) as u64;
+    }
+
+    /// Set SLEEP duration multiplier (default 1.0 = normal speed).
+    /// Activated by `REM QBC SLOWMO n` in the source file.
+    pub fn set_slowmo(&mut self, factor: f64) {
+        self.slowmo = factor.max(0.0);
+    }
+
+    /// in the emitted code.
+    #[inline]
+    fn auto_present(&mut self) {
+        if self.fullspeed { return; }
+        self.pset_counter = self.pset_counter.wrapping_add(1);
+        if self.pset_counter & 0xFF == 0 { // check every 256 psets
+            let now = std::time::Instant::now();
+            if now.duration_since(self.last_present) >= std::time::Duration::from_millis(self.frame_interval_ms) {
+                self.present();
+                self.last_present = now;
+            }
+        }
+    }
+
+    /// Process OS window events without blitting — keeps the window alive
+    /// during long computations (flood fill, circle drawing, etc.).
+    fn tick(&mut self) {
+        if let Some(win) = self.window.as_mut() {
+            win.update();
+            if !win.is_open() {
+                self.window = None;
+                std::process::exit(0);
+            }
+        }
+    }
+
+    /// Pump OS window events and harvest keypresses into `key_queue` WITHOUT
+    /// rebuilding or blitting the framebuffer. Cheap enough to call on every
+    /// `INKEY$` poll: minifb's rate limiter is disabled at window creation, so
+    /// `update()` does not sleep, and we skip the 2.3 MB alloc + full-frame
+    /// rebuild that `present()` does. Used by `inkey()` between throttled blits.
+    fn pump_events(&mut self) {
+        let new_keys: Vec<Key> = {
+            let win = match self.window.as_mut() { Some(w) => w, None => return };
+            win.update();
+            if !win.is_open() { std::process::exit(0); }
+            win.get_keys_pressed(KeyRepeat::No)
+        };
+        for key in new_keys {
+            let s = minifb_key_to_qb(key);
+            if !s.is_empty() { self.key_queue.push_back(s); }
+        }
+    }
+
+    /// Flush the palette-indexed framebuffer to the minifb window.
+    /// Software nearest-neighbor scales the fb (any size) into the fixed 960×600 window.
+    pub fn present(&mut self) {
+        if self.window.is_none() { return; }
+        let fw = self.width  as usize;
+        let fh = self.height as usize;
+        let palette = self.palette_rgb;
+        let win_w = self.win_w;
+        let win_h = self.win_h;
+        let mut out = vec![0u32; win_w * win_h];
+        for oy in 0..win_h {
+            let fy = (oy * fh) / win_h;
+            let row_base = fy * fw;
+            let out_base = oy * win_w;
+            for ox in 0..win_w {
+                let fx = (ox * fw) / win_w;
+                let (r, g, b) = palette[self.fb[row_base + fx] as usize];
+                out[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
+            }
+        }
+        // Borrow window in a nested block so it's released before we touch key_queue.
+        // get_keys_pressed returns owned Vec<Key> so new_keys doesn't borrow the window.
+        let new_keys: Vec<Key> = {
+            let win = self.window.as_mut().unwrap();
+            let _ = win.update_with_buffer(&out, win_w, win_h);
+            if !win.is_open() { std::process::exit(0); }
+            win.get_keys_pressed(KeyRepeat::No)
+        }; // window borrow released here
+        // Harvest into key_queue so keys are never lost to intervening present() calls.
+        for key in new_keys {
+            let s = minifb_key_to_qb(key);
+            if !s.is_empty() {
+                self.key_queue.push_back(s);
+            }
+        }
+    }
+
+    /// PUT (x, y), array, PSET|XOR — blit a sprite from a QB EGA planar array.
+    /// xor_mode=false → PSET (overwrite all pixels), xor_mode=true → XOR existing pixels.
+    pub fn put_sprite(&mut self, data: &[f64], gx: f64, gy: f64, xor_mode: bool) {
+        if self.screen_mode == 0 || data.is_empty() { return; }
+        let header = data[0] as i64 as u32;
+        let width  = ((header & 0xFFFF) + 1) as i32;
+        let height = (((header >> 16) & 0xFFFF) + 1) as i32;
+        let bytes_per_plane = ((width as usize) + 7) / 8;
+        // Bytes per row = 4 planes × bytes_per_plane, packed into Longs (4 bytes each)
+        // longs_per_row = ceil(4 * bytes_per_plane / 4) = bytes_per_plane
+        let longs_per_row = bytes_per_plane;
+        let gx = gx as i32;
+        let gy = gy as i32;
+        for row in 0..height {
+            let sy = gy + row;
+            if sy < 0 || sy as u32 >= self.height { continue; }
+            let long_start = 1 + row as usize * longs_per_row;
+            if long_start + longs_per_row > data.len() { break; }
+            // Unpack longs into bytes: byte layout is [p0b0..p0bN, p1b0..p1bN, p2b0..p2bN, p3b0..p3bN]
+            let mut row_bytes = vec![0u8; longs_per_row * 4];
+            for i in 0..longs_per_row {
+                let v = data[long_start + i] as i64 as u32;
+                row_bytes[i * 4 + 0] = (v & 0xFF) as u8;
+                row_bytes[i * 4 + 1] = ((v >> 8) & 0xFF) as u8;
+                row_bytes[i * 4 + 2] = ((v >> 16) & 0xFF) as u8;
+                row_bytes[i * 4 + 3] = ((v >> 24) & 0xFF) as u8;
+            }
+            for col in 0..width {
+                let sx = gx + col;
+                if sx < 0 || sx as u32 >= self.width { continue; }
+                let byte_idx = col as usize / 8;
+                let bit_pos  = 7 - (col as usize % 8);
+                let p0 = (row_bytes[byte_idx] >> bit_pos) & 1;
+                let p1 = (row_bytes[bytes_per_plane     + byte_idx] >> bit_pos) & 1;
+                let p2 = (row_bytes[bytes_per_plane * 2 + byte_idx] >> bit_pos) & 1;
+                let p3 = (row_bytes[bytes_per_plane * 3 + byte_idx] >> bit_pos) & 1;
+                let color = p0 | (p1 << 1) | (p2 << 2) | (p3 << 3);
+                let fb_idx = (sy as u32 * self.width + sx as u32) as usize;
+                if xor_mode {
+                    self.fb[fb_idx] ^= color;
+                } else {
+                    self.fb[fb_idx] = color;
+                }
+            }
+        }
+        // PUT is a sprite-level operation (typically 1–2 per animation frame),
+        // not a pixel-level one — always blit immediately so sprite animation
+        // (banana flight, gorilla arm raise) is visible.
+        self.present();
+    }
+
+    /// GET (x1,y1)-(x2,y2), array — capture a screen region into a QB EGA planar array.
+    pub fn get_sprite(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+        if self.screen_mode == 0 { return; }
+        let x1 = x1 as i32;
+        let y1 = y1 as i32;
+        let x2 = x2 as i32;
+        let y2 = y2 as i32;
+        let width  = ((x2 - x1 + 1).max(1)) as usize;
+        let height = ((y2 - y1 + 1).max(1)) as usize;
+        let bytes_per_plane = (width + 7) / 8;
+        let longs_per_row   = bytes_per_plane;
+        let total_longs     = 1 + height * longs_per_row;
+        data.resize(total_longs, 0.0);
+        let header = ((width as u32 - 1) | ((height as u32 - 1) << 16)) as i32;
+        data[0] = header as f64;
+        for row in 0..height {
+            let sy = y1 + row as i32;
+            let mut row_bytes = vec![0u8; longs_per_row * 4];
+            for col in 0..width {
+                let sx = x1 + col as i32;
+                if sx < 0 || sy < 0 || sx as u32 >= self.width || sy as u32 >= self.height { continue; }
+                let color = self.fb[(sy as u32 * self.width + sx as u32) as usize];
+                let byte_idx = col / 8;
+                let bit_pos  = 7 - (col % 8);
+                for p in 0..4u8 {
+                    if (color >> p) & 1 != 0 {
+                        row_bytes[(p as usize) * bytes_per_plane + byte_idx] |= 1 << bit_pos;
+                    }
+                }
+            }
+            let long_start = 1 + row * longs_per_row;
+            for i in 0..longs_per_row {
+                let v = (row_bytes[i * 4]     as u32)        |
+                        ((row_bytes[i * 4 + 1] as u32) << 8) |
+                        ((row_bytes[i * 4 + 2] as u32) << 16)|
+                        ((row_bytes[i * 4 + 3] as u32) << 24);
+                data[long_start + i] = (v as i32) as f64;
+            }
+        }
+    }
+
+    // ── Coordinate-system helpers ─────────────────────────────────────────────
+
+    /// Map logical (or VIEW-relative) coords to framebuffer pixel coords.
+    /// Called by pset/line when VIEW or WINDOW is active.
+    ///
+    /// The result is **rounded to the nearest pixel**. Every caller converts the
+    /// returned coords to `i32`, and a bare `as i32` truncates toward zero — but
+    /// the PMAP/WINDOW round-trip produces values like `5.99999999` that must map
+    /// to pixel 6, not 5. Truncating there drops whole scanlines, which shows up
+    /// as horizontal black gaps in line-per-scanline renderers such as mandel.bas
+    /// (and is wrong in general: QB maps fractional coords to the nearest pixel).
+    fn logical_to_fb(&self, lx: f64, ly: f64) -> (f64, f64) {
+        let (px, py) = if self.win_active {
+            // WINDOW defines a logical rect mapped onto the VIEW rect
+            let px = self.view_x1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1)
+                                  * (self.view_x2 - self.view_x1);
+            let py = self.view_y1 + (ly - self.win_y1) / (self.win_y2 - self.win_y1)
+                                  * (self.view_y2 - self.view_y1);
+            (px, py)
+        } else if self.view_active {
+            // No WINDOW: coords are VIEW-relative; offset by view origin
+            (lx + self.view_x1, ly + self.view_y1)
+        } else {
+            (lx, ly)
+        };
+        (px.round(), py.round())
+    }
+
+    /// Write directly to the framebuffer pixel (no coordinate transform, no cursor update).
+    fn pset_raw(&mut self, fx: i32, fy: i32, color: f64) {
+        if fx >= 0 && fy >= 0 && (fx as u32) < self.width && (fy as u32) < self.height {
+            self.fb[(fy as u32 * self.width + fx as u32) as usize] =
+                (color as i32).rem_euclid(16) as u8;
+        }
+    }
+
+    pub fn pset(&mut self, x: f64, y: f64, color: f64) {
+        self.gfx_x = x;
+        self.gfx_y = y;
+        let (fx, fy) = self.logical_to_fb(x, y);
+        self.pset_raw(fx as i32, fy as i32, color);
+        self.auto_present();
+    }
+
+    pub fn point(&self, x: f64, y: f64) -> f64 {
+        let (fx, fy) = self.logical_to_fb(x, y);
+        let (xi, yi) = (fx as i32, fy as i32);
+        if xi >= 0 && yi >= 0 && (xi as u32) < self.width && (yi as u32) < self.height {
+            self.fb[(yi as u32 * self.width + xi as u32) as usize] as f64
+        } else {
+            -1.0
+        }
+    }
+
+    pub fn line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: f64) {
+        self.gfx_x = x2;
+        self.gfx_y = y2;
+        let (fx1, fy1) = self.logical_to_fb(x1, y1);
+        let (fx2, fy2) = self.logical_to_fb(x2, y2);
+        bresenham(fx1 as i32, fy1 as i32, fx2 as i32, fy2 as i32, |x, y| {
+            self.pset_raw(x, y, color);
+        });
+        self.auto_present();
+    }
+
+    /// Relative LINE — draw from current graphics cursor to (x2,y2).
+    pub fn line_to(&mut self, x2: f64, y2: f64, color: f64) {
+        let (x1, y1) = (self.gfx_x, self.gfx_y);
+        self.line(x1, y1, x2, y2, color);
+    }
+
+    pub fn line_box(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: f64) {
+        self.line(x1, y1, x2, y1, color);
+        self.line(x2, y1, x2, y2, color);
+        self.line(x2, y2, x1, y2, color);
+        self.line(x1, y2, x1, y1, color);
+    }
+
+    pub fn line_box_to(&mut self, x2: f64, y2: f64, color: f64) {
+        let (x1, y1) = (self.gfx_x, self.gfx_y);
+        self.line_box(x1, y1, x2, y2, color);
+    }
+
+    pub fn line_box_fill(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, color: f64) {
+        let (fl1, ft1) = self.logical_to_fb(x1, y1);
+        let (fl2, ft2) = self.logical_to_fb(x2, y2);
+        let (lx, rx) = ((fl1.min(fl2)) as i32, (fl1.max(fl2)) as i32);
+        let (ty, by) = ((ft1.min(ft2)) as i32, (ft1.max(ft2)) as i32);
+        for y in ty..=by {
+            for x in lx..=rx {
+                self.pset_raw(x, y, color);
+            }
+        }
+        self.auto_present();
+    }
+
+    pub fn line_box_fill_to(&mut self, x2: f64, y2: f64, color: f64) {
+        let (x1, y1) = (self.gfx_x, self.gfx_y);
+        self.line_box_fill(x1, y1, x2, y2, color);
+    }
+
+    // ── VIEW / WINDOW / PMAP ─────────────────────────────────────────────────
+
+    /// VIEW (x1,y1)-(x2,y2) [,fill [,border]] — define graphics viewport.
+    /// fill/border negative means "not specified".
+    pub fn set_view(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, fill: f64, border: f64) {
+        self.view_x1 = x1; self.view_y1 = y1;
+        self.view_x2 = x2; self.view_y2 = y2;
+        self.view_active = true;
+        if fill >= 0.0 {
+            // Fill the viewport rectangle
+            let (lx, rx) = (x1 as i32, x2 as i32);
+            let (ty, by) = (y1 as i32, y2 as i32);
+            for py in ty..=by { for px in lx..=rx { self.pset_raw(px, py, fill); } }
+        }
+        if border >= 0.0 {
+            // Draw viewport border (in fb coords, no logical transform)
+            let c = border;
+            for px in x1 as i32..=x2 as i32 {
+                self.pset_raw(px, y1 as i32, c);
+                self.pset_raw(px, y2 as i32, c);
+            }
+            for py in y1 as i32..=y2 as i32 {
+                self.pset_raw(x1 as i32, py, c);
+                self.pset_raw(x2 as i32, py, c);
+            }
+        }
+    }
+
+    /// WINDOW (x1,y1)-(x2,y2) — define logical coordinate window mapped to viewport.
+    pub fn set_window(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+        self.win_x1 = x1; self.win_y1 = y1;
+        self.win_x2 = x2; self.win_y2 = y2;
+        self.win_active = true;
+    }
+
+    /// PMAP — map between physical viewport coords and logical window coords.
+    /// mode 0: logical X  → viewport physical X
+    /// mode 1: logical Y  → viewport physical Y
+    /// mode 2: viewport X → logical X  (VIEW-relative physical)
+    /// mode 3: viewport Y → logical Y  (VIEW-relative physical)
+    pub fn pmap(&self, coord: f64, mode: f64) -> f64 {
+        let (vx1, vy1, vx2, vy2) = (self.view_x1, self.view_y1, self.view_x2, self.view_y2);
+        let (wx1, wy1, wx2, wy2) = (self.win_x1,  self.win_y1,  self.win_x2,  self.win_y2);
+        if (vx2 - vx1).abs() < 1e-10 || (vy2 - vy1).abs() < 1e-10 { return coord; }
+        if (wx2 - wx1).abs() < 1e-10 || (wy2 - wy1).abs() < 1e-10 { return coord; }
+        match mode as i32 {
+            // modes 0/1: logical → absolute screen coord
+            0 => vx1 + (coord - wx1) / (wx2 - wx1) * (vx2 - vx1),
+            1 => vy1 + (coord - wy1) / (wy2 - wy1) * (vy2 - vy1),
+            // modes 2/3: viewport-relative coord (0 = viewport top/left) → logical
+            2 => wx1 + coord / (vx2 - vx1) * (wx2 - wx1),
+            3 => wy1 + coord / (vy2 - vy1) * (wy2 - wy1),
+            _ => coord,
+        }
+    }
+
+    /// PALETTE USING arr(start) — remap all palette entries from a slice of indices.
+    pub fn palette_using(&mut self, arr: &[f64]) {
+        for (i, &v) in arr.iter().enumerate().take(16) {
+            self.palette_rgb[i] = EGA[(v as i32).rem_euclid(16) as usize];
+        }
+    }
+
+    pub fn circle(&mut self, cx: f64, cy: f64, r: f64, color: f64) {
+        let aspect = if self.screen_mode == 7 || self.screen_mode == 1 { 0.8333 } else { 1.0 };
+        let (fcx, fcy) = self.logical_to_fb(cx, cy);
+        let rx = r as i32;
+        let ry = (r * aspect) as i32;
+        if rx <= 0 { return; }
+        midpoint_ellipse(fcx as i32, fcy as i32, rx, ry.max(1), |x, y| {
+            self.pset_raw(x, y, color);
+        });
+        self.auto_present();
+    }
+
+    pub fn paint(&mut self, x: f64, y: f64, fill: f64, border: f64) {
+        // Negative fill/border = "use current draw color" (omitted in QB source)
+        let fill_idx   = if fill   < 0.0 { self.draw_color }
+                         else { (fill   as i32).rem_euclid(16) as u8 };
+        let border_idx = if border < 0.0 { fill_idx }
+                         else { (border as i32).rem_euclid(16) as u8 };
+        let (fx, fy) = self.logical_to_fb(x, y);
+        flood_fill(self, fx as i32, fy as i32, fill_idx, border_idx);
+    }
+
+    /// Non-blocking key poll — flushes fb (which harvests keys into key_queue), then pops one.
+    /// Returns "" if no key is ready.
+    pub fn inkey(&mut self) -> String {
+        // Poll keys cheaply on every call, but blit the framebuffer at most once
+        // per frame interval. A tight per-pixel INKEY$ loop (e.g. mandel's
+        // `IF INKEY$ <> "" THEN END`, ~73k calls) would otherwise rebuild the
+        // 960×600 frame every call; throttling keeps progressive rendering
+        // visible (~60fps) while the rest are cheap event polls. Both branches
+        // harvest keypresses into key_queue, so no key is lost.
+        let now = std::time::Instant::now();
+        if now.duration_since(self.last_present)
+              >= std::time::Duration::from_millis(self.frame_interval_ms) {
+            self.present();
+            self.last_present = now;
+        } else {
+            self.pump_events();
+        }
+        self.key_queue.pop_front().unwrap_or_default()
+    }
+
+    pub fn spc(&self, n: f64) -> String { qb_space(n) }
+
+    /// INPUT$(n) — read exactly n characters from the keyboard (blocking).
+    /// In text mode uses crossterm; in graphics mode polls the key queue.
+    pub fn input_str(&mut self, n: f64) -> String {
+        let count = (n as usize).max(1);
+        let mut result = String::new();
+        while result.len() < count {
+            // Block until we get a character
+            let ch = loop {
+                let k = self.inkey();
+                if !k.is_empty() { break k; }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            result.push_str(&ch);
+        }
+        result
+    }
+
+    // ── Sound — stubs (M4 will wire to rodio) ────────────────────────────────
+
+    /// PLAY "MML string" — QB Music Macro Language.
+    /// MML state (octave, tempo, length) persists across calls.
+    /// MB prefix plays in background; MF (default) blocks until done.
+    pub fn play(&mut self, mml: &str) {
+        let events = sound::parse_mml(mml, &mut self.mml_state);
+        if self.mml_state.background {
+            sound::play_events_background(events);
+        } else {
+            sound::play_events_blocking(&events);
+        }
+    }
+
+    /// BEEP — short 800 Hz tone (~220 ms).
+    pub fn beep(&mut self) {
+        sound::play_beep();
+    }
+
+    /// SOUND freq, duration — freq in Hz, duration in PC timer ticks (18.2/sec).
+    pub fn sound(&mut self, freq: f64, dur: f64) {
+        sound::play_sound(freq, dur);
+    }
+    /// DRAW "turtle-graphics-string" — stub until full implementation
+    /// DRAW statement — turtle-graphics mini-language interpreter.
+    /// Supports: U D L R E F G H (directional), M x,y (move/draw),
+    ///           B (blind/no-draw prefix), N (no-advance prefix),
+    ///           C n (color), S n (scale).
+    pub fn draw(&mut self, cmd: &str) {
+        let chars: Vec<char> = cmd.chars().collect();
+        let len = chars.len();
+        let mut i = 0;
+
+        // Parse an integer that may start with optional '+' or '-'.
+        // Returns (value, bool_had_sign, new_i).
+        fn parse_int_sign(chars: &[char], mut i: usize) -> (i32, bool, usize) {
+            let neg = i < chars.len() && chars[i] == '-';
+            let had_sign = neg || (i < chars.len() && chars[i] == '+');
+            if had_sign { i += 1; }
+            let mut v: i32 = 0;
+            while i < chars.len() && chars[i].is_ascii_digit() {
+                v = v * 10 + (chars[i] as i32 - '0' as i32);
+                i += 1;
+            }
+            (if neg { -v } else { v }, had_sign, i)
+        }
+
+        while i < len {
+            while i < len && chars[i] == ' ' { i += 1; }
+            if i >= len { break; }
+
+            let ch = chars[i].to_ascii_uppercase();
+            i += 1;
+
+            // Handle S (scale) and C (color) commands
+            if ch == 'S' {
+                let (v, _, ni) = parse_int_sign(&chars, i);
+                i = ni;
+                self.draw_scale = if v > 0 { v as f64 } else { 4.0 };
+                continue;
+            }
+            if ch == 'C' {
+                let (v, _, ni) = parse_int_sign(&chars, i);
+                i = ni;
+                self.draw_color = (v as i64).rem_euclid(16) as u8;
+                continue;
+            }
+
+            // All other commands may have B and/or N modifier prefix.
+            let mut blind  = false;
+            let mut no_adv = false;
+            let mut opcode = ch;
+
+            // Consume modifier chain: B and/or N before the actual direction letter
+            loop {
+                match opcode {
+                    'B' => { blind  = true; }
+                    'N' => { no_adv = true; }
+                    _   => break,
+                }
+                while i < len && chars[i] == ' ' { i += 1; }
+                if i >= len { break; }
+                opcode = chars[i].to_ascii_uppercase();
+                i += 1;
+            }
+
+            let ppu = self.draw_scale / 4.0; // pixels per unit
+            let cx0 = self.gfx_x;
+            let cy0 = self.gfx_y;
+            let color = self.draw_color as f64;
+
+            if opcode == 'M' {
+                // M x,y — each coordinate is relative if it has a leading sign, else absolute.
+                let (vx, rel_x, ni) = parse_int_sign(&chars, i);
+                i = ni;
+                while i < len && (chars[i] == ',' || chars[i] == ' ') { i += 1; }
+                let (vy, rel_y, ni) = parse_int_sign(&chars, i);
+                i = ni;
+                let tx = if rel_x { cx0 + vx as f64 * ppu } else { vx as f64 };
+                let ty = if rel_y { cy0 + vy as f64 * ppu } else { vy as f64 };
+                if !blind  { self.line(cx0, cy0, tx, ty, color); }
+                if !no_adv { self.gfx_x = tx; self.gfx_y = ty; }
+            } else if "UDLREFGH".contains(opcode) {
+                // Directional move: optional count follows
+                let (count, _, ni) = if i < len && (chars[i].is_ascii_digit() || chars[i] == '+' || chars[i] == '-') {
+                    parse_int_sign(&chars, i)
+                } else {
+                    (1, false, i)
+                };
+                i = ni;
+                let dist = count.max(0) as f64 * ppu;
+                let (dx, dy): (f64, f64) = match opcode {
+                    'U' => (0.0, -dist),
+                    'D' => (0.0,  dist),
+                    'L' => (-dist, 0.0),
+                    'R' => ( dist, 0.0),
+                    'E' => ( dist, -dist),
+                    'F' => ( dist,  dist),
+                    'G' => (-dist,  dist),
+                    'H' => (-dist, -dist),
+                    _   => (0.0, 0.0),
+                };
+                let tx = cx0 + dx;
+                let ty = cy0 + dy;
+                if !blind  { self.line(cx0, cy0, tx, ty, color); }
+                if !no_adv { self.gfx_x = tx; self.gfx_y = ty; }
+            }
+            // Unknown opcodes are silently skipped
+        }
+    }
+
+    // ── Sleep ─────────────────────────────────────────────────────────────────
+
+    /// Pause for `secs` seconds. Flushes graphics first so the current frame
+    /// is visible during the sleep.
+    pub fn sleep(&mut self, secs: f64) {
+        self.present();
+        std::thread::sleep(std::time::Duration::from_secs_f64((secs * self.slowmo).max(0.0)));
+    }
+
+    /// Called by emitted END / STOP — waits for keypress then exits.
+    /// Uses the same logic as Drop so the window stays readable.
+    pub fn quit(&mut self) -> ! {
+        // Drop will run after process::exit is NOT called here — we do the
+        // wait ourselves so we can call process::exit cleanly afterward.
+        self.wait_for_key();
+        std::process::exit(0);
+    }
+
+    /// Shared "hold window open until keypress" logic used by quit() and Drop.
+    /// Only blocks when an explicit SCREEN call was made — text-only programs
+    /// (hello-world, integration tests) exit immediately without hanging.
+    fn wait_for_key(&mut self) {
+        if self.window.is_none() || !self.had_screen_call {
+            return;
+        }
+        // Print hint at bottom of screen.
+        let max_rows = (self.height / self.char_h) as usize;
+        self.cursor_row = max_rows;
+        self.cursor_col = 1;
+        let saved_fg = self.fg_color;
+        self.fg_color = 8; // dark grey
+        self.print_gfx("[Press any key to exit]", false);
+        self.fg_color = saved_fg;
+
+        'wait: loop {
+            let fw = self.width  as usize;
+            let fh = self.height as usize;
+            let win_w = self.win_w;
+            let win_h = self.win_h;
+            let palette = self.palette_rgb;
+            let mut out = vec![0u32; win_w * win_h];
+            for oy in 0..win_h {
+                let fy = (oy * fh) / win_h;
+                let row_base = fy * fw;
+                let out_base = oy * win_w;
+                for ox in 0..win_w {
+                    let fx = (ox * fw) / win_w;
+                    let (r, g, b) = palette[self.fb[row_base + fx] as usize];
+                    out[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
+                }
+            }
+            let new_keys: Vec<Key> = {
+                let win = match self.window.as_mut() { Some(w) => w, None => break 'wait };
+                let _ = win.update_with_buffer(&out, win_w, win_h);
+                if !win.is_open() { break 'wait; }
+                win.get_keys_pressed(KeyRepeat::No)
+            };
+            if !new_keys.is_empty() { break 'wait; }
+            std::thread::sleep(std::time::Duration::from_millis(16));
+        }
+    }
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        // Programs that fall off the end of main() (no END statement) still
+        // get the "press any key" pause via wait_for_key().
+        self.wait_for_key();
+        self.window = None;
+    }
+}
+
+// ── PRINT USING formatter ─────────────────────────────────────────────────────
+
+/// A mixed numeric/string value for PRINT USING.
+pub enum QbVal<'a> {
+    Num(f64),
+    Str(&'a str),
+}
+impl<'a> From<f64> for QbVal<'a> {
+    fn from(v: f64) -> Self { QbVal::Num(v) }
+}
+impl<'a> From<&'a str> for QbVal<'a> {
+    fn from(v: &'a str) -> Self { QbVal::Str(v) }
+}
+impl<'a> From<&'a String> for QbVal<'a> {
+    fn from(v: &'a String) -> Self { QbVal::Str(v.as_str()) }
+}
+
+/// Format a value in QBasic `^^^^` exponential (scientific) notation, returning
+/// the *core* string `[-]d.ddddE±dd` (the caller right-justifies it in the
+/// field). No padding and no space for a positive sign are added here.
+///
+/// `int_digits` = number of `#` before the decimal point in the format,
+/// `frac_digits` = number after it, `exp_digits` = number of exponent digits
+/// (4 carets → `E±dd` → 2 exponent digits; 5 → 3, etc.).
+///
+/// Model (matches Microsoft QBasic): the mantissa is normalized to a single
+/// significant integer digit (`d.dddd`) when `int_digits >= 1`, so the extra
+/// integer `#` positions become field-width padding (which is where a positive
+/// number's leading space or a negative number's `-` lands). When
+/// `int_digits == 0` the mantissa is the `.dddd` form (e.g. `.8889E+06`).
+fn fmt_exponential(
+    v: f64,
+    int_digits: usize,
+    frac_digits: usize,
+    exp_digits: usize,
+    force_plus: bool,
+) -> String {
+    let neg = v < 0.0;
+    let av = v.abs();
+    let mant_int = if int_digits >= 1 { 1 } else { 0 }; // integer mantissa digits
+    let total = mant_int + frac_digits;                 // significant digits shown
+
+    let (digits, exp) = if av == 0.0 || !av.is_finite() {
+        ("0".repeat(total.max(1)), 0i32)
+    } else {
+        let e10 = av.log10().floor() as i32;
+        // Decimal exponent so the mantissa has `mant_int` integer digits
+        // (or sits in [0.1, 1) when mant_int == 0).
+        let big_e = if mant_int >= 1 { e10 } else { e10 + 1 };
+        let mantissa = av / 10f64.powi(big_e);
+        let mut rounded = (mantissa * 10f64.powi(frac_digits as i32)).round() as i128;
+        let mut exp = big_e;
+        let mut s = rounded.to_string();
+        // Rounding can push e.g. 9.999 → 10.00, adding an integer digit.
+        if s.len() > total {
+            rounded /= 10;
+            exp += 1;
+            s = rounded.to_string();
+        }
+        // Left-pad with zeros for small mantissas.
+        while s.len() < total { s.insert(0, '0'); }
+        (s, exp)
+    };
+
+    // Split the significant digits into integer / fractional parts.
+    let (ip, fp) = digits.split_at(mant_int.min(digits.len()));
+    let mantissa_str = if mant_int == 0 {
+        format!(".{}", fp)
+    } else if frac_digits > 0 {
+        format!("{}.{}", ip, fp)
+    } else {
+        ip.to_string()
+    };
+
+    let sign = if neg { "-" } else if force_plus { "+" } else { "" };
+    let exp_sign = if exp < 0 { '-' } else { '+' };
+    let exp_str = format!("E{}{:0width$}", exp_sign, exp.unsigned_abs(), width = exp_digits.max(2));
+
+    format!("{}{}{}", sign, mantissa_str, exp_str)
+}
+
+/// PRINT USING with mixed numeric and string values.
+pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
+    let mut result = String::new();
+    let chars: Vec<char> = fmt.chars().collect();
+    let mut i = 0;
+    let mut val_idx = 0;
+
+    while i < chars.len() {
+        // ── Literal escape: `_X` prints X verbatim (so `_#` prints a literal '#') ──
+        if chars[i] == '_' && i + 1 < chars.len() {
+            result.push(chars[i + 1]);
+            i += 2;
+            continue;
+        }
+        // ── String field: \...\ (width = spaces + 2), ! (1 char), & (any length) ──
+        if chars[i] == '\\' {
+            // Count characters until closing backslash
+            let mut j = i + 1;
+            while j < chars.len() && chars[j] != '\\' { j += 1; }
+            let field_len = (j - i + 1).max(2); // minimum 2 (just \\)
+            i = j + 1; // skip past closing backslash
+            let s = match values.get(val_idx) {
+                Some(QbVal::Str(s)) => *s,
+                Some(QbVal::Num(n)) => { let tmp = format!("{}", n); result.push_str(&tmp); val_idx += 1; continue; }
+                None => "",
+            };
+            val_idx += 1;
+            // Pad or truncate to field_len
+            if s.len() >= field_len {
+                result.push_str(&s[..field_len]);
+            } else {
+                result.push_str(s);
+                result.push_str(&" ".repeat(field_len - s.len()));
+            }
+            continue;
+        }
+        if chars[i] == '!' {
+            i += 1;
+            let s = match values.get(val_idx) {
+                Some(QbVal::Str(s)) => *s,
+                _ => "",
+            };
+            val_idx += 1;
+            result.push(s.chars().next().unwrap_or(' '));
+            continue;
+        }
+        if chars[i] == '&' {
+            i += 1;
+            let s = match values.get(val_idx) {
+                Some(QbVal::Str(s)) => *s,
+                _ => "",
+            };
+            val_idx += 1;
+            result.push_str(s);
+            continue;
+        }
+
+        // ── Numeric field: #, +, -, ##.##, .## etc. ─────────────────────────────
+        let is_num_start = chars[i] == '#'
+            || chars[i] == '+'
+            || (chars[i] == '-' && i + 1 < chars.len() && chars[i+1] == '#')
+            || (chars[i] == '.' && i + 1 < chars.len() && chars[i+1] == '#');
+        if is_num_start {
+            let field_start = i;
+            let has_leading_sign = chars[i] == '+' || chars[i] == '-';
+            if has_leading_sign { i += 1; }
+            let mut int_digits = 0usize;
+            let mut has_comma = false;
+            while i < chars.len() && (chars[i] == '#' || chars[i] == ',') {
+                if chars[i] == '#' { int_digits += 1; }
+                else { has_comma = true; }
+                i += 1;
+            }
+            let mut frac_digits = 0usize;
+            if i < chars.len() && chars[i] == '.' {
+                i += 1;
+                while i < chars.len() && (chars[i] == '#' || chars[i] == '0') {
+                    frac_digits += 1;
+                    i += 1;
+                }
+            }
+            // Exponential format: `^^^^` (4+ carets). Fewer than 4 carets are
+            // not an exponent specifier — leave them to be printed literally.
+            let mut caret_count = 0usize;
+            {
+                let mut k = i;
+                while k < chars.len() && chars[k] == '^' { caret_count += 1; k += 1; }
+            }
+            let exponential = caret_count >= 4;
+            if exponential { i += caret_count; }
+
+            let has_trailing_sign = i < chars.len() && chars[i] == '-';
+            if has_trailing_sign { i += 1; }
+
+            let v = match values.get(val_idx) {
+                Some(QbVal::Num(n)) => *n,
+                Some(QbVal::Str(s)) => s.parse::<f64>().unwrap_or(0.0),
+                None => 0.0,
+            };
+            val_idx += 1;
+
+            let force_plus = has_leading_sign && chars[field_start] == '+';
+
+            // ── Exponential (scientific) branch ─────────────────────────────────
+            if exponential {
+                let exp_digits = caret_count - 2; // 4 carets → E±dd (2 exp digits)
+                let core = fmt_exponential(v, int_digits, frac_digits, exp_digits, force_plus);
+                // Field width: integer #s + (dot + frac) + (E± + exp digits).
+                let field_w = int_digits
+                    + if frac_digits > 0 { 1 + frac_digits } else { 0 }
+                    + (2 + exp_digits.max(2));
+                if core.len() < field_w {
+                    result.push_str(&" ".repeat(field_w - core.len()));
+                }
+                result.push_str(&core);
+                continue;
+            }
+
+            let total_int_width = int_digits.max(1);
+            let formatted = if frac_digits > 0 {
+                format!("{:.prec$}", v.abs(), prec = frac_digits)
+            } else {
+                format!("{}", v.abs() as i64)
+            };
+            let (int_part, frac_part) = if let Some(pos) = formatted.find('.') {
+                (&formatted[..pos], &formatted[pos..])
+            } else {
+                (formatted.as_str(), "")
+            };
+
+            let int_str = if has_comma {
+                let digits: Vec<char> = int_part.chars().collect();
+                let mut s = String::new();
+                let n = digits.len();
+                for (k, &d) in digits.iter().enumerate() {
+                    if k > 0 && (n - k) % 3 == 0 { s.push(','); }
+                    s.push(d);
+                }
+                s
+            } else {
+                int_part.to_string()
+            };
+
+            // ── Overflow: value too wide for the field → QB prepends `%` and
+            //    prints the number in full, unpadded (the "wide field" case).
+            //    No leading sign-space here: `%123`, not `% 123`. ──
+            if int_part.len() > total_int_width {
+                let sign_ov = if v < 0.0 { "-" } else if force_plus { "+" } else { "" };
+                result.push('%');
+                result.push_str(&format!("{}{}{}", sign_ov, int_str, frac_part));
+                if has_trailing_sign {
+                    if v < 0.0 { result.push('-'); } else { result.push(' '); }
+                }
+                continue;
+            }
+
+            let frac_w = if frac_digits > 0 { frac_digits + 1 } else { 0 };
+            if has_leading_sign || has_trailing_sign {
+                // Explicit-sign formats reserve one extra column for the sign,
+                // which is included in the (unchanged) original layout.
+                let sign = if v < 0.0 { "-" } else if force_plus { "+" } else { " " };
+                let num_str = format!("{}{}{}", sign, int_str, frac_part);
+                let target_len = total_int_width + frac_w + 1;
+                if num_str.len() < target_len {
+                    result.push_str(&" ".repeat(target_len - num_str.len()));
+                }
+                result.push_str(&num_str);
+                if has_trailing_sign {
+                    if v < 0.0 { result.push('-'); } else { result.push(' '); }
+                }
+            } else {
+                // Common case (no explicit sign): the field width is exactly the
+                // literal width of the format spec (`#`s plus `.frac`). A plain
+                // positive number is right-justified — its leading blanks come
+                // from unused `#` columns, not an extra sign slot — and a
+                // negative `-` borrows one of those columns.
+                let field_w = total_int_width + frac_w;
+                let lead = if v < 0.0 { "-" } else { "" };
+                let signed = format!("{}{}{}", lead, int_str, frac_part);
+                if signed.len() < field_w {
+                    result.push_str(&" ".repeat(field_w - signed.len()));
+                }
+                result.push_str(&signed);
+            }
+        } else {
+            result.push(chars[i]);
+            i += 1;
+        }
+    }
+    result
+}
+
+// ── minifb key → QB INKEY$ string ────────────────────────────────────────────
+
+/// Map a minifb Key to a QB INKEY$ string (unshifted, lowercase letters).
+fn minifb_key_to_qb(key: Key) -> String {
+    use Key::*;
+    match key {
+        A=>"a", B=>"b", C=>"c", D=>"d", E=>"e", F=>"f", G=>"g",
+        H=>"h", I=>"i", J=>"j", K=>"k", L=>"l", M=>"m", N=>"n",
+        O=>"o", P=>"p", Q=>"q", R=>"r", S=>"s", T=>"t", U=>"u",
+        V=>"v", W=>"w", X=>"x", Y=>"y", Z=>"z",
+        Key0=>"0", Key1=>"1", Key2=>"2", Key3=>"3", Key4=>"4",
+        Key5=>"5", Key6=>"6", Key7=>"7", Key8=>"8", Key9=>"9",
+        NumPad0=>"0", NumPad1=>"1", NumPad2=>"2", NumPad3=>"3", NumPad4=>"4",
+        NumPad5=>"5", NumPad6=>"6", NumPad7=>"7", NumPad8=>"8", NumPad9=>"9",
+        Space=>" ", Period=>".", Minus=>"-", Equal=>"=",
+        LeftBracket=>"[", RightBracket=>"]", Backslash=>"\\",
+        Semicolon=>";", Apostrophe=>"'", Comma=>",", Slash=>"/",
+        Enter=>"\r", Backspace=>"\x08", Escape=>"\x1b",
+        Up=>"\x00H", Down=>"\x00P", Left=>"\x00K", Right=>"\x00M",
+        F1=>"\x00;", F2=>"\x00<", F3=>"\x00=", F4=>"\x00>",
+        F5=>"\x00?", F6=>"\x00@", F7=>"\x00A", F8=>"\x00B",
+        F9=>"\x00C", F10=>"\x00D",
+        _=>"",
+    }.to_string()
+}
+
+/// Map a minifb Key + shift state to a printable char for INPUT echo.
+fn window_key_to_char(key: Key, shift: bool) -> Option<char> {
+    use Key::*;
+    Some(match key {
+        A => if shift { 'A' } else { 'a' },
+        B => if shift { 'B' } else { 'b' },
+        C => if shift { 'C' } else { 'c' },
+        D => if shift { 'D' } else { 'd' },
+        E => if shift { 'E' } else { 'e' },
+        F => if shift { 'F' } else { 'f' },
+        G => if shift { 'G' } else { 'g' },
+        H => if shift { 'H' } else { 'h' },
+        I => if shift { 'I' } else { 'i' },
+        J => if shift { 'J' } else { 'j' },
+        K => if shift { 'K' } else { 'k' },
+        L => if shift { 'L' } else { 'l' },
+        M => if shift { 'M' } else { 'm' },
+        N => if shift { 'N' } else { 'n' },
+        O => if shift { 'O' } else { 'o' },
+        P => if shift { 'P' } else { 'p' },
+        Q => if shift { 'Q' } else { 'q' },
+        R => if shift { 'R' } else { 'r' },
+        S => if shift { 'S' } else { 's' },
+        T => if shift { 'T' } else { 't' },
+        U => if shift { 'U' } else { 'u' },
+        V => if shift { 'V' } else { 'v' },
+        W => if shift { 'W' } else { 'w' },
+        X => if shift { 'X' } else { 'x' },
+        Y => if shift { 'Y' } else { 'y' },
+        Z => if shift { 'Z' } else { 'z' },
+        Key0 => if shift { ')' } else { '0' },
+        Key1 => if shift { '!' } else { '1' },
+        Key2 => if shift { '@' } else { '2' },
+        Key3 => if shift { '#' } else { '3' },
+        Key4 => if shift { '$' } else { '4' },
+        Key5 => if shift { '%' } else { '5' },
+        Key6 => if shift { '^' } else { '6' },
+        Key7 => if shift { '&' } else { '7' },
+        Key8 => if shift { '*' } else { '8' },
+        Key9 => if shift { '(' } else { '9' },
+        Space       => ' ',
+        Period      => if shift { '>' } else { '.' },
+        Comma       => if shift { '<' } else { ',' },
+        Minus       => if shift { '_' } else { '-' },
+        Equal       => if shift { '+' } else { '=' },
+        Slash       => if shift { '?' } else { '/' },
+        Backslash   => if shift { '|' } else { '\\' },
+        Semicolon   => if shift { ':' } else { ';' },
+        Apostrophe  => if shift { '"' } else { '\'' },
+        LeftBracket => if shift { '{' } else { '[' },
+        RightBracket=> if shift { '}' } else { ']' },
+        _ => return None,
+    })
+}
+
+// ── Bresenham line ────────────────────────────────────────────────────────────
+
+fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32, mut plot: impl FnMut(i32, i32)) {
+    let (mut x, mut y) = (x0, y0);
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx: i32 = if x0 < x1 { 1 } else { -1 };
+    let sy: i32 = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    loop {
+        plot(x, y);
+        if x == x1 && y == y1 { break; }
+        let e2 = 2 * err;
+        if e2 >= dy { err += dy; x += sx; }
+        if e2 <= dx { err += dx; y += sy; }
+    }
+}
+
+// ── Midpoint ellipse ──────────────────────────────────────────────────────────
+
+fn midpoint_ellipse(cx: i32, cy: i32, rx: i32, ry: i32, mut plot: impl FnMut(i32, i32)) {
+    let (rx2, ry2) = ((rx*rx) as i64, (ry*ry) as i64);
+    let (mut x, mut y) = (0i64, ry as i64);
+    let mut d1 = ry2 - rx2 * ry as i64 + rx2 / 4;
+    let (mut dx, mut dy) = (2 * ry2 * x, 2 * rx2 * y);
+
+    while dx < dy {
+        let (px, py) = (x as i32, y as i32);
+        plot(cx + px, cy + py); plot(cx - px, cy + py);
+        plot(cx + px, cy - py); plot(cx - px, cy - py);
+        if d1 < 0 { x += 1; dx += 2*ry2; d1 += dx + ry2; }
+        else       { x += 1; y -= 1; dx += 2*ry2; dy -= 2*rx2; d1 += dx - dy + ry2; }
+    }
+
+    let mut d2 = ry2 * (x*x + x) as i64 + rx2 * ((y-1)*(y-1)) as i64 - rx2*ry2;
+    while y >= 0 {
+        let (px, py) = (x as i32, y as i32);
+        plot(cx + px, cy + py); plot(cx - px, cy + py);
+        plot(cx + px, cy - py); plot(cx - px, cy - py);
+        if d2 > 0 { y -= 1; dy -= 2*rx2; d2 += rx2 - dy; }
+        else       { y -= 1; x += 1; dx += 2*ry2; dy -= 2*rx2; d2 += dx - dy + rx2; }
+    }
+}
+
+// ── Flood fill ────────────────────────────────────────────────────────────────
+
+fn flood_fill(rt: &mut Runtime, sx: i32, sy: i32, fill: u8, border: u8) {
+    if sx < 0 || sy < 0 || sx as u32 >= rt.width || sy as u32 >= rt.height { return; }
+    let start_color = rt.fb[(sy as u32 * rt.width + sx as u32) as usize];
+    if start_color == fill || start_color == border { return; }
+
+    // Mark start pixel immediately so it's not pushed again
+    rt.fb[(sy as u32 * rt.width + sx as u32) as usize] = fill;
+    let mut stack = vec![(sx, sy)];
+    let mut iters = 0usize;
+
+    let try_push = |stack: &mut Vec<(i32,i32)>, fb: &mut Vec<u8>, w: u32, h: u32,
+                    x: i32, y: i32| {
+        if x < 0 || y < 0 || x as u32 >= w || y as u32 >= h { return; }
+        let idx = (y as u32 * w + x as u32) as usize;
+        let c = fb[idx];
+        if c != border && c != fill {
+            fb[idx] = fill; // mark before pushing — prevents duplicates on the stack
+            stack.push((x, y));
+        }
+    };
+
+    while let Some((x, y)) = stack.pop() {
+        try_push(&mut stack, &mut rt.fb, rt.width, rt.height, x+1, y);
+        try_push(&mut stack, &mut rt.fb, rt.width, rt.height, x-1, y);
+        try_push(&mut stack, &mut rt.fb, rt.width, rt.height, x, y+1);
+        try_push(&mut stack, &mut rt.fb, rt.width, rt.height, x, y-1);
+        iters += 1;
+        if iters % 2000 == 0 { rt.tick(); } // keep window alive during big fills
+    }
+}
+
+// ── Boolean helpers ───────────────────────────────────────────────────────────
+
+#[inline] pub fn qb_bool(v: f64) -> bool     { v != 0.0 }
+#[inline] pub fn qb_from_bool(b: bool) -> f64 { if b { -1.0 } else { 0.0 } }
+#[inline] pub fn qb_not(v: f64) -> f64        { (!(v as i64)) as f64 }
+
+#[inline] pub fn qb_and(a: f64, b: f64) -> f64 { ((a as i64) & (b as i64)) as f64 }
+#[inline] pub fn qb_or(a: f64, b: f64)  -> f64 { ((a as i64) | (b as i64)) as f64 }
+
+// ── Math functions ────────────────────────────────────────────────────────────
+
+#[inline] pub fn qb_int(x: f64) -> f64   { x.floor() }
+#[inline] pub fn qb_fix(x: f64) -> f64   { x.trunc() }
+#[inline] pub fn qb_abs(x: f64) -> f64   { x.abs() }
+#[inline] pub fn qb_sqr(x: f64) -> f64   { x.sqrt() }
+#[inline] pub fn qb_sgn(x: f64) -> f64   { if x > 0.0 { 1.0 } else if x < 0.0 { -1.0 } else { 0.0 } }
+/// QB `CINT` — round to nearest integer using **banker's rounding**
+/// (ties round to even), matching QuickBASIC. Note this differs from Rust's
+/// `f64::round()`, which rounds halves away from zero.
+#[inline]
+pub fn qb_cint(x: f64) -> f64 {
+    if (x - x.trunc()).abs() == 0.5 {
+        // Exactly halfway → round toward the even neighbour.
+        let f = x.floor();
+        if (f as i64) % 2 == 0 { f } else { f + 1.0 }
+    } else {
+        x.round()
+    }
+}
+
+/// QB `\` integer division. Both operands are rounded to integers (CINT,
+/// banker's) first, then divided with truncation toward zero.
+#[inline]
+pub fn qb_idiv(l: f64, r: f64) -> f64 {
+    (qb_cint(l) as i64 / qb_cint(r) as i64) as f64
+}
+
+/// QB `MOD`. Both operands are rounded to integers (CINT, banker's) first,
+/// then the remainder is taken. Rust's `%` on integers already yields the
+/// QB-correct sign (that of the dividend).
+#[inline]
+pub fn qb_mod(l: f64, r: f64) -> f64 {
+    (qb_cint(l) as i64 % qb_cint(r) as i64) as f64
+}
+#[inline] pub fn qb_sin(x: f64) -> f64   { x.sin() }
+#[inline] pub fn qb_cos(x: f64) -> f64   { x.cos() }
+#[inline] pub fn qb_tan(x: f64) -> f64   { x.tan() }
+#[inline] pub fn qb_atn(x: f64) -> f64   { x.atan() }
+#[inline] pub fn qb_exp(x: f64) -> f64   { x.exp() }
+#[inline] pub fn qb_log(x: f64) -> f64   { x.ln() }
+
+pub fn qb_timer() -> f64 {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
+    now.as_secs_f64() % 86400.0
+}
+
+// ── String functions ──────────────────────────────────────────────────────────
+
+pub fn qb_str(v: impl std::fmt::Display) -> String { format!("{v}") }
+
+/// QB PRINT numeric format: leading space for positive numbers, trailing space
+/// after all numbers.  Used by emitted PRINT statements for numeric expressions.
+pub fn qb_print_num(n: f64) -> String {
+    // Format the number like QB: integers without ".0", floats with minimal digits.
+    let s = format_qb_num(n);
+    if n >= 0.0 { format!(" {s} ") } else { format!("{s} ") }
+}
+
+/// Format f64 the QB way: no trailing ".0" for integers, enough digits for floats.
+pub fn format_qb_num(n: f64) -> String {
+    if n.is_infinite() {
+        return if n > 0.0 { "1E+38".to_string() } else { "-1E+38".to_string() };
+    }
+    if n.is_nan() { return "0".to_string(); }
+    // If the value is an integer (within f64 precision), show without decimal
+    if n.fract() == 0.0 && n.abs() < 1e15 {
+        return format!("{}", n as i64);
+    }
+    // Otherwise use Rust's default display (which omits trailing zeros)
+    format!("{n}")
+}
+
+pub fn qb_str_fn(n: f64) -> String {
+    let s = format_qb_num(n);
+    if n >= 0.0 { format!(" {s}") } else { s }
+}
+
+pub fn qb_len(s: &str) -> f64 { s.chars().count() as f64 }
+
+pub fn qb_left(s: &str, n: f64) -> String {
+    let n = n.max(0.0) as usize;
+    s.chars().take(n).collect()
+}
+
+pub fn qb_right(s: &str, n: f64) -> String {
+    let n = n.max(0.0) as usize;
+    let chars: Vec<char> = s.chars().collect();
+    let start = chars.len().saturating_sub(n);
+    chars[start..].iter().collect()
+}
+
+pub fn qb_mid(s: &str, pos: f64, len: Option<f64>) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    let start = ((pos as usize).saturating_sub(1)).min(chars.len());
+    let slice = &chars[start..];
+    match len {
+        Some(l) => slice.iter().take(l.max(0.0) as usize).collect(),
+        None    => slice.iter().collect(),
+    }
+}
+
+pub fn qb_ucase(s: &str) -> String { s.to_uppercase() }
+pub fn qb_lcase(s: &str) -> String { s.to_lowercase() }
+pub fn qb_ltrim(s: &str) -> String { s.trim_start().to_string() }
+pub fn qb_rtrim(s: &str) -> String { s.trim_end().to_string() }
+pub fn qb_trim(s: &str)  -> String { s.trim().to_string() }
+pub fn qb_space(n: f64)  -> String { " ".repeat(n.max(0.0) as usize) }
+
+pub fn qb_chr(n: f64) -> String {
+    char::from_u32(n as u32).map(|c| c.to_string()).unwrap_or_default()
+}
+
+pub fn qb_asc(s: &str) -> f64 {
+    s.chars().next().map(|c| c as u32 as f64).unwrap_or(0.0)
+}
+
+pub fn qb_val(s: &str) -> f64 {
+    // QB VAL parses the longest valid numeric prefix (after leading whitespace)
+    // and ignores the rest. A sign/exponent char is only valid in its grammatical
+    // position — e.g. VAL("1-2") = 1, VAL("12e") = 12, VAL("-.5") = -0.5.
+    let bytes = s.trim_start().as_bytes();
+    let mut i = 0;
+    let n = bytes.len();
+    let is_digit = |b: u8| b.is_ascii_digit();
+
+    // Optional leading sign.
+    if i < n && (bytes[i] == b'+' || bytes[i] == b'-') { i += 1; }
+    // Integer part.
+    while i < n && is_digit(bytes[i]) { i += 1; }
+    // Fractional part.
+    if i < n && bytes[i] == b'.' {
+        i += 1;
+        while i < n && is_digit(bytes[i]) { i += 1; }
+    }
+    // Exponent: e/E, optional sign, then at least one digit (else don't consume it).
+    if i < n && (bytes[i] == b'e' || bytes[i] == b'E') {
+        let mut j = i + 1;
+        if j < n && (bytes[j] == b'+' || bytes[j] == b'-') { j += 1; }
+        if j < n && is_digit(bytes[j]) {
+            j += 1;
+            while j < n && is_digit(bytes[j]) { j += 1; }
+            i = j;
+        }
+    }
+
+    std::str::from_utf8(&bytes[..i]).ok()
+        .and_then(|t| t.parse::<f64>().ok())
+        .unwrap_or(0.0)
+}
+
+pub fn qb_instr(start: f64, haystack: &str, needle: &str) -> f64 {
+    let hchars: Vec<char> = haystack.chars().collect();
+    let nchars: Vec<char> = needle.chars().collect();
+    // QB: `start` is 1-based; values < 1 are treated as 1.
+    let start1 = if start < 1.0 { 1 } else { start as usize };
+    // QB: if `start` is past the end of the string, INSTR returns 0
+    // (this is what previously leaked a `len+1` result for an empty needle).
+    if start1 > hchars.len() { return 0.0; }
+    let start_idx = start1 - 1;
+    // QB: a null search string returns the start position.
+    if nchars.is_empty() { return start1 as f64; }
+    if hchars.len() < nchars.len() { return 0.0; }
+    for i in start_idx..=hchars.len() - nchars.len() {
+        if hchars[i..i + nchars.len()] == nchars[..] {
+            return (i + 1) as f64;
+        }
+    }
+    0.0
+}
+
+pub fn qb_string(n: f64, c: f64) -> String {
+    let ch = char::from_u32(c as u32).unwrap_or(' ');
+    ch.to_string().repeat(n.max(0.0) as usize)
+}
+
+/// STRING$(n, s$) — n copies of the first character of s$
+pub fn qb_string_s(n: f64, s: &str) -> String {
+    let ch = s.chars().next().unwrap_or(' ');
+    ch.to_string().repeat(n.max(0.0) as usize)
+}
+
+pub fn qb_hex(n: f64) -> String { format!("{:X}", n as i64) }
+pub fn qb_oct(n: f64) -> String { format!("{:o}", n as i64) }
+
+#[inline] pub fn qb_xor(a: f64, b: f64) -> f64  { ((a as i64) ^ (b as i64)) as f64 }
+#[inline] pub fn qb_csng(x: f64) -> f64          { x }
+#[inline] pub fn qb_cdbl(x: f64) -> f64          { x }
+#[inline] pub fn qb_peek(_addr: f64) -> f64      { 0.0 }
+
+pub fn qb_environ(name: &str) -> String {
+    std::env::var(name).unwrap_or_default()
+}
+
+pub fn qb_read_data(data: &[&str], ptr: &std::sync::atomic::AtomicUsize) -> String {
+    let idx = ptr.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    data.get(idx).copied().unwrap_or("").to_string()
+}
+
+// ── QB file-I/O and binary-data helpers ──────────────────────────────────────
+
+/// CVD — convert 8-byte IEEE 754 little-endian binary string to f64.
+pub fn CVD(s: impl AsRef<str>) -> f64 {
+    let b = s.as_ref().as_bytes();
+    if b.len() < 8 { return qb_val(s.as_ref()); }
+    let arr: [u8; 8] = b[..8].try_into().unwrap_or([0u8; 8]);
+    f64::from_le_bytes(arr)
+}
+/// CVS — convert 4-byte IEEE 754 little-endian binary string to f64 (via f32).
+pub fn CVS(s: impl AsRef<str>) -> f64 {
+    let b = s.as_ref().as_bytes();
+    if b.len() < 4 { return qb_val(s.as_ref()); }
+    let arr: [u8; 4] = b[..4].try_into().unwrap_or([0u8; 4]);
+    f32::from_le_bytes(arr) as f64
+}
+/// CVI — convert 2-byte little-endian binary string to integer.
+pub fn CVI(s: impl AsRef<str>) -> f64 {
+    let b = s.as_ref().as_bytes();
+    if b.len() < 2 { return qb_val(s.as_ref()); }
+    i16::from_le_bytes([b[0], b[1]]) as f64
+}
+/// CVL — convert 4-byte little-endian binary string to long.
+pub fn CVL(s: impl AsRef<str>) -> f64 {
+    let b = s.as_ref().as_bytes();
+    if b.len() < 4 { return qb_val(s.as_ref()); }
+    let arr: [u8; 4] = b[..4].try_into().unwrap_or([0u8; 4]);
+    i32::from_le_bytes(arr) as f64
+}
+
+/// MKD$ — encode f64 as 8-byte IEEE 754 little-endian binary string.
+pub fn MKD(n: f64) -> String {
+    String::from_utf8_lossy(&n.to_le_bytes()).into_owned()
+}
+/// MKS$ — encode f64 as 4-byte IEEE 754 little-endian binary string (via f32).
+pub fn MKS(n: f64) -> String {
+    String::from_utf8_lossy(&(n as f32).to_le_bytes()).into_owned()
+}
+/// MKI$ — encode integer as 2-byte little-endian binary string.
+pub fn MKI(n: f64) -> String {
+    String::from_utf8_lossy(&(n as i16).to_le_bytes()).into_owned()
+}
+/// MKL$ — encode long as 4-byte little-endian binary string.
+pub fn MKL(n: f64) -> String {
+    String::from_utf8_lossy(&(n as i32).to_le_bytes()).into_owned()
+}
+
+/// LSET — left-justify src into dest's length (pad with spaces; truncate if longer).
+pub fn qb_lset(dest: &str, src: &str) -> String {
+    let n = dest.len();
+    if src.len() >= n { src[..n].to_string() }
+    else { format!("{:<width$}", src, width = n) }
+}
+
+/// RSET — right-justify src into dest's length (pad with spaces on left).
+pub fn qb_rset(dest: &str, src: &str) -> String {
+    let n = dest.len();
+    if src.len() >= n { src[src.len()-n..].to_string() }
+    else { format!("{:>width$}", src, width = n) }
+}
+
+/// qb_field_get — extract `len` bytes starting at `offset` from a record buffer.
+/// Returns a String of exactly `len` chars (space-padded or truncated).
+pub fn qb_field_get(buf: &[u8], offset: usize, len: usize) -> String {
+    let end = (offset + len).min(buf.len());
+    let slice = if offset < buf.len() { &buf[offset..end] } else { &[] };
+    let s = String::from_utf8_lossy(slice).into_owned();
+    if s.len() < len { format!("{:<width$}", s, width = len) } else { s }
+}
+
+/// qb_field_put — write a field variable into a record buffer at (offset, len).
+pub fn qb_field_put(buf: &mut Vec<u8>, offset: usize, s: &str, len: usize) {
+    let bytes = s.as_bytes();
+    for i in 0..len {
+        if offset + i < buf.len() {
+            buf[offset + i] = *bytes.get(i).unwrap_or(&b' ');
+        }
+    }
+}
+
+/// EOF(n) — returns -1 (true) when file n is exhausted, 0 otherwise.
+/// Called as a QB function returning f64; the runtime's eof_check does the work.
+pub fn qb_eof_fn(_file_num: f64) -> f64 { 0.0 } // conservative: let read fail naturally
+
+/// LOF(n) — length of open file in bytes (returns 0 if not available).
+pub fn qb_lof_fn(_file_num: f64) -> f64 { 0.0 }
+
+/// VARPTR — returns a fake memory address (stub: always 0)
+pub fn varptr(_: f64) -> f64 { 0.0 }
+/// ABSOLUTE — call machine-code at address (stub: no-op)
+pub fn absolute(_addr: f64) {}
+
+/// Old stubs kept for backward compat with any emitted code that still uses them.
+pub fn qb_open(_path: &str, _mode: &str, _file_num: f64, _len: f64) {}
+pub fn qb_close(_file_num: f64) {}
+
+/// BEEP without runtime access
+pub fn qb_beep_free() {}
+
+/// ON ERROR GOTO — stub (just note the handler, don't install it)
+pub fn qb_on_error(_label: f64) {}
+
+/// WIDTH — set terminal width (stub)
+pub fn qb_width(_cols: f64, _rows: f64) {}
+
+/// LPRINT — print to printer (stub: print to stdout)
+pub fn qb_lprint(s: &str) { println!("{s}"); }
+
+#[cfg(test)]
+mod print_using_tests {
+    use super::{qb_print_using, QbVal};
+
+    fn pu(fmt: &str, n: f64) -> String {
+        qb_print_using(fmt, &[QbVal::Num(n)])
+    }
+
+    // ── Basic numeric formatting (regression guard) ──────────────────────────
+    #[test]
+    fn basic_integer_field() {
+        assert_eq!(pu("###", 42.0), " 42");
+    }
+    #[test]
+    fn basic_fixed_point() {
+        assert_eq!(pu("##.##", 3.14159), " 3.14");
+    }
+    #[test]
+    fn comma_grouping() {
+        assert_eq!(pu("#,###,###", 1234567.0), "1,234,567");
+    }
+    #[test]
+    fn negative_leading_sign() {
+        assert_eq!(pu("##.##", -3.5), "-3.50");
+    }
+
+    // ── Exponential `^^^^` ───────────────────────────────────────────────────
+    #[test]
+    fn exp_one_int_digit() {
+        assert_eq!(pu("#.##^^^^", 234.56), "2.35E+02");
+    }
+    #[test]
+    fn exp_two_int_digits_pads_sign_space() {
+        // Mantissa normalizes to one integer digit; the extra `#` becomes the
+        // (positive) sign space.
+        assert_eq!(pu("##.##^^^^", 234.56), " 2.35E+02");
+    }
+    #[test]
+    fn exp_negative_uses_sign_slot() {
+        assert_eq!(pu("##.##^^^^", -234.56), "-2.35E+02");
+    }
+    #[test]
+    fn exp_leading_decimal_form() {
+        assert_eq!(pu(".####^^^^", 888888.0), ".8889E+06");
+    }
+    #[test]
+    fn exp_zero() {
+        assert_eq!(pu("#.##^^^^", 0.0), "0.00E+00");
+    }
+    #[test]
+    fn exp_small_negative_exponent() {
+        // 0.00123 → 1.23E-03
+        assert_eq!(pu("#.##^^^^", 0.00123), "1.23E-03");
+    }
+    #[test]
+    fn exp_rounding_carry_bumps_exponent() {
+        // 9.999 with one fractional digit rounds to 10.0 → 1.0E+01
+        assert_eq!(pu("#.#^^^^", 9.99), "1.0E+01");
+    }
+    #[test]
+    fn exp_five_carets_widens_exponent() {
+        assert_eq!(pu("#.##^^^^^", 234.56), "2.35E+002");
+    }
+    #[test]
+    fn three_carets_are_literal_not_exponent() {
+        // Fewer than 4 carets: the integer field prints, then literal '^^^'.
+        assert_eq!(pu("##^^^", 5.0), " 5^^^");
+    }
+
+    // ── Overflow `%` (the "wide field" edge case) ────────────────────────────
+    #[test]
+    fn overflow_integer_field() {
+        assert_eq!(pu("##", 123.0), "%123");
+    }
+    #[test]
+    fn overflow_with_fraction() {
+        assert_eq!(pu("##.#", 1234.5), "%1234.5");
+    }
+    #[test]
+    fn overflow_negative() {
+        assert_eq!(pu("#", -12.0), "%-12");
+    }
+    #[test]
+    fn no_overflow_when_it_fits() {
+        assert_eq!(pu("###", 12.0), " 12");
+    }
+
+    // ── Literal escape `_X` ──────────────────────────────────────────────────
+    #[test]
+    fn literal_escape_hash() {
+        assert_eq!(qb_print_using("_#", &[]), "#");
+    }
+    #[test]
+    fn literal_escape_mixed_with_field() {
+        // `_#` → literal '#', then `###` numeric field for 5 → "  5".
+        assert_eq!(pu("_####", 5.0), "#  5");
+    }
+
+    // ── String fields still work alongside the new code ──────────────────────
+    #[test]
+    fn string_amp_field() {
+        assert_eq!(qb_print_using("&", &[QbVal::Str("hi")]), "hi");
+    }
+}
+
+#[cfg(test)]
+mod numeric_tests {
+    use super::{qb_cint, qb_idiv, qb_instr, qb_mod, qb_val};
+
+    // ── INSTR edge cases (QB rules) ──────────────────────────────────────────
+    #[test]
+    fn instr_found_and_not_found() {
+        assert_eq!(qb_instr(1.0, "Hello, World!", "World"), 8.0);
+        assert_eq!(qb_instr(1.0, "Hello", "xyz"), 0.0);
+    }
+    #[test]
+    fn instr_empty_needle_returns_start() {
+        assert_eq!(qb_instr(1.0, "abc", ""), 1.0);
+        assert_eq!(qb_instr(3.0, "abc", ""), 3.0);
+    }
+    #[test]
+    fn instr_start_past_end_returns_zero() {
+        // Previously leaked len+1 for an empty needle; QB returns 0.
+        assert_eq!(qb_instr(4.0, "abc", ""), 0.0);
+        assert_eq!(qb_instr(10.0, "abc", "a"), 0.0);
+        assert_eq!(qb_instr(1.0, "", ""), 0.0);
+    }
+    #[test]
+    fn instr_start_offsets_search() {
+        assert_eq!(qb_instr(1.0, "abcabc", "bc"), 2.0);
+        assert_eq!(qb_instr(3.0, "abcabc", "bc"), 5.0);
+    }
+
+    // ── CINT: banker's rounding (ties to even) ───────────────────────────────
+    #[test]
+    fn cint_ties_round_to_even() {
+        assert_eq!(qb_cint(0.5), 0.0);
+        assert_eq!(qb_cint(1.5), 2.0);
+        assert_eq!(qb_cint(2.5), 2.0);
+        assert_eq!(qb_cint(3.5), 4.0);
+        assert_eq!(qb_cint(-0.5), 0.0);
+        assert_eq!(qb_cint(-1.5), -2.0);
+        assert_eq!(qb_cint(-2.5), -2.0);
+        assert_eq!(qb_cint(-3.5), -4.0);
+    }
+    #[test]
+    fn cint_non_ties_round_to_nearest() {
+        assert_eq!(qb_cint(2.4), 2.0);
+        assert_eq!(qb_cint(2.6), 3.0);
+        assert_eq!(qb_cint(-2.4), -2.0);
+        assert_eq!(qb_cint(-2.6), -3.0);
+        assert_eq!(qb_cint(7.0), 7.0);
+    }
+
+    // ── `\` integer divide: operands CINT-rounded, result truncates to zero ──
+    #[test]
+    fn idiv_basic_and_truncation() {
+        assert_eq!(qb_idiv(7.0, 2.0), 3.0);
+        assert_eq!(qb_idiv(-7.0, 2.0), -3.0); // truncate toward zero
+        assert_eq!(qb_idiv(7.0, -2.0), -3.0);
+    }
+    #[test]
+    fn idiv_rounds_operands_first() {
+        // 2.6 \ 1  →  CINT(2.6)=3, 3\1 = 3   (old code truncated 2.6→2 giving 2)
+        assert_eq!(qb_idiv(2.6, 1.0), 3.0);
+        // 10.6 \ 3 → 11 \ 3 = 3
+        assert_eq!(qb_idiv(10.6, 3.0), 3.0);
+    }
+
+    // ── MOD: operands CINT-rounded, remainder takes dividend's sign ──────────
+    #[test]
+    fn mod_sign_follows_dividend() {
+        assert_eq!(qb_mod(-7.0, 3.0), -1.0);
+        assert_eq!(qb_mod(7.0, -3.0), 1.0);
+        assert_eq!(qb_mod(7.0, 3.0), 1.0);
+    }
+    #[test]
+    fn mod_rounds_operands_first() {
+        // 2.7 MOD 2 → CINT(2.7)=3, 3 MOD 2 = 1  (old float % gave 0.7)
+        assert_eq!(qb_mod(2.7, 2.0), 1.0);
+    }
+
+    // ── VAL: longest valid numeric prefix ────────────────────────────────────
+    #[test]
+    fn val_basic() {
+        assert_eq!(qb_val("3.14"), 3.14);
+        assert_eq!(qb_val("  42"), 42.0);
+        assert_eq!(qb_val("-.5"), -0.5);
+        assert_eq!(qb_val("1.5e3"), 1500.0);
+        assert_eq!(qb_val("2E-2"), 0.02);
+    }
+    #[test]
+    fn val_stops_at_invalid_chars() {
+        assert_eq!(qb_val("1-2"), 1.0);     // mid-string sign not consumed
+        assert_eq!(qb_val("12e"), 12.0);    // bare exponent marker dropped
+        assert_eq!(qb_val("12e+"), 12.0);   // exponent with no digit dropped
+        assert_eq!(qb_val(" 3.14abc"), 3.14);
+        assert_eq!(qb_val("abc"), 0.0);
+        assert_eq!(qb_val(""), 0.0);
+    }
+}

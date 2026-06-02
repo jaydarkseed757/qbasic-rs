@@ -1,0 +1,12 @@
+ 10 
+ 20 
+ 30 
+ 40 
+ 50 
+alpha
+beta
+gamma
+ 5 
+ 3 
+ 150 
+done

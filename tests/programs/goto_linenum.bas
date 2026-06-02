@@ -1,0 +1,7 @@
+10 x = 1
+20 IF x > 3 THEN GOTO 60
+30 PRINT x
+40 x = x + 1
+50 GOTO 20
+60 PRINT "done"
+70 END

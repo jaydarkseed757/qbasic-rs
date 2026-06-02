@@ -1,0 +1,9 @@
+10 FOR I = 1 TO 100
+20   IF (I MOD 15) = 0 THEN PRINT "FizzBuzz" : GOTO 60
+30   IF (I MOD 3) = 0 THEN PRINT "Fizz" : GOTO 60
+40   IF (I MOD 5) = 0 THEN PRINT "Buzz" : GOTO 60
+50   PRINT I
+60 NEXT I
+70 END
+
+

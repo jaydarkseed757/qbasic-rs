@@ -161,6 +161,94 @@ pub const EGA: [(u8, u8, u8); 16] = [
     (255,85,85),   (255,85,255),  (255,255,85),  (255,255,255),
 ];
 
+// ── 256-entry palette storage (SCREEN 13 = MCGA 256-color) ────────────────────
+
+/// Construction-time / non-mode-13 palette: the 16 EGA colors in slots 0–15,
+/// black in 16–255. Used by all EGA modes (only 0–15 are ever indexed there).
+const fn default_palette_256() -> [(u8, u8, u8); 256] {
+    let mut p = [(0u8, 0u8, 0u8); 256];
+    let mut i = 0;
+    while i < 16 {
+        p[i] = EGA[i];
+        i += 1;
+    }
+    p
+}
+const DEFAULT_PALETTE_256: [(u8, u8, u8); 256] = default_palette_256();
+
+/// Expand a 6-bit DAC channel value (0–63) to 8-bit (0–255), VGA-style.
+#[inline]
+fn dac6_to_8(c: u8) -> u8 { (c << 2) | (c >> 4) }
+
+/// Decode an 18-bit SCREEN 13 PALETTE color value into 8-bit RGB.
+/// QB encoding: `color = red + 256*green + 65536*blue`, each channel 0–63.
+fn dac18_to_rgb(v: u64) -> (u8, u8, u8) {
+    (dac6_to_8((v & 63) as u8),
+     dac6_to_8(((v >> 8) & 63) as u8),
+     dac6_to_8(((v >> 16) & 63) as u8))
+}
+
+/// The canonical VGA BIOS power-on default palette for mode 13h.
+/// Reproduces the well-known table (matches DOSBox 0.74 / Allegro 4.4.2);
+/// algorithm from canidlogic/vgapal. Built in 6-bit DAC space, expanded to 8-bit.
+fn vga256_default() -> [(u8, u8, u8); 256] {
+    // One "run" of 4 colors: first uses `start` (hi where bit set, else lo),
+    // then ramps channel `ch` (4=R,2=G,1=B) through the mid levels.
+    fn add_run(pal: &mut Vec<(u8, u8, u8)>, start: i32, ch: i32,
+               lo: i32, melo: i32, me: i32, mehi: i32, hi: i32) -> i32 {
+        let (mut r, mut g, mut b) = (lo, lo, lo);
+        if start & 4 == 4 { r = hi; }
+        if start & 2 == 2 { g = hi; }
+        if start & 1 == 1 { b = hi; }
+        pal.push((r as u8, g as u8, b as u8));
+        let up = (start & ch) != ch;
+        for i in 0..3 {
+            let v = if up {
+                if i == 0 { melo } else if i == 1 { me } else { mehi }
+            } else {
+                if i == 0 { mehi } else if i == 1 { me } else { melo }
+            };
+            match ch { 4 => r = v, 2 => g = v, _ => b = v }
+            pal.push((r as u8, g as u8, b as u8));
+        }
+        start ^ ch
+    }
+    // One "cycle" of 24 colors: 6 runs ramping R,B,G,R,B,G in turn.
+    fn add_cycle(pal: &mut Vec<(u8, u8, u8)>,
+                 lo: i32, melo: i32, me: i32, mehi: i32, hi: i32) {
+        let mut hue = 1;
+        for &ch in &[4, 1, 2, 4, 1, 2] {
+            hue = add_run(pal, hue, ch, lo, melo, me, mehi, hi);
+        }
+    }
+
+    let mut p6: Vec<(u8, u8, u8)> = Vec::with_capacity(256);
+    // 0–15: EGA/IRGB colors (>>2 converts our 8-bit EGA const back to 6-bit DAC).
+    for &(r, g, b) in EGA.iter() { p6.push((r >> 2, g >> 2, b >> 2)); }
+    // 16–31: grayscale ramp.
+    for &v in &[0u8, 5, 8, 11, 14, 17, 20, 24, 28, 32, 36, 40, 45, 50, 56, 63] {
+        p6.push((v, v, v));
+    }
+    // 32–247: nine 24-color cycles (high/med/low value × high/med/low saturation).
+    add_cycle(&mut p6,  0, 16, 31, 47, 63);
+    add_cycle(&mut p6, 31, 39, 47, 55, 63);
+    add_cycle(&mut p6, 45, 49, 54, 58, 63);
+    add_cycle(&mut p6,  0,  7, 14, 21, 28);
+    add_cycle(&mut p6, 14, 17, 21, 24, 28);
+    add_cycle(&mut p6, 20, 22, 24, 26, 28);
+    add_cycle(&mut p6,  0,  4,  8, 12, 16);
+    add_cycle(&mut p6,  8, 10, 12, 14, 16);
+    add_cycle(&mut p6, 11, 12, 13, 15, 16);
+    // 248–255: black.
+    while p6.len() < 256 { p6.push((0, 0, 0)); }
+
+    let mut out = [(0u8, 0u8, 0u8); 256];
+    for (i, &(r, g, b)) in p6.iter().enumerate() {
+        out[i] = (dac6_to_8(r), dac6_to_8(g), dac6_to_8(b));
+    }
+    out
+}
+
 // ── File I/O types ───────────────────────────────────────────────────────────
 
 enum QbFile {
@@ -195,7 +283,7 @@ pub struct Runtime {
     char_w: u32,        // character cell width in pixels (always 8)
     char_h: u32,        // character cell height in pixels (8 or 14 depending on mode)
     fb: Vec<u8>,           // palette-indexed pixels
-    palette_rgb: [(u8,u8,u8); 16],  // remappable palette (PALETTE statement)
+    palette_rgb: [(u8,u8,u8); 256], // remappable palette (PALETTE statement); 256 entries for SCREEN 13
     window: Option<minifb::Window>,
     /// Window title and dimensions — stored here so we can create the window
     /// lazily on the first SCREEN call instead of at Runtime::new() time.
@@ -272,7 +360,7 @@ impl Runtime {
             char_w:       8,
             char_h:       16,
             fb:           vec![0u8; 640 * 400],
-            palette_rgb:  EGA,
+            palette_rgb:  DEFAULT_PALETTE_256,
             window:             None,
             win_title:          "QBasic".to_string(),
             last_present:       std::time::Instant::now(),
@@ -337,7 +425,7 @@ impl Runtime {
             char_w:            8,
             char_h:            16,    // 8×16 font → 80×25 text grid
             fb:                vec![0u8; 640 * 400],
-            palette_rgb:       EGA,
+            palette_rgb:       DEFAULT_PALETTE_256,
             window,
             win_title:         title.to_string(),
             last_present:      std::time::Instant::now(),
@@ -385,7 +473,7 @@ impl Runtime {
         self.width  = w;
         self.height = h;
         self.fb     = vec![0u8; (w * h) as usize];
-        self.palette_rgb = EGA;
+        self.palette_rgb = if mode as u8 == 13 { vga256_default() } else { DEFAULT_PALETTE_256 };
         self.char_w = 8;
         self.char_h = match mode as u8 { 0 => 16, 9 => 14, _ => 8 };
         // Window is now opened eagerly in new_configured(); nothing to do here
@@ -441,6 +529,12 @@ impl Runtime {
         }
     }
 
+    /// Number of distinct color indices in the current mode: 256 for SCREEN 13
+    /// (MCGA), 16 for every EGA/CGA mode. Used to wrap out-of-range color
+    /// arguments the way QB clamps them.
+    #[inline]
+    fn color_mod(&self) -> i64 { if self.screen_mode == 13 { 256 } else { 16 } }
+
     pub fn color(&mut self, fg: f64, bg: Option<f64>) {
         if self.screen_mode == 1 {
             // CGA SCREEN 1: COLOR bg_ega_idx, palette_selector
@@ -462,9 +556,10 @@ impl Runtime {
             self.palette_rgb[3] = EGA[c3];
             self.fg_color = 3; // default fg = brightest CGA color
         } else {
-            self.fg_color = (fg as i64).rem_euclid(16) as u8;
+            let m = self.color_mod();
+            self.fg_color = (fg as i64).rem_euclid(m) as u8;
             if let Some(b) = bg {
-                self.bg_color = (b as i64).rem_euclid(16) as u8;
+                self.bg_color = (b as i64).rem_euclid(m) as u8;
             }
         }
     }
@@ -473,6 +568,12 @@ impl Runtime {
     /// EGA 64-color encoding: bits [5:4:3] = RGB high, bits [2:1:0] = RGB low (bright).
     /// Formula: R = 170*((v>>2)&1) + 85*((v>>5)&1), same pattern for G (bits 1,4) and B (bits 0,3).
     pub fn palette(&mut self, attr: f64, color64: f64) {
+        if self.screen_mode == 13 {
+            // MCGA: 256 attributes; color value is an 18-bit DAC triple.
+            let idx = (attr as i64).rem_euclid(256) as usize;
+            self.palette_rgb[idx] = dac18_to_rgb(color64 as u64);
+            return;
+        }
         let idx = (attr as i64).rem_euclid(16) as usize;
         let v = color64 as u64;
         let r = (170 * ((v >> 2) & 1) + 85 * ((v >> 5) & 1)) as u8;
@@ -1103,8 +1204,9 @@ impl Runtime {
     /// Write directly to the framebuffer pixel (no coordinate transform, no cursor update).
     fn pset_raw(&mut self, fx: i32, fy: i32, color: f64) {
         if fx >= 0 && fy >= 0 && (fx as u32) < self.width && (fy as u32) < self.height {
+            let m = self.color_mod();
             self.fb[(fy as u32 * self.width + fx as u32) as usize] =
-                (color as i32).rem_euclid(16) as u8;
+                (color as i64).rem_euclid(m) as u8;
         }
     }
 
@@ -1231,6 +1333,13 @@ impl Runtime {
 
     /// PALETTE USING arr(start) — remap all palette entries from a slice of indices.
     pub fn palette_using(&mut self, arr: &[f64]) {
+        if self.screen_mode == 13 {
+            // MCGA: up to 256 entries, each an 18-bit DAC color value.
+            for (i, &v) in arr.iter().enumerate().take(256) {
+                self.palette_rgb[i] = dac18_to_rgb(v as u64);
+            }
+            return;
+        }
         for (i, &v) in arr.iter().enumerate().take(16) {
             self.palette_rgb[i] = EGA[(v as i32).rem_euclid(16) as usize];
         }
@@ -1250,10 +1359,11 @@ impl Runtime {
 
     pub fn paint(&mut self, x: f64, y: f64, fill: f64, border: f64) {
         // Negative fill/border = "use current draw color" (omitted in QB source)
+        let m = self.color_mod();
         let fill_idx   = if fill   < 0.0 { self.draw_color }
-                         else { (fill   as i32).rem_euclid(16) as u8 };
+                         else { (fill   as i64).rem_euclid(m) as u8 };
         let border_idx = if border < 0.0 { fill_idx }
-                         else { (border as i32).rem_euclid(16) as u8 };
+                         else { (border as i64).rem_euclid(m) as u8 };
         let (fx, fy) = self.logical_to_fb(x, y);
         flood_fill(self, fx as i32, fy as i32, fill_idx, border_idx);
     }
@@ -1361,7 +1471,7 @@ impl Runtime {
             if ch == 'C' {
                 let (v, _, ni) = parse_int_sign(&chars, i);
                 i = ni;
-                self.draw_color = (v as i64).rem_euclid(16) as u8;
+                self.draw_color = (v as i64).rem_euclid(self.color_mod()) as u8;
                 continue;
             }
 
@@ -2446,5 +2556,59 @@ mod numeric_tests {
         assert_eq!(qb_val(" 3.14abc"), 3.14);
         assert_eq!(qb_val("abc"), 0.0);
         assert_eq!(qb_val(""), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod screen13_tests {
+    use super::{Runtime, vga256_default, dac18_to_rgb, DEFAULT_PALETTE_256, EGA};
+
+    // SCREEN 13 keeps color indices 0–255 (no mod-16 wrap); EGA modes still wrap.
+    #[test]
+    fn mode13_preserves_high_indices() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.pset(10.0, 10.0, 50.0);
+        rt.pset(20.0, 20.0, 200.0);
+        assert_eq!(rt.point(10.0, 10.0), 50.0);
+        assert_eq!(rt.point(20.0, 20.0), 200.0);
+    }
+
+    #[test]
+    fn ega_mode_wraps_mod16() {
+        let mut rt = Runtime::headless();
+        rt.screen(9.0);
+        rt.pset(10.0, 10.0, 50.0); // 50 % 16 == 2
+        assert_eq!(rt.point(10.0, 10.0), 2.0);
+    }
+
+    // SCREEN 13 PALETTE uses an 18-bit DAC value (channels 0–63), not EGA irgb.
+    #[test]
+    fn mode13_palette_dac_decode() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        // pure red at full intensity: red=63 → 8-bit 255.
+        rt.palette(50.0, 63.0);
+        assert_eq!(rt.palette_rgb[50], (255, 0, 0));
+        // green=63 → encoded as 63*256; blue=63 → 63*65536.
+        rt.palette(51.0, 63.0 * 256.0);
+        assert_eq!(rt.palette_rgb[51], (0, 255, 0));
+        rt.palette(52.0, 63.0 * 65536.0);
+        assert_eq!(rt.palette_rgb[52], (0, 0, 255));
+        // mid value 31 → (31<<2)|(31>>4) = 124|1 = 125.
+        assert_eq!(dac18_to_rgb(31), (125, 0, 0));
+    }
+
+    // The default tables: slot 0–15 are EGA in both; mode-13 default fills 16–255.
+    #[test]
+    fn default_palettes_shape() {
+        assert_eq!(DEFAULT_PALETTE_256[0], EGA[0]);
+        assert_eq!(DEFAULT_PALETTE_256[15], EGA[15]);
+        assert_eq!(DEFAULT_PALETTE_256[200], (0, 0, 0)); // EGA-mode default: black above 15
+        let vga = vga256_default();
+        assert_eq!(vga[0], EGA[0]);            // EGA colors preserved
+        assert_eq!(vga[31], (255, 255, 255));  // grayscale ramp ends at white
+        assert_eq!(vga[32], (0, 0, 255));      // first HSV cycle starts at full blue
+        assert_eq!(vga[255], (0, 0, 0));       // tail is black
     }
 }

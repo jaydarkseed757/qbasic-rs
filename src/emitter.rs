@@ -1185,15 +1185,23 @@ impl Emitter {
                 self.line(&format!("__rt.screen({m});"));
                 self.emit_error_dispatch();
             }
-            Stmt::Circle { x, y, r, color } => {
+            Stmt::Circle { x, y, r, color, step } => {
                 let x = self.lift_expr(x);
                 let y = self.lift_expr(y);
                 let r = self.lift_expr(r);
                 let c = color.as_ref().map(|e| self.lift_expr(e))
                              .unwrap_or_else(|| "__rt.fg_color as f64".into());
-                self.line(&format!("__rt.circle({x}, {y}, {r}, {c});"));
+                if *step {
+                    // STEP: center is relative to the current graphics cursor.
+                    let tc = self.lift_counter; self.lift_counter += 1;
+                    self.line(&format!("let __stx{tc} = __rt.cur_x() + ({x});"));
+                    self.line(&format!("let __sty{tc} = __rt.cur_y() + ({y});"));
+                    self.line(&format!("__rt.circle(__stx{tc}, __sty{tc}, {r}, {c});"));
+                } else {
+                    self.line(&format!("__rt.circle({x}, {y}, {r}, {c});"));
+                }
             }
-            Stmt::Line { x1, y1, x2, y2, color, style } => {
+            Stmt::Line { x1, y1, x2, y2, color, style, step1, step2 } if !*step1 && !*step2 => {
                 let x2 = self.lift_expr(x2);
                 let y2 = self.lift_expr(y2);
                 let c  = color.as_ref().map(|e| self.lift_expr(e))
@@ -1216,6 +1224,47 @@ impl Emitter {
                             LineStyle::FilledBox => self.line(&format!("__rt.line_box_fill_to({x2},{y2},{c});")),
                         }
                     }
+                }
+            }
+            Stmt::Line { x1, y1, x2, y2, color, style, step1, step2 } => {
+                // STEP path: resolve both points to absolute coords in temps, then
+                // call the absolute line methods. First point STEP is relative to
+                // the cursor; second point STEP is relative to the FIRST point.
+                let tc = self.lift_counter; self.lift_counter += 1;
+                match (x1, y1) {
+                    (Some(x1e), Some(y1e)) => {
+                        let x1v = self.lift_expr(x1e);
+                        let y1v = self.lift_expr(y1e);
+                        if *step1 {
+                            self.line(&format!("let __lx1_{tc} = __rt.cur_x() + ({x1v});"));
+                            self.line(&format!("let __ly1_{tc} = __rt.cur_y() + ({y1v});"));
+                        } else {
+                            self.line(&format!("let __lx1_{tc} = {x1v};"));
+                            self.line(&format!("let __ly1_{tc} = {y1v};"));
+                        }
+                    }
+                    _ => {
+                        // Bare relative `LINE -(...)`: first point is the cursor.
+                        self.line(&format!("let __lx1_{tc} = __rt.cur_x();"));
+                        self.line(&format!("let __ly1_{tc} = __rt.cur_y();"));
+                    }
+                }
+                let x2v = self.lift_expr(x2);
+                let y2v = self.lift_expr(y2);
+                if *step2 {
+                    self.line(&format!("let __lx2_{tc} = __lx1_{tc} + ({x2v});"));
+                    self.line(&format!("let __ly2_{tc} = __ly1_{tc} + ({y2v});"));
+                } else {
+                    self.line(&format!("let __lx2_{tc} = {x2v};"));
+                    self.line(&format!("let __ly2_{tc} = {y2v};"));
+                }
+                let c = color.as_ref().map(|e| self.lift_expr(e))
+                             .unwrap_or_else(|| "__rt.fg_color as f64".into());
+                let args = format!("__lx1_{tc},__ly1_{tc},__lx2_{tc},__ly2_{tc},{c}");
+                match style {
+                    LineStyle::Plain     => self.line(&format!("__rt.line({args});")),
+                    LineStyle::Box       => self.line(&format!("__rt.line_box({args});")),
+                    LineStyle::FilledBox => self.line(&format!("__rt.line_box_fill({args});")),
                 }
             }
             Stmt::View { x1, y1, x2, y2, fill, border } => {
@@ -1269,7 +1318,7 @@ impl Emitter {
                               .unwrap_or_else(|| f.clone());
                 self.line(&format!("__rt.paint({x}, {y}, {f}, {b});"));
             }
-            Stmt::Pset { x, y, color, preset } => {
+            Stmt::Pset { x, y, color, preset, step } => {
                 let x = self.lift_expr(x);
                 let y = self.lift_expr(y);
                 let default_color = if *preset {
@@ -1279,7 +1328,15 @@ impl Emitter {
                 };
                 let c = color.as_ref().map(|e| self.lift_expr(e))
                              .unwrap_or(default_color);
-                self.line(&format!("__rt.pset({x}, {y}, {c});"));
+                if *step {
+                    // STEP: point is relative to the current graphics cursor.
+                    let tc = self.lift_counter; self.lift_counter += 1;
+                    self.line(&format!("let __stx{tc} = __rt.cur_x() + ({x});"));
+                    self.line(&format!("let __sty{tc} = __rt.cur_y() + ({y});"));
+                    self.line(&format!("__rt.pset(__stx{tc}, __sty{tc}, {c});"));
+                } else {
+                    self.line(&format!("__rt.pset({x}, {y}, {c});"));
+                }
             }
 
             // ── Sound ─────────────────────────────────────────────────────────
@@ -1311,29 +1368,47 @@ impl Emitter {
                 self.line(&format!("__rt.palette({a}, {c});"));
             }
 
-            Stmt::PutSprite { x, y, arr, xor_mode } => {
+            Stmt::PutSprite { x, y, arr, xor_mode, step } => {
                 // Hoist coords to temps to avoid borrow conflicts when args contain __rt calls
                 let xv = self.emit_expr(x)?;
                 let yv = self.emit_expr(y)?;
                 let tc = self.lift_counter; self.lift_counter += 1;
-                self.line(&format!("let __spx{tc} = {xv};"));
-                self.line(&format!("let __spy{tc} = {yv};"));
+                if *step {
+                    // STEP: position is relative to the current graphics cursor.
+                    self.line(&format!("let __spx{tc} = __rt.cur_x() + ({xv});"));
+                    self.line(&format!("let __spy{tc} = __rt.cur_y() + ({yv});"));
+                } else {
+                    self.line(&format!("let __spx{tc} = {xv};"));
+                    self.line(&format!("let __spy{tc} = {yv};"));
+                }
                 let arr_name = self.sprite_arr_name(arr);
                 let xm = if *xor_mode { "true" } else { "false" };
                 self.line(&format!("__rt.put_sprite(&{arr_name}, __spx{tc}, __spy{tc}, {xm});"));
             }
 
-            Stmt::GetSprite { x1, y1, x2, y2, arr } => {
+            Stmt::GetSprite { x1, y1, x2, y2, arr, step1, step2 } => {
                 // Hoist coords to temps to avoid borrow conflicts when args contain __rt calls
                 let x1v = self.emit_expr(x1)?;
                 let y1v = self.emit_expr(y1)?;
                 let x2v = self.emit_expr(x2)?;
                 let y2v = self.emit_expr(y2)?;
                 let tc = self.lift_counter; self.lift_counter += 1;
-                self.line(&format!("let __sgx1_{tc} = {x1v};"));
-                self.line(&format!("let __sgy1_{tc} = {y1v};"));
-                self.line(&format!("let __sgx2_{tc} = {x2v};"));
-                self.line(&format!("let __sgy2_{tc} = {y2v};"));
+                if *step1 {
+                    // First point STEP: relative to the current graphics cursor.
+                    self.line(&format!("let __sgx1_{tc} = __rt.cur_x() + ({x1v});"));
+                    self.line(&format!("let __sgy1_{tc} = __rt.cur_y() + ({y1v});"));
+                } else {
+                    self.line(&format!("let __sgx1_{tc} = {x1v};"));
+                    self.line(&format!("let __sgy1_{tc} = {y1v};"));
+                }
+                if *step2 {
+                    // Second point STEP: relative to the FIRST point (QB semantics).
+                    self.line(&format!("let __sgx2_{tc} = __sgx1_{tc} + ({x2v});"));
+                    self.line(&format!("let __sgy2_{tc} = __sgy1_{tc} + ({y2v});"));
+                } else {
+                    self.line(&format!("let __sgx2_{tc} = {x2v};"));
+                    self.line(&format!("let __sgy2_{tc} = {y2v};"));
+                }
                 let arr_name = self.sprite_arr_name(arr);
                 self.line(&format!("__rt.get_sprite(__sgx1_{tc}, __sgy1_{tc}, __sgx2_{tc}, __sgy2_{tc}, &mut {arr_name});"));
             }
@@ -3358,7 +3433,7 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     for e in [x1, y1, x2, y2] { scan_expr(e, result, added, exclude); }
                 }
                 Stmt::PaletteUsing(e) => { scan_expr(e, result, added, exclude); }
-                Stmt::Circle { x, y, r, color } => {
+                Stmt::Circle { x, y, r, color, .. } => {
                     for e in [x, y, r] { scan_expr(e, result, added, exclude); }
                     if let Some(c) = color { scan_expr(c, result, added, exclude); }
                 }
@@ -3893,7 +3968,7 @@ fn collect_typed_array_fields(prog: &AnalyzedProgram)
                 visit_expr(fmt, map, dims);
                 for a in args { visit_expr(a, map, dims); }
             }
-            Stmt::Circle { x, y, r, color } => {
+            Stmt::Circle { x, y, r, color, .. } => {
                 visit_expr(x, map, dims); visit_expr(y, map, dims);
                 visit_expr(r, map, dims);
                 if let Some(c) = color { visit_expr(c, map, dims); }

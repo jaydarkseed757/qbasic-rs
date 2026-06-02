@@ -1210,6 +1210,11 @@ impl Runtime {
         }
     }
 
+    /// Current graphics cursor (QB "last point referenced") in logical coords.
+    /// Used by the emitter to resolve STEP (relative) coordinates.
+    pub fn cur_x(&self) -> f64 { self.gfx_x }
+    pub fn cur_y(&self) -> f64 { self.gfx_y }
+
     pub fn pset(&mut self, x: f64, y: f64, color: f64) {
         self.gfx_x = x;
         self.gfx_y = y;
@@ -1346,6 +1351,10 @@ impl Runtime {
     }
 
     pub fn circle(&mut self, cx: f64, cy: f64, r: f64, color: f64) {
+        // QB moves the "last point referenced" to the circle's center (matters
+        // for a following STEP coordinate). Done before any early-return.
+        self.gfx_x = cx;
+        self.gfx_y = cy;
         let aspect = if self.screen_mode == 7 || self.screen_mode == 1 { 0.8333 } else { 1.0 };
         let (fcx, fcy) = self.logical_to_fb(cx, cy);
         let rx = r as i32;
@@ -2610,5 +2619,38 @@ mod screen13_tests {
         assert_eq!(vga[31], (255, 255, 255));  // grayscale ramp ends at white
         assert_eq!(vga[32], (0, 0, 255));      // first HSV cycle starts at full blue
         assert_eq!(vga[255], (0, 0, 0));       // tail is black
+    }
+}
+
+#[cfg(test)]
+mod step_tests {
+    use super::Runtime;
+
+    // The graphics cursor (QB "last point referenced") tracks PSET and LINE.
+    #[test]
+    fn pset_updates_cursor() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.pset(10.0, 20.0, 4.0);
+        assert_eq!((rt.cur_x(), rt.cur_y()), (10.0, 20.0));
+    }
+
+    #[test]
+    fn line_updates_cursor_to_endpoint() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.line(5.0, 5.0, 40.0, 25.0, 7.0);
+        assert_eq!((rt.cur_x(), rt.cur_y()), (40.0, 25.0));
+    }
+
+    // QB moves the last point referenced to the CIRCLE center (needed for a
+    // following STEP coordinate). Our circle() now does this.
+    #[test]
+    fn circle_updates_cursor_to_center() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.pset(0.0, 0.0, 1.0);
+        rt.circle(50.0, 60.0, 8.0, 3.0);
+        assert_eq!((rt.cur_x(), rt.cur_y()), (50.0, 60.0));
     }
 }

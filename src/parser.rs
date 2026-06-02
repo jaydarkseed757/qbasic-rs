@@ -91,10 +91,12 @@ pub enum Stmt {
     /// VIEW PRINT [top TO bot]  — set/reset text scrolling viewport
     ViewPrint { top: Option<Expr>, bot: Option<Expr> },
     Screen(Expr),
-    Circle { x: Expr, y: Expr, r: Expr, color: Option<Expr> },
-    /// LINE [(x1,y1)]-(x2,y2)[,color][,B[F]]  — x1/y1=None means relative from gfx cursor
-    Line   { x1: Option<Expr>, y1: Option<Expr>, x2: Expr, y2: Expr, color: Option<Expr>, style: LineStyle },
-    Pset   { x: Expr, y: Expr, color: Option<Expr>, preset: bool },
+    Circle { x: Expr, y: Expr, r: Expr, color: Option<Expr>, step: bool },
+    /// LINE [(x1,y1)]-(x2,y2)[,color][,B[F]]  — x1/y1=None means relative from gfx cursor.
+    /// step1 = STEP on the first point (relative to cursor); step2 = STEP on the
+    /// second point (relative to the FIRST point, per QB semantics).
+    Line   { x1: Option<Expr>, y1: Option<Expr>, x2: Expr, y2: Expr, color: Option<Expr>, style: LineStyle, step1: bool, step2: bool },
+    Pset   { x: Expr, y: Expr, color: Option<Expr>, preset: bool, step: bool },
     Paint  { x: Expr, y: Expr, fill: Expr, border: Option<Expr> },
     Play(Expr),
     Sound { freq: Expr, duration: Expr },
@@ -109,10 +111,10 @@ pub enum Stmt {
     Window { x1: Expr, y1: Expr, x2: Expr, y2: Expr },
     /// SHARED name, name() inside a SUB/FUNCTION body
     SharedDecl(Vec<String>),
-    /// PUT (x, y), array, PSET|XOR|...
-    PutSprite { x: Expr, y: Expr, arr: LValue, xor_mode: bool },
-    /// GET (x1,y1)-(x2,y2), array
-    GetSprite { x1: Expr, y1: Expr, x2: Expr, y2: Expr, arr: LValue },
+    /// PUT (x, y), array, PSET|XOR|...   — step = STEP on the point (cursor-relative)
+    PutSprite { x: Expr, y: Expr, arr: LValue, xor_mode: bool, step: bool },
+    /// GET (x1,y1)-(x2,y2), array   — step1/step2 as in Line
+    GetSprite { x1: Expr, y1: Expr, x2: Expr, y2: Expr, arr: LValue, step1: bool, step2: bool },
     Swap(LValue, LValue),
     End,
     Stop,
@@ -1509,8 +1511,15 @@ impl Parser {
 
     // ── Graphics ──────────────────────────────────────────────────────────────
 
+    /// Consume an optional leading `STEP` keyword before a `(x,y)` coordinate
+    /// pair (relative-coordinate marker). Returns true if STEP was present.
+    fn opt_step(&mut self) -> bool {
+        if self.peek() == &Token::Step { self.advance(); true } else { false }
+    }
+
     fn parse_circle(&mut self) -> Result<Stmt> {
         self.expect(&Token::Circle)?;
+        let step = self.opt_step();
         self.expect(&Token::LParen)?;
         let x = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1529,7 +1538,7 @@ impl Parser {
             self.advance();
             if !self.at_eol() && self.peek() != &Token::Comma { self.parse_expr()?; }
         }
-        Ok(Stmt::Circle { x, y, r, color })
+        Ok(Stmt::Circle { x, y, r, color, step })
     }
 
     fn parse_line_stmt(&mut self) -> Result<Stmt> {
@@ -1554,10 +1563,13 @@ impl Parser {
             vars.push(self.parse_lvalue()?);
             return Ok(Stmt::Input { prompt, vars });
         }
-        // LINE -(x2,y2) — relative form: no opening (x1,y1) before the dash
+        // LINE -(x2,y2) — relative form: no opening (x1,y1) before the dash.
+        // STEP before the first pair marks it cursor-relative.
+        let mut step1 = false;
         let (x1, y1) = if self.peek() == &Token::Minus {
             (None, None)
         } else {
+            step1 = self.opt_step();
             self.expect(&Token::LParen)?;
             let x1 = self.parse_expr()?;
             self.expect(&Token::Comma)?;
@@ -1566,6 +1578,7 @@ impl Parser {
             (Some(x1), Some(y1))
         };
         self.expect(&Token::Minus)?;
+        let step2 = self.opt_step();
         self.expect(&Token::LParen)?;
         let x2 = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1592,12 +1605,13 @@ impl Parser {
             }
         }
 
-        Ok(Stmt::Line { x1, y1, x2, y2, color, style })
+        Ok(Stmt::Line { x1, y1, x2, y2, color, style, step1, step2 })
     }
 
     fn parse_pset(&mut self) -> Result<Stmt> {
         let preset = self.peek() == &Token::Preset;
         self.advance(); // consume PSET or PRESET
+        let step = self.opt_step();
         self.expect(&Token::LParen)?;
         let x = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1607,7 +1621,7 @@ impl Parser {
             self.advance();
             Some(self.parse_expr()?)
         } else { None };
-        Ok(Stmt::Pset { x, y, color, preset })
+        Ok(Stmt::Pset { x, y, color, preset, step })
     }
 
     fn parse_paint(&mut self) -> Result<Stmt> {
@@ -1781,6 +1795,7 @@ impl Parser {
             }
             return Ok(Stmt::FilePut { file_num, record });
         }
+        let step = self.opt_step();
         self.expect(&Token::LParen)?;
         let x = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1799,7 +1814,7 @@ impl Parser {
                 _ => {}  // no mode or unrecognized — leave tokens for the rest of the line
             }
         }
-        Ok(Stmt::PutSprite { x, y, arr, xor_mode })
+        Ok(Stmt::PutSprite { x, y, arr, xor_mode, step })
     }
 
     /// GET (x1,y1)-(x2,y2), array_var  — capture screen region to array
@@ -1824,12 +1839,14 @@ impl Parser {
             }
             return Ok(Stmt::FileGet { file_num, record });
         }
+        let step1 = self.opt_step();
         self.expect(&Token::LParen)?;
         let x1 = self.parse_expr()?;
         self.expect(&Token::Comma)?;
         let y1 = self.parse_expr()?;
         self.expect(&Token::RParen)?;
         self.expect(&Token::Minus)?;
+        let step2 = self.opt_step();
         self.expect(&Token::LParen)?;
         let x2 = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1837,7 +1854,7 @@ impl Parser {
         self.expect(&Token::RParen)?;
         self.expect(&Token::Comma)?;
         let arr = self.parse_lvalue()?;
-        Ok(Stmt::GetSprite { x1, y1, x2, y2, arr })
+        Ok(Stmt::GetSprite { x1, y1, x2, y2, arr, step1, step2 })
     }
 
     // ── Expression parser (recursive descent, QB precedence) ─────────────────

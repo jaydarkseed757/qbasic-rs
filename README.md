@@ -41,8 +41,7 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | Program | Description | Status |
 |---------|-------------|--------|
 | `gorilla.bas` | Classic gorilla-throwing game (SCREEN 9 EGA, CIRCLE/PAINT/GET/PUT sprites, PLAY audio) | ✅ |
-| `mandel.bas` | Mandelbrot renderer (VIEW/WINDOW coords, PALETTE cycling, FULLSPEED) | ✅ |
-| `aster7.bas` | Asteroid navigation game (SCREEN 12 VGA, COMMON/STATIC, TYPE records) | ✅ |
+| `mandel.bas` | Mandelbrot renderer (VIEW/WINDOW coords, PALETTE cycling, PACE) | ✅ |
 | `sortdemo.bas` | Animated sorting visualizer (SHARED vars, animation) | ✅ |
 | `money.bas` | Money manager (DATA/READ, SELECT CASE, arrays) | ✅ |
 | `donkey.bas` | Q-BASIC Donkey game (GOTO state machine, DRAW sprites) | ✅ |

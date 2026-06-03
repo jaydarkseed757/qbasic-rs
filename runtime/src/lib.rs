@@ -161,6 +161,11 @@ pub const EGA: [(u8, u8, u8); 16] = [
     (255,85,85),   (255,85,255),  (255,255,85),  (255,255,255),
 ];
 
+/// PUT sprite-blit action verb (QBasic `PUT (x,y),array[,verb]`). The default
+/// verb in QBasic when none is written is `Xor`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PutAction { Pset, Preset, And, Or, Xor }
+
 // ── 256-entry palette storage (SCREEN 13 = MCGA 256-color) ────────────────────
 
 /// Construction-time / non-mode-13 palette: the 16 EGA colors in slots 0–15,
@@ -535,6 +540,14 @@ impl Runtime {
     #[inline]
     fn color_mod(&self) -> i64 { if self.screen_mode == 13 { 256 } else { 16 } }
 
+    /// Max color value (bit mask) for the current screen mode's pixel depth,
+    /// used to invert a sprite pixel for the PUT `PRESET` verb: CGA = 2bpp (3),
+    /// MCGA mode 13 = 8bpp (255), every EGA mode = 4bpp (15).
+    #[inline]
+    fn sprite_color_mask(&self) -> u8 {
+        match self.screen_mode { 1 => 3, 13 => 255, _ => 15 }
+    }
+
     pub fn color(&mut self, fg: f64, bg: Option<f64>) {
         if self.screen_mode == 1 {
             // CGA SCREEN 1: COLOR bg_ega_idx, palette_selector
@@ -562,6 +575,12 @@ impl Runtime {
                 self.bg_color = (b as i64).rem_euclid(m) as u8;
             }
         }
+        // QB: DRAW with no `C` verb uses the current COLOR foreground. Keep the
+        // DRAW color in sync so a later `DRAW "..."` (no C) paints in the new
+        // foreground — and so a following PAINT whose border = that color sees a
+        // matching outline. (Donkey's "S08" sprite relies on this; without it the
+        // outline drew in the stale default color and PAINT flooded the region.)
+        self.draw_color = self.fg_color;
     }
 
     /// PALETTE attr, color64 — remap a palette attribute index to an EGA 64-color value.
@@ -1081,9 +1100,10 @@ impl Runtime {
         }
     }
 
-    /// PUT (x, y), array, PSET|XOR — blit a sprite from a QB EGA planar array.
-    /// xor_mode=false → PSET (overwrite all pixels), xor_mode=true → XOR existing pixels.
-    pub fn put_sprite(&mut self, data: &[f64], gx: f64, gy: f64, xor_mode: bool) {
+    /// PUT (x, y), array, verb — blit a sprite from a QB EGA planar array.
+    /// `action` selects the QB combine verb (PSET/PRESET/AND/OR/XOR); QB's
+    /// default verb (no keyword) is XOR.
+    pub fn put_sprite(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
         if self.screen_mode == 0 || data.is_empty() { return; }
         let header = data[0] as i64 as u32;
         let width  = ((header & 0xFFFF) + 1) as i32;
@@ -1092,6 +1112,7 @@ impl Runtime {
         // Bytes per row = 4 planes × bytes_per_plane, packed into Longs (4 bytes each)
         // longs_per_row = ceil(4 * bytes_per_plane / 4) = bytes_per_plane
         let longs_per_row = bytes_per_plane;
+        let mask = self.sprite_color_mask(); // for PRESET inversion within bpp
         let gx = gx as i32;
         let gy = gy as i32;
         for row in 0..height {
@@ -1119,10 +1140,12 @@ impl Runtime {
                 let p3 = (row_bytes[bytes_per_plane * 3 + byte_idx] >> bit_pos) & 1;
                 let color = p0 | (p1 << 1) | (p2 << 2) | (p3 << 3);
                 let fb_idx = (sy as u32 * self.width + sx as u32) as usize;
-                if xor_mode {
-                    self.fb[fb_idx] ^= color;
-                } else {
-                    self.fb[fb_idx] = color;
+                match action {
+                    PutAction::Pset   => self.fb[fb_idx] = color,
+                    PutAction::Preset => self.fb[fb_idx] = (!color) & mask,
+                    PutAction::And    => self.fb[fb_idx] &= color,
+                    PutAction::Or     => self.fb[fb_idx] |= color,
+                    PutAction::Xor    => self.fb[fb_idx] ^= color,
                 }
             }
         }
@@ -1508,16 +1531,27 @@ impl Runtime {
             let color = self.draw_color as f64;
 
             if opcode == 'M' {
-                // M x,y — each coordinate is relative if it has a leading sign, else absolute.
+                // M x,y — QB rule: a leading sign on the *X* coordinate makes the
+                // WHOLE move relative ("if x is preceded by + or -, x and y are
+                // added to the current position"); no sign means an absolute
+                // move. The Y sign only sets its own direction, it does NOT
+                // independently switch the mode. (Donkey draws shapes with moves
+                // like `M-1,1` — relative-x, bare-y — which must be fully
+                // relative, else the outline shatters and PAINT floods.)
                 let (vx, rel_x, ni) = parse_int_sign(&chars, i);
                 i = ni;
                 while i < len && (chars[i] == ',' || chars[i] == ' ') { i += 1; }
-                let (vy, rel_y, ni) = parse_int_sign(&chars, i);
+                let (vy, _rel_y, ni) = parse_int_sign(&chars, i);
                 i = ni;
                 let tx = if rel_x { cx0 + vx as f64 * ppu } else { vx as f64 };
-                let ty = if rel_y { cy0 + vy as f64 * ppu } else { vy as f64 };
-                if !blind  { self.line(cx0, cy0, tx, ty, color); }
-                if !no_adv { self.gfx_x = tx; self.gfx_y = ty; }
+                let ty = if rel_x { cy0 + vy as f64 * ppu } else { vy as f64 };
+                if !blind { self.line(cx0, cy0, tx, ty, color); }
+                // `self.line()` advances the cursor to the endpoint, so the `N`
+                // (no-advance) modifier must RESTORE the original position —
+                // not merely skip a second advance. (Car sprites use `ND2`
+                // spurs; without this the cursor drifts and the outline gaps.)
+                if no_adv { self.gfx_x = cx0; self.gfx_y = cy0; }
+                else      { self.gfx_x = tx;  self.gfx_y = ty;  }
             } else if "UDLREFGH".contains(opcode) {
                 // Directional move: optional count follows
                 let (count, _, ni) = if i < len && (chars[i].is_ascii_digit() || chars[i] == '+' || chars[i] == '-') {
@@ -1540,8 +1574,11 @@ impl Runtime {
                 };
                 let tx = cx0 + dx;
                 let ty = cy0 + dy;
-                if !blind  { self.line(cx0, cy0, tx, ty, color); }
-                if !no_adv { self.gfx_x = tx; self.gfx_y = ty; }
+                if !blind { self.line(cx0, cy0, tx, ty, color); }
+                // See M-branch note: `self.line()` advances the cursor, so `N`
+                // must restore it to the start, not just skip a re-advance.
+                if no_adv { self.gfx_x = cx0; self.gfx_y = cy0; }
+                else      { self.gfx_x = tx;  self.gfx_y = ty;  }
             }
             // Unknown opcodes are silently skipped
         }
@@ -2338,6 +2375,79 @@ pub fn qb_field_put(buf: &mut Vec<u8>, offset: usize, s: &str, len: usize) {
     }
 }
 
+// ── Random-access TYPE-record (GET/PUT #n, rec, var) pack/unpack ───────────────
+//
+// Helpers for serializing a QB user-TYPE variable to/from a fixed-length record
+// buffer. Fixed strings are raw ASCII bytes (space-padded); numerics use
+// little-endian: INTEGER=i16, LONG=i32, SINGLE=f32 IEEE, DOUBLE=f64 IEEE.
+// (QuickBASIC 1.1 stored SINGLE/DOUBLE in MBF, not IEEE — see CLAUDE.md. The
+// integer and fixed-string encodings are byte-exact with DOS.) All getters/
+// setters are bounds-checked: a short buffer pads/zeros gracefully, matching the
+// padding done by read_record/write_record.
+
+/// Write a fixed-length string field: `n` raw bytes at `off`, space-padded.
+pub fn qb_rec_put_str(buf: &mut [u8], off: usize, s: &str, n: usize) {
+    let bytes = s.as_bytes();
+    for i in 0..n {
+        if off + i < buf.len() {
+            buf[off + i] = *bytes.get(i).unwrap_or(&b' ');
+        }
+    }
+}
+
+/// Read a fixed-length string field: `n` bytes at `off`, space-padded if short.
+pub fn qb_rec_get_str(buf: &[u8], off: usize, n: usize) -> String {
+    let end = (off + n).min(buf.len());
+    let slice = if off < buf.len() { &buf[off..end] } else { &[][..] };
+    let s = String::from_utf8_lossy(slice).into_owned();
+    if s.len() < n { format!("{:<width$}", s, width = n) } else { s }
+}
+
+fn rec_write(buf: &mut [u8], off: usize, bytes: &[u8]) {
+    for (i, b) in bytes.iter().enumerate() {
+        if off + i < buf.len() { buf[off + i] = *b; }
+    }
+}
+fn rec_read<const N: usize>(buf: &[u8], off: usize) -> [u8; N] {
+    let mut out = [0u8; N];
+    for (i, slot) in out.iter_mut().enumerate() {
+        if let Some(b) = buf.get(off + i) { *slot = *b; }
+    }
+    out
+}
+
+/// INTEGER — 2-byte little-endian. QB rounds to nearest on store.
+pub fn qb_rec_put_i16(buf: &mut [u8], off: usize, v: f64) {
+    rec_write(buf, off, &(v.round() as i64 as i16).to_le_bytes());
+}
+pub fn qb_rec_get_i16(buf: &[u8], off: usize) -> f64 {
+    i16::from_le_bytes(rec_read::<2>(buf, off)) as f64
+}
+
+/// LONG — 4-byte little-endian.
+pub fn qb_rec_put_i32(buf: &mut [u8], off: usize, v: f64) {
+    rec_write(buf, off, &(v.round() as i64 as i32).to_le_bytes());
+}
+pub fn qb_rec_get_i32(buf: &[u8], off: usize) -> f64 {
+    i32::from_le_bytes(rec_read::<4>(buf, off)) as f64
+}
+
+/// SINGLE — 4-byte IEEE little-endian.
+pub fn qb_rec_put_f32(buf: &mut [u8], off: usize, v: f64) {
+    rec_write(buf, off, &(v as f32).to_le_bytes());
+}
+pub fn qb_rec_get_f32(buf: &[u8], off: usize) -> f64 {
+    f32::from_le_bytes(rec_read::<4>(buf, off)) as f64
+}
+
+/// DOUBLE — 8-byte IEEE little-endian.
+pub fn qb_rec_put_f64(buf: &mut [u8], off: usize, v: f64) {
+    rec_write(buf, off, &v.to_le_bytes());
+}
+pub fn qb_rec_get_f64(buf: &[u8], off: usize) -> f64 {
+    f64::from_le_bytes(rec_read::<8>(buf, off))
+}
+
 /// EOF(n) — returns -1 (true) when file n is exhausted, 0 otherwise.
 /// Called as a QB function returning f64; the runtime's eof_check does the work.
 pub fn qb_eof_fn(_file_num: f64) -> f64 { 0.0 } // conservative: let read fail naturally
@@ -2652,5 +2762,176 @@ mod step_tests {
         rt.pset(0.0, 0.0, 1.0);
         rt.circle(50.0, 60.0, 8.0, 3.0);
         assert_eq!((rt.cur_x(), rt.cur_y()), (50.0, 60.0));
+    }
+}
+
+#[cfg(test)]
+mod record_tests {
+    use super::*;
+
+    // Round-trip a HALLFAMEREC-shaped record (STRING*20, INTEGER, LONG = 26 bytes).
+    #[test]
+    fn round_trip_str_i16_i32() {
+        let mut buf = vec![b' '; 26];
+        qb_rec_put_str(&mut buf, 0, "LT CMDR CHICKEN", 20);
+        qb_rec_put_i16(&mut buf, 20, 20.0);
+        qb_rec_put_i32(&mut buf, 22, 100000.0);
+
+        assert_eq!(qb_rec_get_str(&buf, 0, 20), "LT CMDR CHICKEN     "); // space-padded to 20
+        assert_eq!(qb_rec_get_i16(&buf, 20), 20.0);
+        assert_eq!(qb_rec_get_i32(&buf, 22), 100000.0);
+    }
+
+    #[test]
+    fn integer_layout_is_little_endian_2_bytes() {
+        let mut buf = vec![0u8; 4];
+        qb_rec_put_i16(&mut buf, 0, 258.0); // 0x0102
+        assert_eq!(&buf[0..2], &[0x02, 0x01]);
+        assert_eq!(qb_rec_get_i16(&buf, 0), 258.0);
+    }
+
+    #[test]
+    fn long_holds_negative_values() {
+        let mut buf = vec![0u8; 4];
+        qb_rec_put_i32(&mut buf, 0, -9999.0);
+        assert_eq!(qb_rec_get_i32(&buf, 0), -9999.0);
+    }
+
+    #[test]
+    fn single_and_double_ieee_round_trip() {
+        let mut buf = vec![0u8; 12];
+        qb_rec_put_f32(&mut buf, 0, 3.5);
+        qb_rec_put_f64(&mut buf, 4, 2.718281828459045);
+        assert_eq!(qb_rec_get_f32(&buf, 0), 3.5);
+        assert_eq!(qb_rec_get_f64(&buf, 4), 2.718281828459045);
+    }
+
+    // A short/missing buffer must not panic — getters pad/zero, setters no-op.
+    #[test]
+    fn out_of_bounds_is_graceful() {
+        let mut buf = vec![b' '; 4];
+        qb_rec_put_i32(&mut buf, 2, 12345.0); // straddles end — partial write, no panic
+        assert_eq!(qb_rec_get_str(&[], 0, 5), "     ");
+        assert_eq!(qb_rec_get_i16(&buf, 100), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod sprite_tests {
+    use super::*;
+
+    // A 2×1 EGA sprite: pixel(0)=color 1, pixel(1)=color 2.
+    // header = (width-1)|((height-1)<<16) = 1; one data long packs 4 planes:
+    // plane0 col0 (bit7)=0x80, plane1 col1 (bit6)=0x40 → 0x80 | 0x40<<8 = 0x4080.
+    fn sprite_2x1() -> Vec<f64> { vec![1.0, 0x4080 as f64] }
+
+    fn setup() -> Runtime {
+        let mut rt = Runtime::headless();
+        rt.screen(9.0); // EGA, sprite_color_mask = 15
+        rt
+    }
+
+    #[test]
+    fn pset_overwrites() {
+        let mut rt = setup();
+        rt.pset(0.0, 0.0, 7.0);
+        rt.pset(1.0, 0.0, 7.0);
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Pset);
+        assert_eq!(rt.point(0.0, 0.0), 1.0);
+        assert_eq!(rt.point(1.0, 0.0), 2.0);
+    }
+
+    #[test]
+    fn preset_inverts_within_mask() {
+        let mut rt = setup();
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Preset);
+        // !1 & 15 = 14, !2 & 15 = 13
+        assert_eq!(rt.point(0.0, 0.0), 14.0);
+        assert_eq!(rt.point(1.0, 0.0), 13.0);
+    }
+
+    #[test]
+    fn xor_toggles() {
+        let mut rt = setup();
+        rt.pset(0.0, 0.0, 3.0); // 3 ^ 1 = 2
+        rt.pset(1.0, 0.0, 3.0); // 3 ^ 2 = 1
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Xor);
+        assert_eq!(rt.point(0.0, 0.0), 2.0);
+        assert_eq!(rt.point(1.0, 0.0), 1.0);
+        // XORing the same sprite again restores the background (draw/erase).
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Xor);
+        assert_eq!(rt.point(0.0, 0.0), 3.0);
+        assert_eq!(rt.point(1.0, 0.0), 3.0);
+    }
+
+    #[test]
+    fn and_or_combine() {
+        let mut rt = setup();
+        rt.pset(0.0, 0.0, 3.0); // 3 & 1 = 1
+        rt.pset(1.0, 0.0, 1.0); // 1 | 2 = 3
+        let mut rt2 = setup();
+        rt2.pset(1.0, 0.0, 1.0); // 1 | 2 = 3 (OR path)
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::And);
+        assert_eq!(rt.point(0.0, 0.0), 1.0); // 3 AND 1
+        rt2.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Or);
+        assert_eq!(rt2.point(1.0, 0.0), 3.0); // 1 OR 2
+    }
+
+    // DRAW "M-1,1": signed x, bare y. QB makes the whole move relative (the x
+    // sign governs the pair), so the cursor ends at (start-1, start+1), NOT at
+    // absolute y=1. (Regression guard for donkey's outline.)
+    #[test]
+    fn draw_m_relative_x_makes_pair_relative() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.draw("S4");            // scale 4 → 1 pixel per unit
+        rt.draw("BM20,20");       // blind absolute move to (20,20)
+        rt.draw("M-1,1");         // relative: → (19, 21)
+        assert_eq!((rt.cur_x(), rt.cur_y()), (19.0, 21.0));
+        rt.draw("BM20,20");
+        rt.draw("M14,18");        // unsigned x → absolute move to (14,18)
+        assert_eq!((rt.cur_x(), rt.cur_y()), (14.0, 18.0));
+    }
+
+    // DRAW with no `C` verb paints in the current COLOR foreground (so a
+    // following PAINT whose border matches that color sees the outline). Donkey
+    // regression: COLOR sets fg, then DRAW "S08" (no C) must use it — not a
+    // stale default — else PAINT floods. Here CGA COLOR fixes fg=3.
+    #[test]
+    fn draw_uses_current_color_foreground() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.color(8.0, Some(1.0)); // CGA: foreground becomes 3
+        rt.draw("R4");            // draw 4px right from (0,0) in the fg color
+        assert_eq!(rt.point(2.0, 0.0), 3.0); // outline is color 3, not a stale default
+    }
+
+    // DRAW "N" no-advance modifier: the segment is drawn but the cursor must
+    // return to where it started. `self.line()` advances the cursor internally,
+    // so N has to RESTORE it (not just skip a re-advance). Car sprites draw
+    // spurs with `ND2`; a drifting cursor leaves gaps that make PAINT flood.
+    #[test]
+    fn draw_n_modifier_does_not_advance_cursor() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.color(8.0, Some(1.0)); // CGA foreground = 3
+        rt.draw("S4");        // scale 4 → 1 px/unit
+        rt.draw("BM10,10");   // cursor at (10,10)
+        rt.draw("ND4");       // draw a spur down 4, but do NOT advance
+        assert_eq!((rt.cur_x(), rt.cur_y()), (10.0, 10.0)); // cursor preserved
+        assert_eq!(rt.point(10.0, 12.0), 3.0);              // …yet the spur was drawn
+        // A following move continues from the preserved origin, not the spur end.
+        rt.draw("R3");
+        assert_eq!((rt.cur_x(), rt.cur_y()), (13.0, 10.0));
+    }
+
+    // CGA mode 1 uses a 2-bit mask: PRESET of color 1 → !1 & 3 = 2.
+    #[test]
+    fn preset_uses_cga_mask_in_mode1() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Preset);
+        assert_eq!(rt.point(0.0, 0.0), 2.0); // !1 & 3
+        assert_eq!(rt.point(1.0, 0.0), 1.0); // !2 & 3
     }
 }

@@ -14,6 +14,47 @@ pub enum QbType {
     UserType(String),
 }
 
+/// On-disk byte representation of a TYPE field, for random-access record
+/// serialization. Captured at TYPE-parse time (where `STRING * n` lengths and
+/// the INTEGER/LONG distinction are still visible) and stored in a side table
+/// parallel to `type_defs`. The f64 storage model is unchanged — this only
+/// describes how a field is packed into / unpacked from a record buffer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FieldRepr {
+    Str(usize), // fixed-length string of n raw bytes
+    I16,        // INTEGER  — 2-byte little-endian
+    I32,        // LONG     — 4-byte little-endian
+    F32,        // SINGLE   — 4-byte IEEE little-endian
+    F64,        // DOUBLE   — 8-byte IEEE little-endian
+    Nested(String), // nested UserType — flattened at emit time
+}
+
+/// Choose the on-disk representation of a TYPE field from its parsed `QbType`,
+/// the raw type-name spelling (to recover the LONG-vs-DOUBLE distinction that
+/// `parse_type_name` collapses), and an optional `STRING * n` length.
+fn field_repr(fty: &QbType, raw_ty: Option<&str>, str_len: Option<usize>) -> FieldRepr {
+    match fty {
+        QbType::String      => FieldRepr::Str(str_len.unwrap_or(1)),
+        QbType::Integer     => FieldRepr::I16,
+        QbType::Single      => FieldRepr::F32,
+        QbType::UserType(n) => FieldRepr::Nested(n.to_lowercase()),
+        QbType::Double      => {
+            // parse_type_name maps both LONG and DOUBLE → Double; disambiguate
+            // by the original keyword so LONG packs as 4-byte i32.
+            if raw_ty == Some("LONG") { FieldRepr::I32 } else { FieldRepr::F64 }
+        }
+    }
+}
+
+/// Extract a constant non-negative integer from a parsed Expr (for `STRING * n`).
+fn const_usize(e: &Expr) -> Option<usize> {
+    match e {
+        Expr::IntLit(n)   if *n >= 0 => Some(*n as usize),
+        Expr::FloatLit(f) if *f >= 0.0 => Some(*f as usize),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct VarDecl {
     pub name:      String,
@@ -30,6 +71,10 @@ pub struct Program {
     pub main_body:  Vec<Stmt>,
     /// TYPE definitions: type_name_lower → ordered [(field_name_lower, QbType)]
     pub type_defs:  HashMap<String, Vec<(String, QbType)>>,
+    /// On-disk record layout per TYPE: type_name_lower → ordered
+    /// [(field_name_lower, FieldRepr)]. Parallel to `type_defs`; used for
+    /// random-access record (GET/PUT #n, rec, var) serialization.
+    pub type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
     /// QBC transpiler directives from `REM QBC <directive>` lines (uppercased).
     pub directives: Vec<String>,
 }
@@ -112,7 +157,7 @@ pub enum Stmt {
     /// SHARED name, name() inside a SUB/FUNCTION body
     SharedDecl(Vec<String>),
     /// PUT (x, y), array, PSET|XOR|...   — step = STEP on the point (cursor-relative)
-    PutSprite { x: Expr, y: Expr, arr: LValue, xor_mode: bool, step: bool },
+    PutSprite { x: Expr, y: Expr, arr: LValue, action: PutAction, step: bool },
     /// GET (x1,y1)-(x2,y2), array   — step1/step2 as in Line
     GetSprite { x1: Expr, y1: Expr, x2: Expr, y2: Expr, arr: LValue, step1: bool, step2: bool },
     Swap(LValue, LValue),
@@ -142,10 +187,10 @@ pub enum Stmt {
     Close { file_nums: Vec<Expr> },
     /// FIELD [#]n, len AS var [, len AS var ...]
     Field { file_num: Expr, fields: Vec<(Expr, LValue)> },
-    /// GET [#]n [, recnum]
-    FileGet { file_num: Expr, record: Option<Expr> },
-    /// PUT [#]n [, recnum]
-    FilePut { file_num: Expr, record: Option<Expr> },
+    /// GET [#]n [, recnum [, var]]
+    FileGet { file_num: Expr, record: Option<Expr>, record_var: Option<LValue> },
+    /// PUT [#]n [, recnum [, var]]
+    FilePut { file_num: Expr, record: Option<Expr>, record_var: Option<LValue> },
     /// LSET var = expr
     LSet { var: LValue, expr: Expr },
     /// RSET var = expr
@@ -216,6 +261,11 @@ pub enum LValue {
     Field  { base: Box<LValue>, field: String },
 }
 
+/// PUT sprite-blit action verb (QBasic `PUT (x,y),array[,verb]`). QB's default
+/// verb when none is written is `Xor`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PutAction { Pset, Preset, And, Or, Xor }
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
     Add, Sub, Mul, Div, IntDiv, Pow, Mod,
@@ -241,12 +291,14 @@ pub struct Parser {
     tokens:     Vec<Spanned>,
     pos:        usize,
     type_defs:  HashMap<String, Vec<(String, QbType)>>,
+    type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
     directives: Vec<String>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Spanned>) -> Self {
-        Self { tokens, pos: 0, type_defs: HashMap::new(), directives: Vec::new() }
+        Self { tokens, pos: 0, type_defs: HashMap::new(),
+               type_layouts: HashMap::new(), directives: Vec::new() }
     }
 
     fn peek(&self) -> &Token {
@@ -333,8 +385,9 @@ impl Parser {
 
         Ok(Program {
             subs, functions, main_body,
-            type_defs:  self.type_defs.clone(),
-            directives: std::mem::take(&mut self.directives),
+            type_defs:    self.type_defs.clone(),
+            type_layouts: self.type_layouts.clone(),
+            directives:   std::mem::take(&mut self.directives),
         })
     }
 
@@ -455,6 +508,7 @@ impl Parser {
                 };
                 while !self.at_eol() { self.advance(); } // consume rest of TYPE name line
                 let mut fields: Vec<(String, QbType)> = Vec::new();
+                let mut layout: Vec<(String, FieldRepr)> = Vec::new();
                 loop {
                     self.skip_newlines();
                     if matches!(self.peek(), Token::Eof) { break; }
@@ -468,21 +522,40 @@ impl Parser {
                         self.advance();
                         let fname_lower = fname.to_lowercase();
                         let mut fty = QbType::Single;
+                        let mut str_len: Option<usize> = None;
                         if self.peek() == &Token::As {
                             self.advance();
+                            // Capture the raw type-name token *before*
+                            // parse_type_name consumes it — parse_type_name
+                            // collapses LONG→Double, so we need the original
+                            // spelling to choose I32 vs F64.
+                            let raw_ty = match self.peek() {
+                                Token::Ident(s) => Some(s.to_uppercase()),
+                                _ => None,
+                            };
                             fty = self.parse_type_name().unwrap_or(QbType::Single);
-                            // STRING * n — consume the fixed-length qualifier
+                            // STRING * n — fixed-length qualifier; keep the length.
                             if self.peek() == &Token::Star {
                                 self.advance();
-                                if !self.at_eol() { let _ = self.parse_expr(); }
+                                if !self.at_eol() {
+                                    if let Ok(e) = self.parse_expr() {
+                                        str_len = const_usize(&e);
+                                    }
+                                }
                             }
+                            let repr = field_repr(&fty, raw_ty.as_deref(), str_len);
+                            layout.push((fname_lower.clone(), repr));
+                        } else {
+                            // No `AS` → defaults to SINGLE (F32) on disk.
+                            layout.push((fname_lower.clone(), FieldRepr::F32));
                         }
                         fields.push((fname_lower, fty));
                     }
                     while !self.at_eol() { self.advance(); } // consume rest of field line
                 }
                 if !type_name.is_empty() {
-                    self.type_defs.insert(type_name, fields);
+                    self.type_defs.insert(type_name.clone(), fields);
+                    self.type_layouts.insert(type_name, layout);
                 }
                 return Ok(None);
             }
@@ -1786,14 +1859,14 @@ impl Parser {
                 self.advance();
                 if self.at_eol() { None } else { Some(self.parse_expr()?) }
             } else { None };
-            // QB random-access record variable: `PUT #n, rec, var`. Parsed and
-            // ignored (see parse_get) — without a FIELD layout the record bytes
-            // aren't assembled from a TYPE variable.
-            if self.peek() == &Token::Comma {
+            // QB random-access record variable: `PUT #n, rec, var`. When `var`
+            // is a TYPE variable the emitter serializes its fields into the
+            // record buffer (see emitter Stmt::FilePut). Captured as an LValue.
+            let record_var = if self.peek() == &Token::Comma {
                 self.advance();
-                if !self.at_eol() { self.parse_expr()?; }
-            }
-            return Ok(Stmt::FilePut { file_num, record });
+                if self.at_eol() { None } else { Some(self.parse_lvalue()?) }
+            } else { None };
+            return Ok(Stmt::FilePut { file_num, record, record_var });
         }
         let step = self.opt_step();
         self.expect(&Token::LParen)?;
@@ -1803,18 +1876,21 @@ impl Parser {
         self.expect(&Token::RParen)?;
         self.expect(&Token::Comma)?;
         let arr = self.parse_lvalue()?;
-        // Optional mode: PSET, XOR, AND, OR, PRESET — consume only the mode token
-        let mut xor_mode = false;
+        // Optional action verb: PSET, PRESET, AND, OR, XOR — consume only the
+        // verb token. QB's default (no verb written) is XOR.
+        let mut action = PutAction::Xor;
         if self.peek() == &Token::Comma {
             self.advance();
             match self.peek() {
-                Token::Xor  => { self.advance(); xor_mode = true; }
-                Token::Pset | Token::Preset => { self.advance(); } // PSET = default, PRESET = invert
-                Token::And | Token::Or      => { self.advance(); } // AND/OR blend modes
-                _ => {}  // no mode or unrecognized — leave tokens for the rest of the line
+                Token::Pset   => { self.advance(); action = PutAction::Pset; }
+                Token::Preset => { self.advance(); action = PutAction::Preset; }
+                Token::And    => { self.advance(); action = PutAction::And; }
+                Token::Or     => { self.advance(); action = PutAction::Or; }
+                Token::Xor    => { self.advance(); action = PutAction::Xor; }
+                _ => {}  // unrecognized — leave default (XOR), tokens for rest of line
             }
         }
-        Ok(Stmt::PutSprite { x, y, arr, xor_mode, step })
+        Ok(Stmt::PutSprite { x, y, arr, action, step })
     }
 
     /// GET (x1,y1)-(x2,y2), array_var  — capture screen region to array
@@ -1829,15 +1905,14 @@ impl Parser {
                 self.advance();
                 if self.at_eol() { None } else { Some(self.parse_expr()?) }
             } else { None };
-            // QB random-access record variable: `GET #n, rec, var`. Without a
-            // FIELD layout the runtime can't map record bytes onto a TYPE
-            // variable, so the variable is parsed and ignored (the record buffer
-            // is still read; the target keeps its current/default value).
-            if self.peek() == &Token::Comma {
+            // QB random-access record variable: `GET #n, rec, var`. When `var`
+            // is a TYPE variable the emitter deserializes the record buffer into
+            // its fields (see emitter Stmt::FileGet). Captured as an LValue.
+            let record_var = if self.peek() == &Token::Comma {
                 self.advance();
-                if !self.at_eol() { self.parse_expr()?; }
-            }
-            return Ok(Stmt::FileGet { file_num, record });
+                if self.at_eol() { None } else { Some(self.parse_lvalue()?) }
+            } else { None };
+            return Ok(Stmt::FileGet { file_num, record, record_var });
         }
         let step1 = self.opt_step();
         self.expect(&Token::LParen)?;

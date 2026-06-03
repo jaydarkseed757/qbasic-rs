@@ -1,6 +1,10 @@
 # Test scratch output
 tests/tmp/
 
+# Random-access record files written by test/demo programs at runtime
+*.dat
+HALLFAME.*
+
 # Rust build artifacts
 /target
 

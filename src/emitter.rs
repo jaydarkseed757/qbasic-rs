@@ -10,6 +10,7 @@ use anyhow::Result;
 struct QbcConfig {
     fullspeed: bool,
     fps:       Option<f64>,    // REM QBC FPS <n>
+    pace:      Option<f64>,    // REM QBC PACE <n>  — sleep-paced watchable draw
     slowmo:    Option<f64>,    // REM QBC SLOWMO <n>
     title:     Option<String>, // REM QBC TITLE <text>
     scale:     Option<u32>,    // REM QBC SCALE <n>
@@ -17,7 +18,7 @@ struct QbcConfig {
 
 /// Parse the directive strings collected by the lexer/parser into a QbcConfig.
 /// Each string is the uppercased text after "QBC", e.g. "FULLSPEED", "FPS 30",
-/// "TITLE My Game", "SCALE 2".
+/// "PACE 20", "TITLE My Game", "SCALE 2".
 fn parse_qbc_config(directives: &[String]) -> QbcConfig {
     let mut c = QbcConfig::default();
     for d in directives {
@@ -27,6 +28,7 @@ fn parse_qbc_config(directives: &[String]) -> QbcConfig {
         match kw {
             "FULLSPEED" => c.fullspeed = true,
             "FPS"    => { if let Ok(v) = rest.parse::<f64>() { c.fps    = Some(v); } }
+            "PACE"   => { if let Ok(v) = rest.parse::<f64>() { c.pace   = Some(v); } }
             "SLOWMO" => { if let Ok(v) = rest.parse::<f64>() { c.slowmo = Some(v); } }
             "TITLE"  => { if !rest.is_empty() { c.title = Some(rest.to_string()); } }
             "SCALE"  => { if let Ok(v) = rest.parse::<u32>() { c.scale  = Some(v); } }
@@ -756,6 +758,7 @@ impl Emitter {
         // Emit post-construction directive setters.
         if self.qbc.fullspeed { self.line("__rt.set_fullspeed(true);"); }
         if let Some(fps)    = self.qbc.fps    { self.line(&format!("__rt.set_fps({fps}_f64);")); }
+        if let Some(pace)   = self.qbc.pace   { self.line(&format!("__rt.set_pace({pace}_f64);")); }
         if let Some(slowmo) = self.qbc.slowmo { self.line(&format!("__rt.set_slowmo({slowmo}_f64);")); }
 
         if self.gamestate_emitted {

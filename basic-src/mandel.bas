@@ -1,4 +1,4 @@
-REM QBC FULLSPEED
+REM QBC PACE 30
 DEFINT A-Z         ' Default variable type is integer
 
 DECLARE SUB ShiftPalette ()

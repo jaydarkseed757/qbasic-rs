@@ -122,8 +122,8 @@ B%(2..300) = -16384+192 = -16192 = 0xC0C0   ' 2-bpp packed pixel rows
 ```
 
 This relies on QBasic's **INTEGER-array** GET/PUT byte layout (two 16-bit header
-words, then CGA 2-bits-per-pixel packed data). It is the one piece of donkey that
-the transpiler does **not** yet reproduce — see §11.
+words, then CGA 2-bits-per-pixel packed data), which the runtime reproduces under
+its `screen_mode == 1` sprite path — see §11.
 
 ---
 
@@ -346,19 +346,20 @@ sequence in a headless `Runtime` and dump the framebuffer region as ASCII, then
 
 ---
 
-## 11. Known limitation — the `B%` road strip
+## 11. The `B%` road strip and the CGA sprite format
 
-The scrolling dashed center-line *animation* does not render. `B%` is hand-built
-(1520–1530) using QBasic's **INTEGER-array** sprite byte layout: two 16-bit
-header words (x-bits, y-pixels) followed by CGA 2-bits-per-pixel packed rows. The
-runtime's GET/PUT assumes 32-bit array elements and 4-plane EGA packing, so it
-misreads `B%(0)=2` as a tiny 3×1 sprite. The **static** dashed line (drawn with
-`LINE` at 1640) still shows; only the `PUT (140,6),B%` scroll effect is absent.
+The hand-built `B%` (1520–1530) relies on QuickBASIC's **CGA INTEGER-array**
+sprite byte layout: two 16-bit header words (`B%(0)` = width in bits = 1 px × 2
+bpp = 2; `B%(1)` = 193 px tall) followed by 2-bits-per-pixel packed rows
+(`0xC0C0` per element → each row a single white pixel). The runtime implements
+this layout under a `screen_mode == 1` branch in `get_sprite`/`put_sprite`, so
+`PUT (140,6),B%` blits a 1×193 white column that XORs the center line each
+qualifying frame and the **dashed center-line scrolls** as on real hardware.
 
-Fixing it requires threading the sprite array's element type (INTEGER% vs LONG&)
-and a CGA 2-bpp packing path into the GET/PUT engine — a separate, larger change
-deferred until a program needs it. GET/PUT-captured sprites (`CAR% DNK% D1%…`)
-are unaffected because GET and PUT use the same internal format symmetrically.
+Every other mode keeps the EGA 4-plane planar layout (gorilla/step on SCREEN 9
+are byte-identical), and donkey's GET-captured sprites (`CAR% DNK% D1%…`)
+round-trip through the same CGA layout. The one remaining unhandled case is
+SCREEN 2 (CGA 640×200, 1-bpp) sprites — no bundled program uses them.
 
 ---
 

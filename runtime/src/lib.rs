@@ -298,6 +298,8 @@ pub struct Runtime {
     pset_counter: u32,                 // cheap throttle for auto_present checks
     fullspeed: bool,                   // when true, skip auto_present() throttle (REM QBC FULLSPEED)
     frame_interval_ms: u64,            // target ms between frames (REM QBC FPS n); default 16 ≈ 60fps
+    pace_ms: u64,                      // when >0, auto_present SLEEPS to this interval so the
+                                       // drawing is paced/watchable (REM QBC PACE n fps); 0 = off
     slowmo: f64,                       // SLEEP duration multiplier (REM QBC SLOWMO n); default 1.0
     win_w: usize,                      // output window width  (REM QBC SCALE n); default 960
     win_h: usize,                      // output window height (REM QBC SCALE n); default 600
@@ -372,6 +374,7 @@ impl Runtime {
             pset_counter:       0,
             fullspeed:          false,
             frame_interval_ms:  16,
+            pace_ms:            0,
             slowmo:             1.0,
             win_w:              DEFAULT_WIN_W,
             win_h:              DEFAULT_WIN_H,
@@ -437,6 +440,7 @@ impl Runtime {
             pset_counter:      0,
             fullspeed:         false,
             frame_interval_ms: 16,
+            pace_ms:           0,
             slowmo:            1.0,
             win_w,
             win_h,
@@ -1013,6 +1017,17 @@ impl Runtime {
         self.frame_interval_ms = (1000.0 / fps.max(1.0)) as u64;
     }
 
+    /// Enable paced rendering at `fps` blits/second. Unlike the normal throttle
+    /// (which only *skips* blits that come too soon and never blocks), pacing
+    /// makes auto_present() *sleep* the remainder of each frame interval — which
+    /// blocks the compute and so makes a fast native draw watchable, sweeping in
+    /// roughly the source's drawing order. Activated by `REM QBC PACE n`.
+    /// `n <= 0` disables it. The total run time scales with how much the program
+    /// draws, so tune `n` until the sweep looks right (lower = slower).
+    pub fn set_pace(&mut self, fps: f64) {
+        self.pace_ms = if fps > 0.0 { (1000.0 / fps) as u64 } else { 0 };
+    }
+
     /// Set SLEEP duration multiplier (default 1.0 = normal speed).
     /// Activated by `REM QBC SLOWMO n` in the source file.
     pub fn set_slowmo(&mut self, factor: f64) {
@@ -1024,6 +1039,21 @@ impl Runtime {
     fn auto_present(&mut self) {
         if self.fullspeed { return; }
         self.pset_counter = self.pset_counter.wrapping_add(1);
+        if self.pace_ms > 0 {
+            // Paced mode (REM QBC PACE n): hold a steady blit cadence by
+            // SLEEPING the remainder of each interval, which blocks — and
+            // therefore paces — the computation so the draw is watchable. A
+            // finer gate (every 64 calls) than the default keeps the sweep
+            // smooth; the per-interval sleep dominates the wall-clock time.
+            if self.pset_counter & 0x3F == 0 {
+                let target = std::time::Duration::from_millis(self.pace_ms);
+                let elapsed = self.last_present.elapsed();
+                if elapsed < target { std::thread::sleep(target - elapsed); }
+                self.present();
+                self.last_present = std::time::Instant::now();
+            }
+            return;
+        }
         if self.pset_counter & 0xFF == 0 { // check every 256 psets
             let now = std::time::Instant::now();
             if now.duration_since(self.last_present) >= std::time::Duration::from_millis(self.frame_interval_ms) {
@@ -1100,11 +1130,30 @@ impl Runtime {
         }
     }
 
-    /// PUT (x, y), array, verb — blit a sprite from a QB EGA planar array.
+    /// Apply one decoded sprite pixel `color` to framebuffer index `fb_idx`
+    /// using the QB PUT combine verb. `mask` is the mode's color depth (for the
+    /// PRESET inversion). Shared by the EGA and CGA blit paths.
+    #[inline]
+    fn put_pixel(&mut self, fb_idx: usize, color: u8, mask: u8, action: PutAction) {
+        match action {
+            PutAction::Pset   => self.fb[fb_idx] = color,
+            PutAction::Preset => self.fb[fb_idx] = (!color) & mask,
+            PutAction::And    => self.fb[fb_idx] &= color,
+            PutAction::Or     => self.fb[fb_idx] |= color,
+            PutAction::Xor    => self.fb[fb_idx] ^= color,
+        }
+    }
+
+    /// PUT (x, y), array, verb — blit a sprite from a QB sprite array.
     /// `action` selects the QB combine verb (PSET/PRESET/AND/OR/XOR); QB's
-    /// default verb (no keyword) is XOR.
+    /// default verb (no keyword) is XOR. CGA SCREEN 1 uses the authentic 2-bpp
+    /// packed INTEGER-array layout; every other mode uses the EGA planar layout.
     pub fn put_sprite(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
         if self.screen_mode == 0 || data.is_empty() { return; }
+        if self.screen_mode == 1 {
+            self.put_sprite_cga(data, gx, gy, action);
+            return;
+        }
         let header = data[0] as i64 as u32;
         let width  = ((header & 0xFFFF) + 1) as i32;
         let height = (((header >> 16) & 0xFFFF) + 1) as i32;
@@ -1140,13 +1189,7 @@ impl Runtime {
                 let p3 = (row_bytes[bytes_per_plane * 3 + byte_idx] >> bit_pos) & 1;
                 let color = p0 | (p1 << 1) | (p2 << 2) | (p3 << 3);
                 let fb_idx = (sy as u32 * self.width + sx as u32) as usize;
-                match action {
-                    PutAction::Pset   => self.fb[fb_idx] = color,
-                    PutAction::Preset => self.fb[fb_idx] = (!color) & mask,
-                    PutAction::And    => self.fb[fb_idx] &= color,
-                    PutAction::Or     => self.fb[fb_idx] |= color,
-                    PutAction::Xor    => self.fb[fb_idx] ^= color,
-                }
+                self.put_pixel(fb_idx, color, mask, action);
             }
         }
         // PUT is a sprite-level operation (typically 1–2 per animation frame),
@@ -1155,9 +1198,54 @@ impl Runtime {
         self.present();
     }
 
-    /// GET (x1,y1)-(x2,y2), array — capture a screen region into a QB EGA planar array.
+    /// PUT for CGA SCREEN 1 (2 bits/pixel, packed — not planar).
+    /// Layout: data[0] = width_px*2, data[1] = height_px, then a byte stream of
+    /// `ceil(width/4)` bytes/row (4 pixels/byte, MSB-first), two bytes per
+    /// INTEGER element (little-endian within the 16-bit word).
+    fn put_sprite_cga(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
+        if data.len() < 2 { return; }
+        let width  = (data[0] as i64 as u16 as usize) / 2;
+        let height = data[1] as i64 as u16 as usize;
+        if width == 0 || height == 0 { return; }
+        let bytes_per_row = (width + 3) / 4;            // 4 pixels per byte
+        let mask = self.sprite_color_mask();            // = 3 in mode 1
+        let gx = gx as i32;
+        let gy = gy as i32;
+        // Element-indexed byte fetch: byte b lives in element 2 + b/2,
+        // low byte first (x86 little-endian within each 16-bit INTEGER).
+        let get_byte = |b: usize| -> u8 {
+            let elem = 2 + b / 2;
+            if elem >= data.len() { return 0; }
+            let w = data[elem] as i64 as u16;
+            if b & 1 == 0 { (w & 0xFF) as u8 } else { (w >> 8) as u8 }
+        };
+        for row in 0..height {
+            let sy = gy + row as i32;
+            if sy < 0 || sy as u32 >= self.height { continue; }
+            let row_byte0 = row * bytes_per_row;
+            for col in 0..width {
+                let sx = gx + col as i32;
+                if sx < 0 || sx as u32 >= self.width { continue; }
+                let byte = get_byte(row_byte0 + col / 4);
+                let shift = 6 - 2 * (col % 4);
+                let color = (byte >> shift) & 3;
+                let fb_idx = (sy as u32 * self.width + sx as u32) as usize;
+                self.put_pixel(fb_idx, color, mask, action);
+            }
+        }
+        self.present();
+    }
+
+    /// GET (x1,y1)-(x2,y2), array — capture a screen region into a QB sprite
+    /// array. CGA SCREEN 1 uses the authentic 2-bpp packed INTEGER layout (so a
+    /// later PUT can blit it and hand-built arrays interoperate); every other
+    /// mode uses the EGA planar layout.
     pub fn get_sprite(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
         if self.screen_mode == 0 { return; }
+        if self.screen_mode == 1 {
+            self.get_sprite_cga(x1, y1, x2, y2, data);
+            return;
+        }
         let x1 = x1 as i32;
         let y1 = y1 as i32;
         let x2 = x2 as i32;
@@ -1193,6 +1281,42 @@ impl Runtime {
                         ((row_bytes[i * 4 + 3] as u32) << 24);
                 data[long_start + i] = (v as i32) as f64;
             }
+        }
+    }
+
+    /// GET for CGA SCREEN 1 — capture into the authentic 2-bpp packed INTEGER
+    /// layout (see `put_sprite_cga`). Symmetric with the CGA PUT path.
+    fn get_sprite_cga(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+        let x1 = x1 as i32;
+        let y1 = y1 as i32;
+        let x2 = x2 as i32;
+        let y2 = y2 as i32;
+        let width  = ((x2 - x1 + 1).max(1)) as usize;
+        let height = ((y2 - y1 + 1).max(1)) as usize;
+        let bytes_per_row = (width + 3) / 4;
+        let total_bytes   = height * bytes_per_row;
+        let total_elems   = 2 + (total_bytes + 1) / 2; // 2-byte header words + data
+        data.clear();
+        data.resize(total_elems, 0.0);
+        data[0] = (width * 2) as f64;
+        data[1] = height as f64;
+        // Build the packed byte stream, then fold pairs into 16-bit elements.
+        let mut bytes = vec![0u8; total_bytes];
+        for row in 0..height {
+            let sy = y1 + row as i32;
+            for col in 0..width {
+                let sx = x1 + col as i32;
+                if sx < 0 || sy < 0 || sx as u32 >= self.width || sy as u32 >= self.height { continue; }
+                let color = self.fb[(sy as u32 * self.width + sx as u32) as usize] & 3;
+                let b = row * bytes_per_row + col / 4;
+                let shift = 6 - 2 * (col % 4);
+                bytes[b] |= color << shift;
+            }
+        }
+        for (i, chunk) in bytes.chunks(2).enumerate() {
+            let lo = chunk[0] as u16;
+            let hi = *chunk.get(1).unwrap_or(&0) as u16;
+            data[2 + i] = (lo | (hi << 8)) as i16 as f64;
         }
     }
 
@@ -2926,12 +3050,117 @@ mod sprite_tests {
     }
 
     // CGA mode 1 uses a 2-bit mask: PRESET of color 1 → !1 & 3 = 2.
+    // (CGA sprite layout: data[0]=width*2, data[1]=height, then 2-bpp bytes.
+    // Two pixels colors 1,2 in one byte = (1<<6)|(2<<4) = 0x60.)
     #[test]
     fn preset_uses_cga_mask_in_mode1() {
         let mut rt = Runtime::headless();
         rt.screen(1.0);
-        rt.put_sprite(&sprite_2x1(), 0.0, 0.0, PutAction::Preset);
+        let spr = vec![4.0, 1.0, 0x60 as f64]; // 2×1 CGA sprite: pixels 1, 2
+        rt.put_sprite(&spr, 0.0, 0.0, PutAction::Preset);
         assert_eq!(rt.point(0.0, 0.0), 2.0); // !1 & 3
         assert_eq!(rt.point(1.0, 0.0), 1.0); // !2 & 3
+    }
+}
+
+#[cfg(test)]
+mod cga_sprite_tests {
+    use super::*;
+
+    // donkey.bas hand-builds B%: a 1-px-wide × 193-tall white strip.
+    // data[0]=2 (width 1 × 2bpp), data[1]=193, data = 0xC0C0 (each byte 0xC0 →
+    // pixel (0xC0>>6)&3 = 3 = white). This is the road-dash scroll sprite.
+    fn b_strip() -> Vec<f64> {
+        let mut v = vec![2.0, 193.0];
+        v.extend(std::iter::repeat((-16192i64) as f64).take(120)); // 0xC0C0 fill
+        v
+    }
+
+    #[test]
+    fn hand_built_b_strip_is_a_1px_white_column() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.put_sprite(&b_strip(), 140.0, 6.0, PutAction::Pset);
+        // The column at x=140 is white for the strip's height…
+        for y in 6..6 + 193 {
+            assert_eq!(rt.point(140.0, y as f64), 3.0, "y={y}");
+        }
+        // …and exactly one pixel wide.
+        assert_eq!(rt.point(141.0, 6.0), 0.0);
+        assert_eq!(rt.point(139.0, 6.0), 0.0);
+    }
+
+    #[test]
+    fn b_strip_xor_draws_and_erases() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        rt.put_sprite(&b_strip(), 140.0, 6.0, PutAction::Xor); // draw
+        assert_eq!(rt.point(140.0, 50.0), 3.0);
+        rt.put_sprite(&b_strip(), 140.0, 6.0, PutAction::Xor); // erase (toggle back)
+        assert_eq!(rt.point(140.0, 50.0), 0.0);
+    }
+
+    // GET then PUT must round-trip a CGA region (the CAR%/DNK% path).
+    #[test]
+    fn cga_get_put_round_trip() {
+        let mut rt = Runtime::headless();
+        rt.screen(1.0);
+        // Paint a small known 2-bpp pattern (colors 0..3) across a 6×3 region.
+        let pat = [[1u8,2,3,0,2,1],[3,3,0,1,2,2],[0,1,2,3,1,0]];
+        for (y, row) in pat.iter().enumerate() {
+            for (x, &c) in row.iter().enumerate() {
+                rt.pset((10 + x) as f64, (20 + y) as f64, c as f64);
+            }
+        }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(10.0, 20.0, 15.0, 22.0, &mut spr);
+        assert_eq!(spr[0], 12.0); // width 6 × 2
+        assert_eq!(spr[1], 3.0);  // height 3
+        // Clear and blit it back at a new origin.
+        rt.cls(0);
+        rt.put_sprite(&spr, 100.0, 40.0, PutAction::Pset);
+        for (y, row) in pat.iter().enumerate() {
+            for (x, &c) in row.iter().enumerate() {
+                assert_eq!(rt.point((100 + x) as f64, (40 + y) as f64), c as f64,
+                           "pixel ({x},{y})");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod pace_tests {
+    use super::*;
+
+    // REM QBC PACE n maps to a per-frame sleep interval of 1000/n ms; 0 disables.
+    #[test]
+    fn set_pace_maps_fps_to_interval() {
+        let mut rt = Runtime::headless();
+        rt.set_pace(20.0);
+        assert_eq!(rt.pace_ms, 50);
+        rt.set_pace(30.0);
+        assert_eq!(rt.pace_ms, 33);
+        rt.set_pace(0.0);
+        assert_eq!(rt.pace_ms, 0); // disabled
+    }
+
+    // Paced auto_present must actually block (sleep) so the draw is watchable;
+    // the default throttle never blocks. Drive enough psets to cross the gate.
+    #[test]
+    fn pace_blocks_but_default_does_not() {
+        let mut rt = Runtime::headless();
+        rt.screen(9.0);
+        rt.set_pace(50.0); // 20ms interval
+        let t0 = std::time::Instant::now();
+        for i in 0..200 { rt.pset((i % 100) as f64, 0.0, 1.0); } // > 64-call gate
+        assert!(t0.elapsed() >= std::time::Duration::from_millis(15),
+                "paced psets should sleep, took {:?}", t0.elapsed());
+
+        let mut rt2 = Runtime::headless();
+        rt2.screen(9.0); // no pace set
+        let t1 = std::time::Instant::now();
+        for i in 0..200 { rt2.pset((i % 100) as f64, 0.0, 1.0); }
+        assert!(t1.elapsed() < std::time::Duration::from_millis(15),
+                "default throttle must not block, took {:?}", t1.elapsed());
     }
 }

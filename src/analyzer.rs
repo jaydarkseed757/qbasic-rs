@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::parser::{Program, SubDef, FuncDef, Stmt, Expr, QbType, BinOp, UnOp};
+use crate::parser::{Program, SubDef, FuncDef, Stmt, Expr, QbType, FieldRepr, BinOp, UnOp};
 use anyhow::Result;
 
 // ── Symbol table ──────────────────────────────────────────────────────────────
@@ -48,6 +48,9 @@ pub struct AnalyzedProgram {
     pub str_consts:   Vec<(String, String)>,
     /// TYPE definitions: type_name_lower → [(field_name_lower, QbType)]
     pub type_defs:    HashMap<String, Vec<(String, QbType)>>,
+    /// On-disk record layout per TYPE: type_name_lower →
+    /// [(field_name_lower, FieldRepr)]. Used for random-access record I/O.
+    pub type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
     /// QBC transpiler directives from `REM QBC …` lines (uppercased).
     pub directives:   Vec<String>,
 }
@@ -115,6 +118,7 @@ impl Analyzer {
             consts:       std::mem::take(&mut self.consts),
             str_consts:   std::mem::take(&mut self.str_consts),
             type_defs:    program.type_defs,
+            type_layouts: program.type_layouts,
             directives:   program.directives,
         })
     }

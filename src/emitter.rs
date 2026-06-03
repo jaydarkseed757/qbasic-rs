@@ -59,6 +59,9 @@ pub struct Emitter {
     typed_fields: HashMap<String, Vec<String>>,
     /// Maps lowercase type name → ordered [(field_name_lower, QbType)] from TYPE definitions
     type_defs: HashMap<String, Vec<(String, QbType)>>,
+    /// Maps lowercase type name → ordered [(field_name_lower, FieldRepr)] — the
+    /// on-disk byte layout used for random-access record (GET/PUT #n,rec,var) I/O.
+    type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
     /// Maps lowercase array/var name → type name (from `DIM x AS TypeName`)
     var_type_name: HashMap<String, String>,
     /// Names of simple (non-TYPE) array parameters for current function
@@ -141,6 +144,7 @@ impl Emitter {
             str_params:   HashSet::new(),
             typed_fields: HashMap::new(),
             type_defs:    HashMap::new(),
+            type_layouts: HashMap::new(),
             var_type_name: HashMap::new(),
             array_params: HashSet::new(),
             numeric_params: HashSet::new(),
@@ -293,6 +297,7 @@ impl Emitter {
 
         // Store parsed TYPE definitions (field names + types)
         self.type_defs = prog.type_defs.clone();
+        self.type_layouts = prog.type_layouts.clone();
 
         // Build var_type_name: for every DIM/REDIM with AS UserType, record the type name
         collect_var_type_names(prog, &mut self.var_type_name);
@@ -1368,7 +1373,7 @@ impl Emitter {
                 self.line(&format!("__rt.palette({a}, {c});"));
             }
 
-            Stmt::PutSprite { x, y, arr, xor_mode, step } => {
+            Stmt::PutSprite { x, y, arr, action, step } => {
                 // Hoist coords to temps to avoid borrow conflicts when args contain __rt calls
                 let xv = self.emit_expr(x)?;
                 let yv = self.emit_expr(y)?;
@@ -1382,8 +1387,16 @@ impl Emitter {
                     self.line(&format!("let __spy{tc} = {yv};"));
                 }
                 let arr_name = self.sprite_arr_name(arr);
-                let xm = if *xor_mode { "true" } else { "false" };
-                self.line(&format!("__rt.put_sprite(&{arr_name}, __spx{tc}, __spy{tc}, {xm});"));
+                let verb = match action {
+                    PutAction::Pset   => "Pset",
+                    PutAction::Preset => "Preset",
+                    PutAction::And    => "And",
+                    PutAction::Or     => "Or",
+                    PutAction::Xor    => "Xor",
+                };
+                self.line(&format!(
+                    "__rt.put_sprite(&{arr_name}, __spx{tc}, __spy{tc}, qbasic_runtime::PutAction::{verb});"
+                ));
             }
 
             Stmt::GetSprite { x1, y1, x2, y2, arr, step1, step2 } => {
@@ -1612,7 +1625,7 @@ impl Emitter {
                     self.file_fields.insert(n, field_entries);
                 }
             }
-            Stmt::FileGet { file_num, record } => {
+            Stmt::FileGet { file_num, record, record_var } => {
                 let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
                 let rec  = record.as_ref()
                     .and_then(|e| self.emit_expr(e).ok())
@@ -1629,7 +1642,18 @@ impl Emitter {
                     format!("Some(({rec}) as i64 - 1)")
                 } else { "None".into() };
                 self.line(&format!("let {tmp} = __rt.read_record(({fnum}) as u8, {rec_expr});"));
-                if let Some(n) = fnum_u8 {
+                // TYPE-record path: deserialize the buffer into the record var's fields.
+                if let Some((base, tn)) = record_var.as_ref()
+                    .and_then(|rv| self.resolve_record_var(rv))
+                {
+                    let mut fields = Vec::new();
+                    let mut off = 0usize;
+                    self.record_layout(&base, &tn, &mut off, &mut fields);
+                    for (acc, repr, foff) in &fields {
+                        self.line(&record_get_line(acc, repr, foff, &tmp));
+                    }
+                } else if let Some(n) = fnum_u8 {
+                    // FIELD-based path.
                     if let Some(fields) = self.file_fields.get(&n).cloned() {
                         for (vname, off, len) in &fields {
                             self.line(&format!(
@@ -1639,7 +1663,7 @@ impl Emitter {
                     }
                 }
             }
-            Stmt::FilePut { file_num, record } => {
+            Stmt::FilePut { file_num, record, record_var } => {
                 let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
                 let fnum_u8 = match file_num {
                     Expr::IntLit(n) => Some(*n as u8),
@@ -1652,20 +1676,33 @@ impl Emitter {
                 let rec_expr = if record.is_some() {
                     format!("Some(({rec}) as i64 - 1)")
                 } else { "None".into() };
-                // Assemble the field variables into a record buffer and write it
-                let total_len = fnum_u8
-                    .and_then(|n| self.file_fields.get(&n))
-                    .map(|f| f.iter().map(|(_, _, l)| l).sum::<usize>())
-                    .unwrap_or(0);
                 let tmp = format!("__put_buf{}", self.lift_counter);
                 self.lift_counter += 1;
-                self.line(&format!("let mut {tmp} = vec![b' '; {total_len}];"));
-                if let Some(n) = fnum_u8 {
-                    if let Some(fields) = self.file_fields.get(&n).cloned() {
-                        for (vname, off, len) in &fields {
-                            self.line(&format!(
-                                "qb_field_put(&mut {tmp}, {off}, &{vname}, {len});"
-                            ));
+                // TYPE-record path: serialize the record var's fields into the buffer.
+                if let Some((base, tn)) = record_var.as_ref()
+                    .and_then(|rv| self.resolve_record_var(rv))
+                {
+                    let mut fields = Vec::new();
+                    let mut off = 0usize;
+                    self.record_layout(&base, &tn, &mut off, &mut fields);
+                    self.line(&format!("let mut {tmp} = vec![b' '; {off}];"));
+                    for (acc, repr, foff) in &fields {
+                        self.line(&record_put_line(acc, repr, foff, &tmp));
+                    }
+                } else {
+                    // FIELD-based path: assemble field variables into the buffer.
+                    let total_len = fnum_u8
+                        .and_then(|n| self.file_fields.get(&n))
+                        .map(|f| f.iter().map(|(_, _, l)| l).sum::<usize>())
+                        .unwrap_or(0);
+                    self.line(&format!("let mut {tmp} = vec![b' '; {total_len}];"));
+                    if let Some(n) = fnum_u8 {
+                        if let Some(fields) = self.file_fields.get(&n).cloned() {
+                            for (vname, off, len) in &fields {
+                                self.line(&format!(
+                                    "qb_field_put(&mut {tmp}, {off}, &{vname}, {len});"
+                                ));
+                            }
                         }
                     }
                 }
@@ -2294,6 +2331,85 @@ impl Emitter {
                         // Unexpected deeper nesting — recursive fallback
                         format!("{}__{field_suffix}", self.emit_lvalue(other))
                     }
+                }
+            }
+        }
+    }
+
+    // ── Random-access TYPE-record (GET/PUT #n, rec, var) serialization ─────────
+
+    /// If `lval` is (or indexes into) a TYPE variable with a known record
+    /// layout, return the base LValue to (de)serialize and the lowercase TYPE
+    /// name. A *bare array name* (no subscript) is normalized to its element at
+    /// the lower bound — QB writes only the first element per record. Returns
+    /// `None` when the variable isn't a TYPE record (caller falls back to the
+    /// FIELD-based path).
+    fn resolve_record_var(&self, lval: &LValue) -> Option<(LValue, String)> {
+        match lval {
+            LValue::Scalar { name, .. } => {
+                let key = rust_ident(name);
+                let tn  = self.var_type_name.get(&key)?.clone();
+                if !self.type_layouts.contains_key(&tn) { return None; }
+                let name_lc = name.to_lowercase();
+                let is_array = self.array_names.contains(&name_lc)
+                    || self.local_arrays.contains(&key);
+                if is_array {
+                    // Bare array → element at lower bound (QB element-1 semantics).
+                    let lo = self.arr_lo(&name_lc, 0) as i32;
+                    let base = LValue::Index {
+                        name: name.clone(),
+                        ty: QbType::UserType(tn.clone()),
+                        indices: vec![Expr::IntLit(lo)],
+                    };
+                    Some((base, tn))
+                } else {
+                    Some((lval.clone(), tn))
+                }
+            }
+            LValue::Index { name, .. } => {
+                let key = rust_ident(name);
+                let tn  = self.var_type_name.get(&key)?.clone();
+                if !self.type_layouts.contains_key(&tn) { return None; }
+                Some((lval.clone(), tn))
+            }
+            _ => None,
+        }
+    }
+
+    /// Recursively flatten a TYPE's on-disk layout, producing one entry per leaf
+    /// scalar field: (rust_accessor, repr, byte_offset). `base` is the record
+    /// variable's LValue; each leaf builds `base.field…` and emits it via
+    /// `emit_lvalue`, so accessor naming matches field access everywhere else.
+    fn record_layout(
+        &self,
+        base: &LValue,
+        type_name: &str,
+        off: &mut usize,
+        out: &mut Vec<(String, FieldRepr, usize)>,
+    ) {
+        let Some(layout) = self.type_layouts.get(type_name).cloned() else { return; };
+        for (fname, repr) in &layout {
+            let field_lv = LValue::Field {
+                base: Box::new(base.clone()),
+                field: fname.clone(),
+            };
+            match repr {
+                FieldRepr::Nested(tn) => self.record_layout(&field_lv, tn, off, out),
+                FieldRepr::Str(n) => {
+                    out.push((self.emit_lvalue(&field_lv), repr.clone(), *off));
+                    *off += *n;
+                }
+                FieldRepr::I16 => {
+                    out.push((self.emit_lvalue(&field_lv), repr.clone(), *off));
+                    *off += 2;
+                }
+                FieldRepr::I32 | FieldRepr::F32 => {
+                    out.push((self.emit_lvalue(&field_lv), repr.clone(), *off));
+                    *off += 4;
+                }
+                FieldRepr::F64 => {
+                    out.push((self.emit_lvalue(&field_lv), repr.clone(), *off));
+                    *off += 8;
                 }
             }
         }
@@ -3524,10 +3640,25 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     scan_expr(file_num, result, added, exclude);
                     for a in args { scan_expr(a, result, added, exclude); }
                 }
-                Stmt::FileGet { file_num, record } |
-                Stmt::FilePut { file_num, record } => {
+                Stmt::FileGet { file_num, record, record_var } |
+                Stmt::FilePut { file_num, record, record_var } => {
                     scan_expr(file_num, result, added, exclude);
                     if let Some(r) = record { scan_expr(r, result, added, exclude); }
+                    // Scan any index expressions inside the record variable so a
+                    // loop counter used only there (e.g. PUT #1, n, ARR(k)) is seen.
+                    if let Some(rv) = record_var {
+                        let mut cur = rv;
+                        loop {
+                            match cur {
+                                LValue::Index { indices, .. } => {
+                                    for e in indices { scan_expr(e, result, added, exclude); }
+                                    break;
+                                }
+                                LValue::Field { base, .. } => cur = base,
+                                LValue::Scalar { .. } => break,
+                            }
+                        }
+                    }
                 }
                 Stmt::Open { path, file_num, rec_len, .. } => {
                     scan_expr(path, result, added, exclude);
@@ -4016,6 +4147,31 @@ fn collect_typed_array_fields(prog: &AnalyzedProgram)
 /// UserType fields into their constituent scalar fields.
 /// Returns `Vec<(flat_field_path, QbType)>` where `flat_field_path` uses `__`
 /// separators, e.g. `"col__r"` for a `Col AS Color` field where `Color` has `R`.
+/// Emit a line that unpacks one record field from buffer `buf` into `acc`
+/// (a string or f64 accessor) for a random-access GET.
+fn record_get_line(acc: &str, repr: &FieldRepr, off: &usize, buf: &str) -> String {
+    match repr {
+        FieldRepr::Str(n) => format!("{acc} = qb_rec_get_str(&{buf}, {off}, {n});"),
+        FieldRepr::I16    => format!("{acc} = qb_rec_get_i16(&{buf}, {off});"),
+        FieldRepr::I32    => format!("{acc} = qb_rec_get_i32(&{buf}, {off});"),
+        FieldRepr::F32    => format!("{acc} = qb_rec_get_f32(&{buf}, {off});"),
+        FieldRepr::F64    => format!("{acc} = qb_rec_get_f64(&{buf}, {off});"),
+        FieldRepr::Nested(_) => String::new(), // never a leaf
+    }
+}
+
+/// Emit a line that packs accessor `acc` into buffer `buf` for a random-access PUT.
+fn record_put_line(acc: &str, repr: &FieldRepr, off: &usize, buf: &str) -> String {
+    match repr {
+        FieldRepr::Str(n) => format!("qb_rec_put_str(&mut {buf}, {off}, &{acc}, {n});"),
+        FieldRepr::I16    => format!("qb_rec_put_i16(&mut {buf}, {off}, {acc});"),
+        FieldRepr::I32    => format!("qb_rec_put_i32(&mut {buf}, {off}, {acc});"),
+        FieldRepr::F32    => format!("qb_rec_put_f32(&mut {buf}, {off}, {acc});"),
+        FieldRepr::F64    => format!("qb_rec_put_f64(&mut {buf}, {off}, {acc});"),
+        FieldRepr::Nested(_) => String::new(),
+    }
+}
+
 fn flatten_type_fields(
     type_name: &str,
     type_defs: &HashMap<String, Vec<(String, QbType)>>,

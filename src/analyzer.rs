@@ -240,6 +240,20 @@ impl Analyzer {
                     });
                 }
                 Stmt::Block(inner) => self.collect_globals(inner)?,
+                // Recurse into all control structures so REDIMs nested inside
+                // loops / branches are captured in the global scope.
+                Stmt::For { body, .. } |
+                Stmt::While { body, .. } |
+                Stmt::Do { body, .. } => self.collect_globals(body)?,
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    self.collect_globals(then_body)?;
+                    for (_, b) in elseif_branches { self.collect_globals(b)?; }
+                    if let Some(b) = else_body { self.collect_globals(b)?; }
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { self.collect_globals(&c.body)?; }
+                    if let Some(b) = default { self.collect_globals(b)?; }
+                }
                 _ => {}
             }
         }

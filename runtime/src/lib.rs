@@ -597,6 +597,14 @@ impl Runtime {
             self.palette_rgb[idx] = dac18_to_rgb(color64 as u64);
             return;
         }
+        if self.screen_mode == 11 || self.screen_mode == 12 {
+            // VGA 16-color hi-res modes also take the 18-bit DAC triple
+            // (color = red + 256*green + 65536*blue, each channel 0–63) — NOT the
+            // EGA irgb nibble. torus.bas mixes its palette this way in SCREEN 12.
+            let idx = (attr as i64).rem_euclid(16) as usize;
+            self.palette_rgb[idx] = dac18_to_rgb(color64 as u64);
+            return;
+        }
         let idx = (attr as i64).rem_euclid(16) as usize;
         let v = color64 as u64;
         let r = (170 * ((v >> 2) & 1) + 85 * ((v >> 5) & 1)) as u8;
@@ -1331,13 +1339,28 @@ impl Runtime {
     /// to pixel 6, not 5. Truncating there drops whole scanlines, which shows up
     /// as horizontal black gaps in line-per-scanline renderers such as mandel.bas
     /// (and is wrong in general: QB maps fractional coords to the nearest pixel).
+    /// Effective graphics viewport in framebuffer pixels. With VIEW active it's
+    /// the explicit VIEW rect; otherwise QB's default viewport = the whole screen.
+    /// WINDOW without an explicit VIEW maps onto the full screen (DOS QB behavior).
+    fn effective_viewport(&self) -> (f64, f64, f64, f64) {
+        if self.view_active {
+            (self.view_x1, self.view_y1, self.view_x2, self.view_y2)
+        } else {
+            (0.0, 0.0,
+             self.width.saturating_sub(1) as f64,
+             self.height.saturating_sub(1) as f64)
+        }
+    }
+
     fn logical_to_fb(&self, lx: f64, ly: f64) -> (f64, f64) {
         let (px, py) = if self.win_active {
-            // WINDOW defines a logical rect mapped onto the VIEW rect
-            let px = self.view_x1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1)
-                                  * (self.view_x2 - self.view_x1);
-            let py = self.view_y1 + (ly - self.win_y1) / (self.win_y2 - self.win_y1)
-                                  * (self.view_y2 - self.view_y1);
+            // WINDOW defines a logical rect mapped onto the (effective) VIEW rect.
+            // Without an explicit VIEW the viewport is the entire screen.
+            let (vx1, vy1, vx2, vy2) = self.effective_viewport();
+            let px = vx1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1) * (vx2 - vx1);
+            // QB `WINDOW` (no SCREEN) inverts Y: larger logical y → higher on screen
+            // (smaller fb row). win_y1 → bottom (vy2), win_y2 → top (vy1).
+            let py = vy1 + (self.win_y2 - ly) / (self.win_y2 - self.win_y1) * (vy2 - vy1);
             (px, py)
         } else if self.view_active {
             // No WINDOW: coords are VIEW-relative; offset by view origin
@@ -1361,6 +1384,18 @@ impl Runtime {
     /// Used by the emitter to resolve STEP (relative) coordinates.
     pub fn cur_x(&self) -> f64 { self.gfx_x }
     pub fn cur_y(&self) -> f64 { self.gfx_y }
+
+    /// Diagnostic: (non-background pixel count, number of distinct colors present).
+    /// Background = color index 0. Used by headless render checks.
+    pub fn fb_stats(&self) -> (usize, usize) {
+        let mut seen = [false; 256];
+        let mut nonzero = 0usize;
+        for &p in &self.fb {
+            if p != 0 { nonzero += 1; }
+            seen[p as usize] = true;
+        }
+        (nonzero, seen.iter().filter(|&&s| s).count())
+    }
 
     pub fn pset(&mut self, x: f64, y: f64, color: f64) {
         self.gfx_x = x;
@@ -1468,17 +1503,20 @@ impl Runtime {
     /// mode 2: viewport X → logical X  (VIEW-relative physical)
     /// mode 3: viewport Y → logical Y  (VIEW-relative physical)
     pub fn pmap(&self, coord: f64, mode: f64) -> f64 {
-        let (vx1, vy1, vx2, vy2) = (self.view_x1, self.view_y1, self.view_x2, self.view_y2);
+        // WINDOW without an explicit VIEW maps onto the whole screen (DOS QB behavior).
+        let (vx1, vy1, vx2, vy2) = self.effective_viewport();
         let (wx1, wy1, wx2, wy2) = (self.win_x1,  self.win_y1,  self.win_x2,  self.win_y2);
         if (vx2 - vx1).abs() < 1e-10 || (vy2 - vy1).abs() < 1e-10 { return coord; }
         if (wx2 - wx1).abs() < 1e-10 || (wy2 - wy1).abs() < 1e-10 { return coord; }
         match mode as i32 {
-            // modes 0/1: logical → absolute screen coord
+            // modes 0/1: logical → absolute screen coord.
+            // Y is inverted to match QB `WINDOW` and logical_to_fb (larger logical y
+            // → smaller fb row), so PMAP round-trips with POINT/LINE coordinates.
             0 => vx1 + (coord - wx1) / (wx2 - wx1) * (vx2 - vx1),
-            1 => vy1 + (coord - wy1) / (wy2 - wy1) * (vy2 - vy1),
+            1 => vy1 + (wy2 - coord) / (wy2 - wy1) * (vy2 - vy1),
             // modes 2/3: viewport-relative coord (0 = viewport top/left) → logical
             2 => wx1 + coord / (vx2 - vx1) * (wx2 - wx1),
-            3 => wy1 + coord / (vy2 - vy1) * (wy2 - wy1),
+            3 => wy2 - coord / (vy2 - vy1) * (wy2 - wy1),
             _ => coord,
         }
     }
@@ -1488,6 +1526,13 @@ impl Runtime {
         if self.screen_mode == 13 {
             // MCGA: up to 256 entries, each an 18-bit DAC color value.
             for (i, &v) in arr.iter().enumerate().take(256) {
+                self.palette_rgb[i] = dac18_to_rgb(v as u64);
+            }
+            return;
+        }
+        if self.screen_mode == 11 || self.screen_mode == 12 {
+            // VGA 16-color modes: each entry is an 18-bit DAC value, not an index.
+            for (i, &v) in arr.iter().enumerate().take(16) {
                 self.palette_rgb[i] = dac18_to_rgb(v as u64);
             }
             return;
@@ -2886,6 +2931,97 @@ mod step_tests {
         rt.pset(0.0, 0.0, 1.0);
         rt.circle(50.0, 60.0, 8.0, 3.0);
         assert_eq!((rt.cur_x(), rt.cur_y()), (50.0, 60.0));
+    }
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::Runtime;
+
+    // QB: WINDOW without an explicit VIEW maps the logical rect onto the WHOLE
+    // screen. The old bug left view_x1..view_x2 = 0, collapsing every point to
+    // (0,0) so nothing rendered (this is what broke torus.bas).
+    #[test]
+    fn window_without_view_maps_to_full_screen() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0); // 640x480
+        rt.set_window(-4.0, -4.0, 4.0, 4.0); // no set_view
+        // Two distinct logical corners must land on distinct framebuffer pixels.
+        rt.pset(-4.0, -4.0, 5.0); // → fb (0,0)
+        rt.pset(4.0, 4.0, 9.0); // → fb (639,479)
+        // Under the old (degenerate-viewport) bug both collapsed to (0,0) and the
+        // second pset overwrote the first — both reads would return 9.0.
+        assert_eq!(rt.point(-4.0, -4.0), 5.0);
+        assert_eq!(rt.point(4.0, 4.0), 9.0);
+    }
+
+    // Mirror torus TileDraw's paint path: draw a quad outline in the border color,
+    // PRESET an interior point, PAINT it with the tile color bounded by the border.
+    // The interior must end up the tile color (not background) — i.e. PAINT fills
+    // a region that LINE closed, under WINDOW logical coords without VIEW.
+    #[test]
+    fn paint_fills_quad_under_window() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0);
+        rt.set_window(-4.0, -4.0, 4.0, 4.0);
+        let border = 15.0;
+        let tcolor = 9.0;
+        // Quad in logical coords (well inside the window so it spans many pixels).
+        rt.line(-2.0, -2.0, 2.0, -2.0, border);
+        rt.line(2.0, -2.0, 2.0, 2.0, border);
+        rt.line(2.0, 2.0, -2.0, 2.0, border);
+        rt.line(-2.0, 2.0, -2.0, -2.0, border);
+        // Fill the interior bounded by the border color.
+        rt.paint(0.0, 0.0, tcolor, border);
+        // Center is now the tile color; outside the quad is still background (0).
+        assert_eq!(rt.point(0.0, 0.0), tcolor);
+        assert_eq!(rt.point(3.5, 3.5), 0.0);
+    }
+
+    // SCREEN 12 PALETTE takes an 18-bit DAC value (channels 0–63), like SCREEN 13 —
+    // not the EGA irgb nibble. torus mixes Pal() = 65536*B + 256*G + R this way.
+    #[test]
+    fn palette_screen12_uses_dac18() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0);
+        // Full red: R=63 → DAC value 63. dac6_to_8(63) = 255.
+        rt.palette(1.0, 63.0);
+        assert_eq!(rt.palette_rgb[1], (255, 0, 0));
+        // Full blue: B=63 → 65536*63. → (0,0,255).
+        rt.palette(2.0, 65536.0 * 63.0);
+        assert_eq!(rt.palette_rgb[2], (0, 0, 255));
+    }
+
+    // QB `WINDOW` (no SCREEN) inverts Y: larger logical y is higher on screen.
+    // torus's Inside() scan depends on this; without it every tile reads as
+    // "not inside" and gets erased to the background (black screen).
+    #[test]
+    fn window_inverts_y_axis() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0); // 640x480
+        rt.set_window(-4.0, -4.0, 4.0, 4.0);
+        // Top of window (logical y = +4) → physical row near 0.
+        // Bottom (logical y = -4) → physical row near 479.
+        // PMAP mode 1 = logical y → physical y.
+        assert!(rt.pmap(4.0, 1.0) < 2.0, "top y → {}", rt.pmap(4.0, 1.0));
+        assert!(rt.pmap(-4.0, 1.0) > 477.0, "bottom y → {}", rt.pmap(-4.0, 1.0));
+        // mode 1 → mode 3 round-trips a logical Y through physical.
+        let phys = rt.pmap(1.5, 1.0);
+        assert!((rt.pmap(phys, 3.0) - 1.5).abs() < 0.05, "round-trip {}", rt.pmap(phys, 3.0));
+    }
+
+    // PMAP must use the full-screen viewport when VIEW is inactive, and round-trip.
+    #[test]
+    fn pmap_uses_full_screen_without_view() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0);
+        rt.set_window(0.0, 0.0, 100.0, 100.0); // no set_view
+        // logical X 100 → physical right edge (639)
+        let phys = rt.pmap(100.0, 0.0);
+        assert!((phys - 639.0).abs() < 1.0, "mode 0 gave {phys}");
+        // mode 2: viewport-relative physical → logical, round-trips back to 100
+        let logical = rt.pmap(phys, 2.0);
+        assert!((logical - 100.0).abs() < 1.0, "mode 2 gave {logical}");
     }
 }
 

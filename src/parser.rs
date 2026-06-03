@@ -142,7 +142,7 @@ pub enum Stmt {
     /// second point (relative to the FIRST point, per QB semantics).
     Line   { x1: Option<Expr>, y1: Option<Expr>, x2: Expr, y2: Expr, color: Option<Expr>, style: LineStyle, step1: bool, step2: bool },
     Pset   { x: Expr, y: Expr, color: Option<Expr>, preset: bool, step: bool },
-    Paint  { x: Expr, y: Expr, fill: Expr, border: Option<Expr> },
+    Paint  { x: Expr, y: Expr, fill: Expr, border: Option<Expr>, step: bool },
     Play(Expr),
     Sound { freq: Expr, duration: Expr },
     Beep,
@@ -465,9 +465,10 @@ impl Parser {
                 self.advance();
                 let mode = self.parse_expr()?;
                 // SCREEN mode [, colorswitch [, apage [, vpage]]] — consume extra args
+                // Empty slots (e.g. `SCREEN 8, , 1`) are allowed; skip expr for bare commas.
                 while self.peek() == &Token::Comma {
                     self.advance();
-                    if !self.at_eol() { self.parse_expr()?; }
+                    if !self.at_eol() && self.peek() != &Token::Comma { self.parse_expr()?; }
                 }
                 Ok(Stmt::Screen(mode))
             }
@@ -787,6 +788,11 @@ impl Parser {
                     if self.peek() == &Token::LParen {
                         self.advance();
                         if self.peek() == &Token::RParen { self.advance(); }
+                    }
+                    // consume optional AS typename (type already known from DIM/REDIM)
+                    if self.peek() == &Token::As {
+                        self.advance();
+                        let _ = self.parse_type_name()?;
                     }
                     names.push(name.to_lowercase());
                     if self.peek() != &Token::Comma { break; }
@@ -1699,6 +1705,7 @@ impl Parser {
 
     fn parse_paint(&mut self) -> Result<Stmt> {
         self.expect(&Token::Paint)?;
+        let step = self.opt_step();
         self.expect(&Token::LParen)?;
         let x = self.parse_expr()?;
         self.expect(&Token::Comma)?;
@@ -1719,7 +1726,7 @@ impl Parser {
             self.advance();
             if !self.at_eol() { Some(self.parse_expr()?) } else { None }
         } else { None };
-        Ok(Stmt::Paint { x, y, fill, border })
+        Ok(Stmt::Paint { x, y, fill, border, step })
     }
 
     // ── Sound / misc ──────────────────────────────────────────────────────────

@@ -45,6 +45,9 @@ pub struct Emitter {
     indent:       usize,
     /// DIM SHARED scalar/array names (lowercase) — accessed via __gs
     shared_names: HashSet<String>,
+    /// Names originally declared with DIM SHARED (not just promoted via SHARED in a sub).
+    /// Always visible in every sub without an explicit SHARED declaration.
+    dim_shared_names: HashSet<String>,
     /// All DIM'd array names in global scope (lowercase)
     array_names:  HashSet<String>,
     /// User-defined SUB + FUNCTION names (lowercase, sigil-stripped)
@@ -138,6 +141,7 @@ impl Emitter {
             out:          String::new(),
             indent:       0,
             shared_names: HashSet::new(),
+            dim_shared_names: HashSet::new(),
             array_names:  HashSet::new(),
             user_fns:     HashSet::new(),
             local_arrays: HashSet::new(),
@@ -221,6 +225,14 @@ impl Emitter {
     /// and shared array types from shared_types.
     fn is_str_expr_ctx(&self, expr: &Expr) -> bool {
         if is_str_expr(expr) { return true; }
+        // Shared scalar variable parsed with wrong type (e.g. `Available AS STRING` parsed
+        // as Integer under DEFINT A-Z) — look up authoritative type from shared_types.
+        if let Expr::Var(LValue::Scalar { name, .. }) = expr {
+            let lc = name.to_lowercase();
+            if let Some(ty) = self.shared_types.get(&lc) {
+                if *ty == QbType::String { return true; }
+            }
+        }
         // Shared array element accessed via Expr::Call (parser didn't add $ sigil):
         // e.g. OptionTitle(I) where OptionTitle is DIM SHARED AS STRING
         if let Expr::Call { name, .. } = expr {
@@ -278,6 +290,10 @@ impl Emitter {
             }
             if sym.dims > 0 { self.array_names.insert(n); }
         }
+        // Collect DIM SHARED names (declared with the SHARED keyword on the DIM itself,
+        // not promoted later by SHARED-in-sub).  These are always visible in every SUB
+        // without needing an explicit SHARED declaration in that sub's body.
+        self.dim_shared_names = collect_dim_shared_names(&prog.main_body);
         // user_fns: sigil-stripped lowercase names (both bare and typed so $-returning
         // functions like Trim$ resolve to either "trim" or "trim_s" at call sites)
         for s in &prog.subs      {
@@ -296,6 +312,20 @@ impl Emitter {
             .keys().map(|k| rust_ident(k)).collect();
         for (name, _) in &prog.consts { globals.insert(rust_ident(name)); }
         for (name, _) in &prog.str_consts { globals.insert(rust_ident(name)); }
+
+        // Separate exclude set for sub/function bodies: only constants and user
+        // sub/fn names.  Global scope variables that are NOT shared by a specific
+        // sub are treated as locals in that sub (QB semantics: DIM without SHARED
+        // does not implicitly expose a variable inside subs — only `SHARED x` in
+        // the sub body does).  The per-sub shared_names are added below per-sub.
+        let mut const_globals: HashSet<String> = HashSet::new();
+        for (name, _) in &prog.consts    { const_globals.insert(rust_ident(name)); }
+        for (name, _) in &prog.str_consts { const_globals.insert(rust_ident(name)); }
+        for s in &prog.subs      { const_globals.insert(rust_ident(&s.name)); }
+        for f in &prog.functions {
+            const_globals.insert(rust_ident(&f.name));
+            const_globals.insert(rust_ident_typed(&f.name, &f.ret_ty));
+        }
 
         // Store parsed TYPE definitions (field names + types)
         self.type_defs = prog.type_defs.clone();
@@ -397,8 +427,8 @@ impl Emitter {
             || !gosub_fns.is_empty()
             || prog.main_body.iter().any(|s| matches!(s, Stmt::DefFn { .. }));
         self.emit_game_state(&prog.global_scope, has_fns);
-        self.emit_subs(&prog.subs, &globals)?;
-        self.emit_functions(&prog.functions, &globals)?;
+        self.emit_subs(&prog.subs, &const_globals)?;
+        self.emit_functions(&prog.functions, &const_globals)?;
         self.emit_def_fns(&prog.main_body, &globals)?;
         for (label, body) in &gosub_fns {
             self.emit_gosub_fn(label, body, &globals)?;
@@ -547,8 +577,26 @@ impl Emitter {
                     fields.push(format!("{name}: Vec<{elem}>,"));
                 }
             } else {
-                let ty = qb_type_to_rust(&sym.ty);
-                fields.push(format!("{name}: {ty},"));
+                // Scalar UserType → expand to one GameState field per flattened member
+                if let Some(tfields) = self.typed_fields.get(&name_bare).cloned() {
+                    let type_name_opt = if let QbType::UserType(tn) = &sym.ty {
+                        Some(tn.to_lowercase())
+                    } else { None };
+                    let field_types: Option<Vec<(String, QbType)>> = type_name_opt
+                        .and_then(|tn| self.type_defs.get(tn.as_str()))
+                        .cloned();
+                    for field in &tfields {
+                        let elem_ty = field_types.as_ref()
+                            .and_then(|fts| fts.iter().find(|(f, _)| f == field))
+                            .map(|(_, t)| t.clone())
+                            .unwrap_or(QbType::Single);
+                        let rust_ty = qb_type_to_rust(&elem_ty);
+                        fields.push(format!("{name}__{field}: {rust_ty},"));
+                    }
+                } else {
+                    let ty = qb_type_to_rust(&sym.ty);
+                    fields.push(format!("{name}: {ty},"));
+                }
             }
         }
         // Promoted arrays: cross GOSUB boundary, not in global_scope as DIM SHARED
@@ -598,6 +646,22 @@ impl Emitter {
             self.in_main = false;
             self.current_fn_retvar = None;  // not in a FUNCTION
             self.redim_declared.clear();
+
+            // Per-sub shared_names: restrict to DIM SHARED globals plus this sub's
+            // explicit SHARED declarations.  This prevents name collisions where a
+            // module-level array and a local scalar share the same identifier but
+            // only the sub that declares `SHARED arr` should see the array form.
+            let sub_explicit = collect_sub_explicit_shared(&sub.body);
+            let dim_shared   = self.dim_shared_names.clone();
+            let full_shared  = self.shared_names.clone();
+            let saved_shared = std::mem::replace(
+                &mut self.shared_names,
+                full_shared.iter()
+                    .filter(|n| dim_shared.contains(*n) || sub_explicit.contains(*n))
+                    .cloned()
+                    .collect(),
+            );
+
             self.setup_param_sets(&sub.params, true); // SUB: numeric scalars byref
             let params = self.emit_params(&sub.params, &sub.body);
             let sep    = if params.is_empty() { "" } else { ", " };
@@ -640,6 +704,7 @@ impl Emitter {
             self.dedent();
             self.line("}");
             self.blank();
+            self.shared_names = saved_shared;
         }
         Ok(())
     }
@@ -655,17 +720,22 @@ impl Emitter {
             if p.ty == QbType::String {
                 // Both SUBs and FUNCTIONs pass string scalars as &mut String
                 self.str_params.insert(lower.clone());
-            } else if p.dims.is_empty() && byref_numerics {
+            } else if p.dims.is_empty() {
                 if let QbType::UserType(tn) = &p.ty {
-                    // Scalar TYPE param — register each flattened field as a numeric param
+                    // Scalar TYPE param — ALWAYS by reference, for both SUBs and
+                    // FUNCTIONs (QB semantics). A FUNCTION that mutates a TYPE field
+                    // and lets the caller read it back relies on this — e.g. torus's
+                    // Inside() sets T.xc/T.yc and TileDraw uses them afterward.
                     let tn_lc = tn.to_lowercase();
                     let flat = flatten_type_fields(&tn_lc, &self.type_defs.clone());
                     let base = rust_ident(&p.name);
                     for (fname, _) in &flat {
                         self.numeric_params.insert(format!("{base}__{fname}"));
                     }
-                } else {
-                    // Non-array numeric scalar — QB SUB passes by reference by default
+                } else if byref_numerics {
+                    // Plain numeric scalar — QB SUB passes by reference. FUNCTIONs
+                    // keep pass-by-value (return their result via the fn value), which
+                    // is observationally identical unless they mutate-and-read-back.
                     self.numeric_params.insert(lower.clone());
                 }
             }
@@ -680,6 +750,19 @@ impl Emitter {
             self.in_main = false;
             self.current_fn_retvar = None;
             self.redim_declared.clear();
+
+            // Per-function shared_names: same restriction as emit_subs
+            let fn_explicit = collect_sub_explicit_shared(&f.body);
+            let dim_shared  = self.dim_shared_names.clone();
+            let full_shared = self.shared_names.clone();
+            let saved_shared = std::mem::replace(
+                &mut self.shared_names,
+                full_shared.iter()
+                    .filter(|n| dim_shared.contains(*n) || fn_explicit.contains(*n))
+                    .cloned()
+                    .collect(),
+            );
+
             self.setup_param_sets(&f.params, false); // FUNCTION: pass by value (return via fn result)
             let params = self.emit_params(&f.params, &f.body);
             let ret_ty = qb_type_to_rust(&f.ret_ty);
@@ -727,6 +810,7 @@ impl Emitter {
             self.dedent();
             self.line("}");
             self.blank();
+            self.shared_names = saved_shared;
         }
         Ok(())
     }
@@ -1318,13 +1402,21 @@ impl Emitter {
                 self.line(&format!("__rt.palette_using(&{arr_name}[({start_idx}) as usize..]);"));
             }
             Stmt::SharedDecl(_) => { /* analyzer hint only — no code to emit */ }
-            Stmt::Paint { x, y, fill, border } => {
-                let x = self.lift_expr(x);
-                let y = self.lift_expr(y);
+            Stmt::Paint { x, y, fill, border, step } => {
+                let xv = self.lift_expr(x);
+                let yv = self.lift_expr(y);
                 let f = self.lift_expr(fill);
                 let b = border.as_ref().map(|e| self.lift_expr(e))
                               .unwrap_or_else(|| f.clone());
-                self.line(&format!("__rt.paint({x}, {y}, {f}, {b});"));
+                let (px, py) = if *step {
+                    let tc = self.lift_counter; self.lift_counter += 1;
+                    self.line(&format!("let __stpx{tc} = __rt.cur_x() + ({xv});"));
+                    self.line(&format!("let __stpy{tc} = __rt.cur_y() + ({yv});"));
+                    (format!("__stpx{tc}"), format!("__stpy{tc}"))
+                } else {
+                    (xv, yv)
+                };
+                self.line(&format!("__rt.paint({px}, {py}, {f}, {b});"));
             }
             Stmt::Pset { x, y, color, preset, step } => {
                 let x = self.lift_expr(x);
@@ -1438,9 +1530,28 @@ impl Emitter {
                         (arr_a.clone(), idx_a.clone(), arr_b.clone(), idx_b.clone(), fields);
                     self.emit_typed_array_swap(&aa, &ia, &ab, &ib, &flds);
                 } else {
-                    let la = self.emit_lvalue(a);
-                    let lb = self.emit_lvalue(b);
-                    self.line(&format!("std::mem::swap(&mut {la}, &mut {lb});"));
+                    // Detect SWAP arr(i), arr(j) on the same Vec — use Vec::swap to
+                    // avoid dual &mut on the same allocation (Rust E0499).
+                    let same_shared_vec = match (a, b) {
+                        (LValue::Index { name: na, indices: ia, .. },
+                         LValue::Index { name: nb, indices: ib, .. })
+                            if na.to_lowercase() == nb.to_lowercase()
+                               && self.shared_names.contains(&na.to_lowercase()) =>
+                        {
+                            let i0 = self.emit_expr(&ia[0]).unwrap_or_default();
+                            let i1 = self.emit_expr(&ib[0]).unwrap_or_default();
+                            let arr = format!("__gs.{}", rust_ident(na));
+                            Some((arr, i0, i1))
+                        }
+                        _ => None,
+                    };
+                    if let Some((arr, i0, i1)) = same_shared_vec {
+                        self.line(&format!("{arr}.swap(({i0}) as usize, ({i1}) as usize);"));
+                    } else {
+                        let la = self.emit_lvalue(a);
+                        let lb = self.emit_lvalue(b);
+                        self.line(&format!("std::mem::swap(&mut {la}, &mut {lb});"));
+                    }
                 }
             }
 
@@ -2002,8 +2113,30 @@ impl Emitter {
         let default_val = if decl.ty == QbType::String { "String::new()" } else { "Default::default()" };
 
         if is_shared {
-            // Shared (GameState) — just resize
-            if let Some(ref a1) = alloc1 {
+            // Shared (GameState) — resize.  For typed (UserType) arrays, resize each
+            // per-field Vec separately since the struct has one Vec per field.
+            let name_bare = rust_ident(&decl.name);
+            if let Some(fields) = self.typed_fields.get(&name_bare).cloned() {
+                let type_name_opt = if let QbType::UserType(tn) = &decl.ty {
+                    Some(tn.to_lowercase())
+                } else { None };
+                let field_types: Option<Vec<(String, QbType)>> = type_name_opt
+                    .and_then(|tn| self.type_defs.get(tn.as_str()))
+                    .cloned();
+                for field in &fields {
+                    let elem_ty = field_types.as_ref()
+                        .and_then(|fts| fts.iter().find(|(f, _)| f == field))
+                        .map(|(_, t)| t.clone())
+                        .unwrap_or(QbType::Single);
+                    let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+                    if let Some(ref a1) = alloc1 {
+                        self.line(&format!(
+                            "__gs.{name_bare}__{field}.resize({alloc0}, vec![{dv}; {a1}]);"));
+                    } else {
+                        self.line(&format!("__gs.{name_bare}__{field}.resize({alloc0}, {dv});"));
+                    }
+                }
+            } else if let Some(ref a1) = alloc1 {
                 self.line(&format!("__gs.{name}.resize({alloc0}, vec![{default_val}; {a1}]);"));
             } else {
                 self.line(&format!("__gs.{name}.resize({alloc0}, {default_val});"));
@@ -2256,18 +2389,27 @@ impl Emitter {
     fn emit_lvalue(&self, lval: &LValue) -> String {
         match lval {
             LValue::Scalar { name, ty } => {
-                let rn = rust_ident_typed(name, ty);
-                if self.shared_names.contains(&name.to_lowercase()) {
-                    format!("__gs.{rn}")
-                } else if self.numeric_params.contains(&rn) {
-                    // Byref numeric param — deref to read/write through the &mut f64
-                    format!("(*{rn})")
-                } else if self.current_fn_name_lc.as_deref() == Some(rn.as_str()) {
-                    // Assignment to the function name inside a FUNCTION body →
-                    // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
-                    "__fn_ret".to_string()
+                let lower = name.to_lowercase();
+                if self.shared_names.contains(&lower) {
+                    // For shared scalars, use the bare rust_ident (no sigil suffix).
+                    // The GameState field was generated from the DIM declaration name,
+                    // which may differ from the $ sigil form used at access sites.
+                    // e.g. `DIM Available AS STRING` → `available: String` in GameState,
+                    // but `Available$` access would produce `available_s` via rust_ident_typed.
+                    let gs_name = rust_ident(name);
+                    format!("__gs.{gs_name}")
                 } else {
-                    rn
+                    let rn = rust_ident_typed(name, ty);
+                    if self.numeric_params.contains(&rn) {
+                        // Byref numeric param — deref to read/write through the &mut f64
+                        format!("(*{rn})")
+                    } else if self.current_fn_name_lc.as_deref() == Some(rn.as_str()) {
+                        // Assignment to the function name inside a FUNCTION body →
+                        // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
+                        "__fn_ret".to_string()
+                    } else {
+                        rn
+                    }
                 }
             }
             LValue::Index { name, ty, indices } => {
@@ -2643,16 +2785,38 @@ impl Emitter {
                         .to_owned();
                     // Typed array → expand to per-field &mut
                     if let Some(fields) = self.typed_fields.get(field_key.as_str()).cloned() {
+                        let in_gs = self.shared_names.contains(&lower);
                         for field in &fields {
-                            result.push(format!("&mut {lower}__{field}"));
+                            if in_gs {
+                                // Use std::mem::take to extract the Vec from __gs so we can
+                                // pass &mut to the field while also passing __gs mutably.
+                                // The writeback restores it after the call.
+                                let tc = self.lift_counter; self.lift_counter += 1;
+                                let tmp = format!("__taf{tc}");
+                                self.line(&format!(
+                                    "let mut {tmp} = std::mem::take(&mut __gs.{lower}__{field});"
+                                ));
+                                writebacks.push((
+                                    format!("__gs.{lower}__{field}"),
+                                    tmp.clone(),
+                                ));
+                                result.push(format!("&mut {tmp}"));
+                            } else {
+                                result.push(format!("&mut {lower}__{field}"));
+                            }
                         }
                         continue;
                     }
-                    // Shared array
+                    // Shared array — use std::mem::take to avoid double-borrow of __gs
                     if self.shared_names.contains(&lower)
                         && self.array_names.contains(&lower)
                     {
-                        result.push(format!("&mut __gs.{lower}"));
+                        let tc = self.lift_counter; self.lift_counter += 1;
+                        let tmp = format!("__saf{tc}");
+                        self.line(&format!(
+                            "let mut {tmp} = std::mem::take(&mut __gs.{lower});"));
+                        writebacks.push((format!("__gs.{lower}"), tmp.clone()));
+                        result.push(format!("&mut {tmp}"));
                         continue;
                     }
                     // Local or param array
@@ -2669,6 +2833,38 @@ impl Emitter {
                             result.push(format!("&mut {lower}"));
                         }
                         continue;
+                    }
+                }
+            }
+
+            // ── Typed array element T(idx) → expand to per-field &mut refs ──────
+            // Handles e.g. `TileDraw T(Index(Til))` where T() AS Tile expands to
+            // `&mut gs.t__x1[idx], &mut gs.t__x2[idx], ...`
+            if let Expr::Call { name, args: iargs } = expr {
+                if !iargs.is_empty() {
+                    let lower    = rust_ident(name);
+                    let name_lc  = name.to_lowercase();
+                    let in_shared = self.shared_names.contains(&name_lc);
+                    let is_typed_arr = self.typed_fields.contains_key(lower.as_str())
+                        && (in_shared
+                            || self.local_arrays.contains(&lower)
+                            || self.array_names.contains(&name_lc));
+                    if is_typed_arr {
+                        if let Some(fields) = self.typed_fields.get(lower.as_str()).cloned() {
+                            // Hoist index to a temp — evaluated once for all fields
+                            let idx_val = self.lift_expr(&iargs[0]);
+                            let tc = self.lift_counter; self.lift_counter += 1;
+                            self.line(&format!("let __taidx{tc} = ({idx_val}) as usize;"));
+                            for field in &fields {
+                                let prefix = if in_shared {
+                                    format!("__gs.{lower}__{field}")
+                                } else {
+                                    format!("{lower}__{field}")
+                                };
+                                result.push(format!("&mut {prefix}[__taidx{tc}]"));
+                            }
+                            continue;
+                        }
                     }
                 }
             }
@@ -3172,10 +3368,15 @@ impl Emitter {
                 let upper = name.to_uppercase();
                 let lower = rust_ident(name); // sigil-stripped lowercase
 
-                // RND / INKEY$ / INPUT$ / ERR need __rt
+                // RND / INKEY$ / INPUT$ / ERR / PMAP need __rt
                 if upper == "RND"    { return Ok("__rt.rnd()".into()); }
                 if upper == "INKEY$" { return Ok("__rt.inkey()".into()); }
                 if upper == "ERR"    { return Ok("__rt.err_code".into()); }
+                if upper == "PMAP" && args.len() == 2 {
+                    let a0 = self.emit_expr_inner(&args[0])?;
+                    let a1 = self.emit_expr_inner(&args[1])?;
+                    return Ok(format!("__rt.pmap({a0}, {a1})"));
+                }
                 if upper == "INPUT$" {
                     let n = args.first()
                         .map(|e| self.emit_expr_inner(e).unwrap_or_else(|_| "1.0".into()))
@@ -3256,8 +3457,43 @@ impl Emitter {
                 // the call in a block expression avoids the double-mutable-borrow of __gs.
                 if self.user_fns.contains(&lower) {
                     let rt = self.rt_args();
-                    // Collect arg info: (value_str, is_str_scalar, is_whole_arr)
-                    let arg_info: Vec<(String, bool, bool)> = args.iter().map(|e| {
+                    // Expand scalar UserType args before building arg_info.
+                    // e.g. `Inside(T)` where `T AS Tile` → expand to its fields, each
+                    // passed BY REFERENCE (`&mut`) since QB passes TYPE params by ref
+                    // and the FUNCTION may mutate them (torus Inside sets T.xc/T.yc).
+                    // `expanded` items carry an optional precomputed `&mut` accessor.
+                    let expanded: Vec<(Expr, Option<String>)> = args.iter().flat_map(|e| {
+                        if let Expr::Var(LValue::Scalar { name: n, .. }) = e {
+                            let base = rust_ident(n);
+                            if let Some(type_name) = self.var_type_name.get(&base).cloned() {
+                                let flat = flatten_type_fields(&type_name,
+                                                               &self.type_defs.clone());
+                                if !flat.is_empty() {
+                                    return flat.into_iter().map(|(fname, fty)| {
+                                        let field = format!("{base}__{fname}");
+                                        // Compute the by-ref accessor for this field.
+                                        let acc = if self.numeric_params.contains(&field) {
+                                            // caller holds &mut f64 — reborrow
+                                            format!("&mut *{field}")
+                                        } else if self.shared_names.contains(&base) {
+                                            format!("&mut __gs.{field}")
+                                        } else {
+                                            format!("&mut {field}")
+                                        };
+                                        (Expr::Var(LValue::Scalar { name: field, ty: fty }),
+                                         Some(acc))
+                                    }).collect::<Vec<_>>();
+                                }
+                            }
+                        }
+                        vec![(e.clone(), None)]
+                    }).collect();
+
+                    // Collect arg info: (value_str, is_str_scalar, is_whole_arr, byref_acc)
+                    let arg_info: Vec<(String, bool, bool, Option<String>)> = expanded.iter().map(|(e, byref)| {
+                        if byref.is_some() {
+                            return (String::new(), false, false, byref.clone());
+                        }
                         let v = self.emit_expr_inner(e).unwrap_or_default();
                         let is_str = is_str_expr(e) || self.is_str_expr_ctx(e);
                         let is_whole_arr = match e {
@@ -3272,10 +3508,10 @@ impl Emitter {
                             }
                             _ => false,
                         };
-                        (v, is_str && !is_whole_arr, is_whole_arr)
+                        (v, is_str && !is_whole_arr, is_whole_arr, None)
                     }).collect();
 
-                    let has_str_scalar = arg_info.iter().any(|(_, is_str, _)| *is_str);
+                    let has_str_scalar = arg_info.iter().any(|(_, is_str, _, _)| *is_str);
                     let sep = if arg_info.is_empty() { "" } else { ", " };
 
                     if has_str_scalar {
@@ -3284,8 +3520,10 @@ impl Emitter {
                         let mut block_lets: Vec<String> = Vec::new();
                         let mut call_args: Vec<String> = Vec::new();
                         let mut tmp_idx = 0usize;
-                        for (v, is_str_scalar, is_whole_arr) in &arg_info {
-                            if *is_whole_arr {
+                        for (v, is_str_scalar, is_whole_arr, byref) in &arg_info {
+                            if let Some(acc) = byref {
+                                call_args.push(acc.clone());
+                            } else if *is_whole_arr {
                                 call_args.push(format!("&mut {v}"));
                             } else if *is_str_scalar {
                                 let tmp = format!("__fn_s{tmp_idx}");
@@ -3303,8 +3541,10 @@ impl Emitter {
                             call_args.join(", ")
                         ));
                     } else {
-                        let a: Vec<_> = arg_info.iter().map(|(v, _, is_whole_arr)| {
-                            if *is_whole_arr { format!("&mut {v}") } else { v.clone() }
+                        let a: Vec<_> = arg_info.iter().map(|(v, _, is_whole_arr, byref)| {
+                            if let Some(acc) = byref { acc.clone() }
+                            else if *is_whole_arr { format!("&mut {v}") }
+                            else { v.clone() }
                         }).collect();
                         return Ok(format!("{lower}({rt}{sep}{})", a.join(", ")));
                     }
@@ -3556,7 +3796,7 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     for e in [x, y, r] { scan_expr(e, result, added, exclude); }
                     if let Some(c) = color { scan_expr(c, result, added, exclude); }
                 }
-                Stmt::Paint { x, y, fill, border } => {
+                Stmt::Paint { x, y, fill, border, .. } => {
                     for e in [x, y, fill] { scan_expr(e, result, added, exclude); }
                     if let Some(b) = border { scan_expr(b, result, added, exclude); }
                 }
@@ -4128,7 +4368,7 @@ fn collect_typed_array_fields(prog: &AnalyzedProgram)
                 visit_expr(x, map, dims); visit_expr(y, map, dims);
                 if let Some(c) = color { visit_expr(c, map, dims); }
             }
-            Stmt::Paint { x, y, fill, border } => {
+            Stmt::Paint { x, y, fill, border, .. } => {
                 visit_expr(x, map, dims); visit_expr(y, map, dims);
                 visit_expr(fill, map, dims);
                 if let Some(b) = border { visit_expr(b, map, dims); }
@@ -4773,6 +5013,66 @@ fn flatten_to_blocks(stmts: &[Stmt]) -> Vec<(u32, Vec<Stmt>)> {
     // but guard against edge cases)
     blocks.sort_by_key(|(pc, _)| *pc);
     blocks
+}
+
+// ── Per-sub shared-name helpers ───────────────────────────────────────────────
+
+/// Collect names from all `SHARED var` declarations in a sub body (including
+/// nested control structures).  These are the module-level variables that THIS
+/// specific sub explicitly opts into via a SHARED statement.
+fn collect_sub_explicit_shared(stmts: &[Stmt]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    fn visit(stmts: &[Stmt], out: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::SharedDecl(ns) => { for n in ns { out.insert(n.clone()); } }
+                Stmt::Block(inner) => visit(inner, out),
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } =>
+                    visit(body, out),
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, out);
+                    for (_, b) in elseif_branches { visit(b, out); }
+                    if let Some(b) = else_body { visit(b, out); }
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, out); }
+                    if let Some(b) = default { visit(b, out); }
+                }
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut out);
+    out
+}
+
+/// Collect names of variables declared with `DIM SHARED` (the `SHARED` keyword
+/// directly on the DIM statement) anywhere in the main body.  These are always
+/// visible in every sub without a per-sub SHARED declaration.
+fn collect_dim_shared_names(stmts: &[Stmt]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    fn visit(stmts: &[Stmt], out: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Dim(d) if d.shared => { out.insert(rust_ident(&d.name)); }
+                Stmt::Block(inner) => visit(inner, out),
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } =>
+                    visit(body, out),
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, out);
+                    for (_, b) in elseif_branches { visit(b, out); }
+                    if let Some(b) = else_body { visit(b, out); }
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, out); }
+                    if let Some(b) = default { visit(b, out); }
+                }
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut out);
+    out
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────

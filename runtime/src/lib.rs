@@ -1360,16 +1360,23 @@ impl Runtime {
             // WINDOW defines a logical rect mapped onto the (effective) VIEW rect.
             // Without an explicit VIEW the viewport is the entire screen.
             let (vx1, vy1, vx2, vy2) = self.effective_viewport();
-            let px = vx1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1) * (vx2 - vx1);
-            // Plain `WINDOW` (no SCREEN) inverts Y: larger logical y → higher on
-            // screen (win_y1 → bottom, win_y2 → top). `WINDOW SCREEN` keeps
-            // screen orientation (no inversion).
-            let py = if self.win_screen {
-                vy1 + (ly - self.win_y1) / (self.win_y2 - self.win_y1) * (vy2 - vy1)
+            if self.win_screen {
+                // `WINDOW SCREEN`: screen orientation (Y increases downward, no
+                // inversion). Map by coordinate magnitude so corner order does NOT
+                // flip the image — reversi passes (640,480)-(0,0) but expects an
+                // identity-style mapping (min → top-left, max → bottom-right).
+                let (wxlo, wxhi) = (self.win_x1.min(self.win_x2), self.win_x1.max(self.win_x2));
+                let (wylo, wyhi) = (self.win_y1.min(self.win_y2), self.win_y1.max(self.win_y2));
+                let px = vx1 + (lx - wxlo) / (wxhi - wxlo) * (vx2 - vx1);
+                let py = vy1 + (ly - wylo) / (wyhi - wylo) * (vy2 - vy1);
+                (px, py)
             } else {
-                vy1 + (self.win_y2 - ly) / (self.win_y2 - self.win_y1) * (vy2 - vy1)
-            };
-            (px, py)
+                // Plain `WINDOW` (no SCREEN) inverts Y: larger logical y → higher
+                // on screen (win_y1 → bottom, win_y2 → top).
+                let px = vx1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1) * (vx2 - vx1);
+                let py = vy1 + (self.win_y2 - ly) / (self.win_y2 - self.win_y1) * (vy2 - vy1);
+                (px, py)
+            }
         } else if self.view_active {
             // No WINDOW: coords are VIEW-relative; offset by view origin
             (lx + self.view_x1, ly + self.view_y1)
@@ -1516,7 +1523,14 @@ impl Runtime {
     pub fn pmap(&self, coord: f64, mode: f64) -> f64 {
         // WINDOW without an explicit VIEW maps onto the whole screen (DOS QB behavior).
         let (vx1, vy1, vx2, vy2) = self.effective_viewport();
-        let (wx1, wy1, wx2, wy2) = (self.win_x1,  self.win_y1,  self.win_x2,  self.win_y2);
+        // WINDOW SCREEN maps by magnitude (min → top-left), matching logical_to_fb;
+        // plain WINDOW keeps corner order (and inverts Y in the match arms below).
+        let (wx1, wy1, wx2, wy2) = if self.win_screen {
+            (self.win_x1.min(self.win_x2), self.win_y1.min(self.win_y2),
+             self.win_x1.max(self.win_x2), self.win_y1.max(self.win_y2))
+        } else {
+            (self.win_x1, self.win_y1, self.win_x2, self.win_y2)
+        };
         if (vx2 - vx1).abs() < 1e-10 || (vy2 - vy1).abs() < 1e-10 { return coord; }
         if (wx2 - wx1).abs() < 1e-10 || (wy2 - wy1).abs() < 1e-10 { return coord; }
         match mode as i32 {
@@ -3042,6 +3056,24 @@ mod window_tests {
         rt.set_window(0.0, 0.0, 100.0, 100.0, true);
         let phys = rt.pmap(40.0, 1.0);
         assert!((rt.pmap(phys, 3.0) - 40.0).abs() < 0.1, "round-trip {}", rt.pmap(phys, 3.0));
+    }
+
+    // reversi uses `WINDOW SCREEN (640,480)-(0,0)` — reversed corners. These must
+    // NOT flip the image (the board would render rotated 180°, on the wrong side,
+    // with backwards arrow keys). WINDOW SCREEN maps by magnitude: min → top-left.
+    #[test]
+    fn window_screen_reversed_corners_no_flip() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0); // 640x480
+        rt.set_window(640.0, 480.0, 0.0, 0.0, true);
+        // logical (0,0) → top-left pixel; logical (640,480) → bottom-right.
+        assert!(rt.pmap(0.0, 0.0) < 2.0, "x=0 → {}", rt.pmap(0.0, 0.0));
+        assert!(rt.pmap(640.0, 0.0) > 637.0, "x=640 → {}", rt.pmap(640.0, 0.0));
+        assert!(rt.pmap(0.0, 1.0) < 2.0, "y=0 → {}", rt.pmap(0.0, 1.0));
+        assert!(rt.pmap(480.0, 1.0) > 477.0, "y=480 → {}", rt.pmap(480.0, 1.0));
+        // Board cell (1,1) at logical (290,90) must be above-and-left of (8,8) at (570,390).
+        assert!(rt.pmap(90.0, 1.0) < rt.pmap(390.0, 1.0), "row1 above row8");
+        assert!(rt.pmap(290.0, 0.0) < rt.pmap(570.0, 0.0), "col1 left of col8");
     }
 
     // PMAP must use the full-screen viewport when VIEW is inactive, and round-trip.

@@ -44,7 +44,7 @@ pub enum Token {
     Play, Sound, Beep,
 
     // Misc statements
-    Let, Call, Swap,
+    Let, Call, Swap, Erase,
     Stop,
     #[allow(dead_code)] End_,   // END as a statement (distinct from END SUB / END IF)
     Data, Read, Restore,
@@ -219,6 +219,7 @@ fn keyword(word: &str) -> Option<Token> {
         "STOP"      => Token::Stop,
         "SUB"       => Token::Sub,
         "SWAP"      => Token::Swap,
+        "ERASE"     => Token::Erase,
         "THEN"      => Token::Then,
         "TO"        => Token::To,
         "TYPE"      => Token::Type,

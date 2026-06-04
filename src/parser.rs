@@ -152,8 +152,11 @@ pub enum Stmt {
     PaletteUsing(Expr),
     /// VIEW (x1,y1)-(x2,y2)[,fill[,border]] — define graphics viewport
     View { x1: Expr, y1: Expr, x2: Expr, y2: Expr, fill: Option<Expr>, border: Option<Expr> },
-    /// WINDOW (x1,y1)-(x2,y2) — define logical coordinate window
-    Window { x1: Expr, y1: Expr, x2: Expr, y2: Expr },
+    /// WINDOW [SCREEN] (x1,y1)-(x2,y2) — define logical coordinate window.
+    /// `screen` = the SCREEN keyword was present (screen-orientation Y, no invert).
+    Window { x1: Expr, y1: Expr, x2: Expr, y2: Expr, screen: bool },
+    /// ERASE name[, name...] — reset arrays to their default (zero) values
+    Erase(Vec<String>),
     /// SHARED name, name() inside a SUB/FUNCTION body
     SharedDecl(Vec<String>),
     /// PUT (x, y), array, PSET|XOR|...   — step = STEP on the point (cursor-relative)
@@ -764,6 +767,15 @@ impl Parser {
             }
             Token::Window => {
                 self.advance(); // consume WINDOW
+                // Optional SCREEN keyword → screen-orientation Y (no inversion).
+                let screen = if self.peek() == &Token::Screen {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+                // `WINDOW` with no coordinates resets the logical window; QB allows
+                // this but no bundled program uses it — require the coordinate form.
                 self.expect(&Token::LParen)?;
                 let x1 = self.parse_expr()?; self.expect(&Token::Comma)?;
                 let y1 = self.parse_expr()?; self.expect(&Token::RParen)?;
@@ -771,7 +783,23 @@ impl Parser {
                 self.expect(&Token::LParen)?;
                 let x2 = self.parse_expr()?; self.expect(&Token::Comma)?;
                 let y2 = self.parse_expr()?; self.expect(&Token::RParen)?;
-                return Ok(Some(Stmt::Window { x1, y1, x2, y2 }));
+                return Ok(Some(Stmt::Window { x1, y1, x2, y2, screen }));
+            }
+            Token::Erase => {
+                self.advance(); // consume ERASE
+                let mut names = Vec::new();
+                loop {
+                    let name = match self.peek().clone() {
+                        Token::IdentStr(n) | Token::IdentInt(n) |
+                        Token::IdentDbl(n) | Token::IdentSng(n) |
+                        Token::Ident(n) => { self.advance(); n }
+                        _ => break,
+                    };
+                    names.push(name);
+                    if self.peek() != &Token::Comma { break; }
+                    self.advance();
+                }
+                return Ok(Some(Stmt::Erase(names)));
             }
             Token::Shared => {
                 // Bare SHARED inside a SUB/FUNCTION body — mark names as globally shared

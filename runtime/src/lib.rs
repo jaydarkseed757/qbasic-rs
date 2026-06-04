@@ -312,6 +312,8 @@ pub struct Runtime {
     view_active: bool,
     win_x1: f64, win_y1: f64, win_x2: f64, win_y2: f64,
     win_active: bool,
+    // WINDOW SCREEN (screen-orientation Y, no inversion) vs plain WINDOW (Y inverted)
+    win_screen: bool,
     // Graphics cursor (in logical coords; updated by pset/line/line_to)
     gfx_x: f64,
     gfx_y: f64,
@@ -381,7 +383,7 @@ impl Runtime {
             key_queue:    std::collections::VecDeque::new(),
             rng:          0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
-            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false,
+            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false, win_screen: false,
             gfx_x: 0.0, gfx_y: 0.0,
             draw_scale: 4.0,
             draw_color: 7,
@@ -447,7 +449,7 @@ impl Runtime {
             key_queue:    std::collections::VecDeque::new(),
             rng:          0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
-            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false,
+            win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false, win_screen: false,
             gfx_x: 0.0, gfx_y: 0.0,
             draw_scale: 4.0,
             draw_color: 7,
@@ -492,6 +494,7 @@ impl Runtime {
         // Reset logical coordinate system and DRAW state
         self.view_active = false;
         self.win_active  = false;
+        self.win_screen  = false;
         self.gfx_x = 0.0;
         self.gfx_y = 0.0;
         self.draw_scale = 4.0;
@@ -1358,9 +1361,14 @@ impl Runtime {
             // Without an explicit VIEW the viewport is the entire screen.
             let (vx1, vy1, vx2, vy2) = self.effective_viewport();
             let px = vx1 + (lx - self.win_x1) / (self.win_x2 - self.win_x1) * (vx2 - vx1);
-            // QB `WINDOW` (no SCREEN) inverts Y: larger logical y → higher on screen
-            // (smaller fb row). win_y1 → bottom (vy2), win_y2 → top (vy1).
-            let py = vy1 + (self.win_y2 - ly) / (self.win_y2 - self.win_y1) * (vy2 - vy1);
+            // Plain `WINDOW` (no SCREEN) inverts Y: larger logical y → higher on
+            // screen (win_y1 → bottom, win_y2 → top). `WINDOW SCREEN` keeps
+            // screen orientation (no inversion).
+            let py = if self.win_screen {
+                vy1 + (ly - self.win_y1) / (self.win_y2 - self.win_y1) * (vy2 - vy1)
+            } else {
+                vy1 + (self.win_y2 - ly) / (self.win_y2 - self.win_y1) * (vy2 - vy1)
+            };
             (px, py)
         } else if self.view_active {
             // No WINDOW: coords are VIEW-relative; offset by view origin
@@ -1490,11 +1498,14 @@ impl Runtime {
         }
     }
 
-    /// WINDOW (x1,y1)-(x2,y2) — define logical coordinate window mapped to viewport.
-    pub fn set_window(&mut self, x1: f64, y1: f64, x2: f64, y2: f64) {
+    /// WINDOW [SCREEN] (x1,y1)-(x2,y2) — define logical coordinate window mapped
+    /// to the viewport. `screen` = the SCREEN keyword was present, meaning
+    /// screen-orientation Y (no inversion); plain WINDOW inverts Y (Cartesian).
+    pub fn set_window(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, screen: bool) {
         self.win_x1 = x1; self.win_y1 = y1;
         self.win_x2 = x2; self.win_y2 = y2;
         self.win_active = true;
+        self.win_screen = screen;
     }
 
     /// PMAP — map between physical viewport coords and logical window coords.
@@ -1509,13 +1520,15 @@ impl Runtime {
         if (vx2 - vx1).abs() < 1e-10 || (vy2 - vy1).abs() < 1e-10 { return coord; }
         if (wx2 - wx1).abs() < 1e-10 || (wy2 - wy1).abs() < 1e-10 { return coord; }
         match mode as i32 {
-            // modes 0/1: logical → absolute screen coord.
-            // Y is inverted to match QB `WINDOW` and logical_to_fb (larger logical y
-            // → smaller fb row), so PMAP round-trips with POINT/LINE coordinates.
+            // modes 0/1: logical → absolute screen coord. Y inversion matches
+            // logical_to_fb (plain WINDOW inverts; WINDOW SCREEN does not), so
+            // PMAP round-trips with POINT/LINE coordinates.
             0 => vx1 + (coord - wx1) / (wx2 - wx1) * (vx2 - vx1),
+            1 if self.win_screen => vy1 + (coord - wy1) / (wy2 - wy1) * (vy2 - vy1),
             1 => vy1 + (wy2 - coord) / (wy2 - wy1) * (vy2 - vy1),
             // modes 2/3: viewport-relative coord (0 = viewport top/left) → logical
             2 => wx1 + coord / (vx2 - vx1) * (wx2 - wx1),
+            3 if self.win_screen => wy1 + coord / (vy2 - vy1) * (wy2 - wy1),
             3 => wy2 - coord / (vy2 - vy1) * (wy2 - wy1),
             _ => coord,
         }
@@ -2945,7 +2958,7 @@ mod window_tests {
     fn window_without_view_maps_to_full_screen() {
         let mut rt = Runtime::headless();
         rt.screen(12.0); // 640x480
-        rt.set_window(-4.0, -4.0, 4.0, 4.0); // no set_view
+        rt.set_window(-4.0, -4.0, 4.0, 4.0, false); // no set_view
         // Two distinct logical corners must land on distinct framebuffer pixels.
         rt.pset(-4.0, -4.0, 5.0); // → fb (0,0)
         rt.pset(4.0, 4.0, 9.0); // → fb (639,479)
@@ -2963,7 +2976,7 @@ mod window_tests {
     fn paint_fills_quad_under_window() {
         let mut rt = Runtime::headless();
         rt.screen(12.0);
-        rt.set_window(-4.0, -4.0, 4.0, 4.0);
+        rt.set_window(-4.0, -4.0, 4.0, 4.0, false);
         let border = 15.0;
         let tcolor = 9.0;
         // Quad in logical coords (well inside the window so it spans many pixels).
@@ -2999,7 +3012,7 @@ mod window_tests {
     fn window_inverts_y_axis() {
         let mut rt = Runtime::headless();
         rt.screen(12.0); // 640x480
-        rt.set_window(-4.0, -4.0, 4.0, 4.0);
+        rt.set_window(-4.0, -4.0, 4.0, 4.0, false);
         // Top of window (logical y = +4) → physical row near 0.
         // Bottom (logical y = -4) → physical row near 479.
         // PMAP mode 1 = logical y → physical y.
@@ -3010,12 +3023,33 @@ mod window_tests {
         assert!((rt.pmap(phys, 3.0) - 1.5).abs() < 0.05, "round-trip {}", rt.pmap(phys, 3.0));
     }
 
+    // `WINDOW SCREEN` keeps screen orientation: NO Y inversion (used by reversi).
+    // Plain WINDOW (above) inverts; this guards that the SCREEN variant doesn't.
+    #[test]
+    fn window_screen_no_y_invert() {
+        let mut rt = Runtime::headless();
+        rt.screen(12.0); // 640x480
+        // reversi uses WINDOW SCREEN (640,480)-(0,0); use the simple identity-ish
+        // form here to assert orientation directly.
+        rt.set_window(0.0, 0.0, 100.0, 100.0, true); // screen = true → no invert
+        // With screen orientation, logical y=0 → top (row ~0), y=100 → bottom (~479).
+        assert!(rt.pmap(0.0, 1.0) < 2.0, "y=0 → {}", rt.pmap(0.0, 1.0));
+        assert!(rt.pmap(100.0, 1.0) > 477.0, "y=100 → {}", rt.pmap(100.0, 1.0));
+        // Contrast: the same window WITHOUT screen mode inverts.
+        rt.set_window(0.0, 0.0, 100.0, 100.0, false);
+        assert!(rt.pmap(0.0, 1.0) > 477.0, "inverted y=0 → {}", rt.pmap(0.0, 1.0));
+        // mode 1 ↔ mode 3 still round-trips under screen mode.
+        rt.set_window(0.0, 0.0, 100.0, 100.0, true);
+        let phys = rt.pmap(40.0, 1.0);
+        assert!((rt.pmap(phys, 3.0) - 40.0).abs() < 0.1, "round-trip {}", rt.pmap(phys, 3.0));
+    }
+
     // PMAP must use the full-screen viewport when VIEW is inactive, and round-trip.
     #[test]
     fn pmap_uses_full_screen_without_view() {
         let mut rt = Runtime::headless();
         rt.screen(12.0);
-        rt.set_window(0.0, 0.0, 100.0, 100.0); // no set_view
+        rt.set_window(0.0, 0.0, 100.0, 100.0, false); // no set_view
         // logical X 100 → physical right edge (639)
         let phys = rt.pmap(100.0, 0.0);
         assert!((phys - 639.0).abs() < 1.0, "mode 0 gave {phys}");

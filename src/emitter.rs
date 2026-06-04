@@ -89,6 +89,9 @@ pub struct Emitter {
     sub_params: HashMap<String, Vec<VarDecl>>,
     /// lowercase array name → number of dimensions (0 if not recorded)
     typed_array_dims: HashMap<String, usize>,
+    /// lowercase array name → number of dimensions, for ALL arrays (plain + typed).
+    /// Used by ERASE to emit the right loop-nesting depth.
+    array_dims: HashMap<String, usize>,
     /// lowercase array name → lower bound per dimension (i64; 0 when not specified)
     array_lower: HashMap<String, Vec<i64>>,
     /// GOSUB blocks for the current sub being emitted: label_lower → body stmts.
@@ -160,6 +163,7 @@ impl Emitter {
             data_labels:  HashMap::new(),
             sub_params:   HashMap::new(),
             typed_array_dims: HashMap::new(),
+            array_dims:   HashMap::new(),
             array_lower:  HashMap::new(),
             current_sub_gosubs: HashMap::new(),
             current_gosub_label: None,
@@ -354,6 +358,10 @@ impl Emitter {
         for sym in prog.global_scope.symbols.values() {
             if matches!(&sym.ty, QbType::UserType(_)) && sym.dims > 0 {
                 self.typed_array_dims.insert(sym.name.to_lowercase(), sym.dims);
+            }
+            // Record dimensionality of every array (plain + typed) for ERASE.
+            if sym.dims > 0 {
+                self.array_dims.insert(sym.name.to_lowercase(), sym.dims);
             }
         }
 
@@ -568,13 +576,10 @@ impl Emitter {
                             fields.push(format!("{name}__{field}: Vec<{rust_elem}>,"));
                         }
                     }
-                } else if sym.dims >= 2 {
-                    // 2-D array: use Vec<Vec<T>> to support [row][col] indexing
-                    let elem = qb_type_to_rust(&sym.ty);
-                    fields.push(format!("{name}: Vec<Vec<{elem}>>,"));
                 } else {
+                    // Plain N-D array (1/2/3-D): Vec / Vec<Vec> / Vec<Vec<Vec>>.
                     let elem = qb_type_to_rust(&sym.ty);
-                    fields.push(format!("{name}: Vec<{elem}>,"));
+                    fields.push(format!("{name}: {},", nested_vec_type(elem, sym.dims)));
                 }
             } else {
                 // Scalar UserType → expand to one GameState field per flattened member
@@ -969,6 +974,8 @@ impl Emitter {
         }
         let locals = collect_locals(body, &combined_exclude);
         for (name, ty) in &locals {
+            // Disambiguate a scalar that shares its name with a local array.
+            let name = self.local_scalar_name(name);
             match ty {
                 QbType::UserType(s) if s == "vec_f64" => {
                     // Flattened TYPE field array — size unknown, use resizable Vec
@@ -1370,13 +1377,14 @@ impl Emitter {
                                .unwrap_or_else(|| "-1.0".into());
                 self.line(&format!("__rt.set_view({x1},{y1},{x2},{y2},{f},{b});"));
             }
-            Stmt::Window { x1, y1, x2, y2 } => {
+            Stmt::Window { x1, y1, x2, y2, screen } => {
                 let x1 = self.lift_expr(x1);
                 let y1 = self.lift_expr(y1);
                 let x2 = self.lift_expr(x2);
                 let y2 = self.lift_expr(y2);
-                self.line(&format!("__rt.set_window({x1},{y1},{x2},{y2});"));
+                self.line(&format!("__rt.set_window({x1},{y1},{x2},{y2},{screen});"));
             }
+            Stmt::Erase(names) => self.emit_erase(names),
             Stmt::PaletteUsing(arr) => {
                 // PALETTE USING arr(start_idx) — pass slice of array from start_idx.
                 // arr is parsed as an indexed Call (e.g. PaletteArray(0)) — we want
@@ -1405,9 +1413,7 @@ impl Emitter {
             Stmt::Paint { x, y, fill, border, step } => {
                 let xv = self.lift_expr(x);
                 let yv = self.lift_expr(y);
-                let f = self.lift_expr(fill);
-                let b = border.as_ref().map(|e| self.lift_expr(e))
-                              .unwrap_or_else(|| f.clone());
+                let str_fill = is_str_expr(fill) || self.is_str_expr_ctx(fill);
                 let (px, py) = if *step {
                     let tc = self.lift_counter; self.lift_counter += 1;
                     self.line(&format!("let __stpx{tc} = __rt.cur_x() + ({xv});"));
@@ -1416,7 +1422,22 @@ impl Emitter {
                 } else {
                     (xv, yv)
                 };
-                self.line(&format!("__rt.paint({px}, {py}, {f}, {b});"));
+                if str_fill {
+                    // PAINT (x,y), CHR$(n), border — a string TILING PATTERN (used by
+                    // B&W screen modes). Real pattern tiling is not implemented; flood
+                    // in the current foreground color so the program compiles and
+                    // renders a solid region. (Dead code on EGA/VGA color paths.)
+                    eprintln!("warning: PAINT string tiling pattern → solid foreground fill (pattern fill not implemented)");
+                    self.line("// TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color");
+                    let b = border.as_ref().map(|e| self.lift_expr(e))
+                                  .unwrap_or_else(|| "-1.0".into());
+                    self.line(&format!("__rt.paint({px}, {py}, __rt.fg_color as f64, {b});"));
+                } else {
+                    let f = self.lift_expr(fill);
+                    let b = border.as_ref().map(|e| self.lift_expr(e))
+                                  .unwrap_or_else(|| f.clone());
+                    self.line(&format!("__rt.paint({px}, {py}, {f}, {b});"));
+                }
             }
             Stmt::Pset { x, y, color, preset, step } => {
                 let x = self.lift_expr(x);
@@ -1990,16 +2011,14 @@ impl Emitter {
             // from Vec::len(), so they return the correct declared bounds.
             let ndims = decl.dims.len();
 
-            let alloc0 = {
-                let upper = self.emit_expr(&decl.dims[0]).unwrap_or_else(|_| "0".into());
+            // Per-dimension allocation sizes (wasted-slots: upper + 1), outermost first.
+            let allocs: Vec<String> = decl.dims.iter().map(|d| {
+                let upper = self.emit_expr(d).unwrap_or_else(|_| "0".into());
                 format!("({upper}+1.0) as usize")
-            };
-            let alloc1 = if ndims >= 2 {
-                let upper = self.emit_expr(&decl.dims[1]).unwrap_or_else(|_| "0".into());
-                Some(format!("({upper}+1.0) as usize"))
-            } else {
-                None
-            };
+            }).collect();
+            let alloc0 = allocs[0].clone();
+            // Typed-array paths below still use a 2-D-max (alloc1) shape.
+            let alloc1 = allocs.get(1).cloned();
 
             if is_shared && matches!(&decl.ty, QbType::UserType(_)) {
                 // DIM SHARED typed array → initialize per-field Vecs inside GameState
@@ -2056,42 +2075,83 @@ impl Emitter {
                     }
                 }
             } else if is_shared {
-                if let Some(ref a1) = alloc1 {
-                    // 2-D shared array → Vec<Vec<f64>>
-                    self.line(&format!(
-                        "__gs.{name} = vec![vec![Default::default(); {a1}]; {alloc0}];"
-                    ));
-                } else {
-                    self.line(&format!(
-                        "__gs.{name} = vec![Default::default(); {alloc0}];"
-                    ));
-                }
+                // Plain N-D shared array (1/2/3-D) → nested Vec inside GameState.
+                let init = nested_vec_init("Default::default()", &allocs);
+                self.line(&format!("__gs.{name} = {init};"));
             } else {
                 let ty = qb_type_to_rust(&decl.ty);
                 self.local_arrays.insert(name.clone());
+                let init = nested_vec_init("Default::default()", &allocs);
                 if self.sm_mode {
                     // In state-machine mode, `let mut` was hoisted before the loop;
                     // just emit the allocation assignment so the arm re-initializes it.
-                    if let Some(ref a1) = alloc1 {
-                        self.line(&format!(
-                            "{name} = vec![vec![Default::default(); {a1}]; {alloc0}];"
-                        ));
-                    } else {
-                        self.line(&format!(
-                            "{name} = vec![Default::default(); {alloc0}];"
-                        ));
-                    }
-                } else if let Some(ref a1) = alloc1 {
-                    // 2-D local array → Vec<Vec<T>>
-                    self.line(&format!(
-                        "let mut {name}: Vec<Vec<{ty}>> = vec![vec![Default::default(); {a1}]; {alloc0}];"
-                    ));
+                    self.line(&format!("{name} = {init};"));
                 } else {
-                    self.line(&format!(
-                        "let mut {name}: Vec<{ty}> = vec![Default::default(); {alloc0}];"
-                    ));
+                    let vec_ty = nested_vec_type(ty, ndims);
+                    self.line(&format!("let mut {name}: {vec_ty} = {init};"));
                 }
             }
+        }
+    }
+
+    /// ERASE name[, name...] — reset each array's elements to their default
+    /// (0.0 / empty string) in place. The Vec keeps its allocated shape (QB
+    /// ERASE on a static array just zeros it). Nesting follows the array's
+    /// dimensionality, looked up from `array_dims`.
+    fn emit_erase(&mut self, names: &[String]) {
+        for name in names {
+            let lower   = rust_ident(name);
+            let name_lc = name.to_lowercase();
+            let is_shared = self.shared_names.contains(&name_lc);
+            let ndims = self.array_dims.get(&name_lc).copied().unwrap_or(1).max(1);
+
+            // Typed array → zero each per-field Vec.
+            if let Some(fields) = self.typed_fields.get(&lower).cloned() {
+                let field_types: Option<Vec<(String, QbType)>> = self.var_type_name
+                    .get(&lower).cloned()
+                    .and_then(|tn| self.type_defs.get(tn.as_str()).cloned());
+                for field in &fields {
+                    let elem_ty = field_types.as_ref()
+                        .and_then(|fts| fts.iter().find(|(f, _)| f == field))
+                        .map(|(_, t)| t.clone())
+                        .unwrap_or(QbType::Single);
+                    let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+                    let base = if is_shared {
+                        format!("__gs.{lower}__{field}")
+                    } else {
+                        format!("{lower}__{field}")
+                    };
+                    self.emit_zero_nested(&base, ndims, dv);
+                }
+                continue;
+            }
+
+            // Plain array.
+            let (base, elem_ty) = if is_shared {
+                let ty = self.shared_types.get(&name_lc).cloned().unwrap_or(QbType::Single);
+                (format!("__gs.{}", rust_ident_typed(name, &ty)), ty)
+            } else {
+                (lower.clone(), QbType::Single)
+            };
+            let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+            self.emit_zero_nested(&base, ndims, dv);
+        }
+    }
+
+    /// Emit `ndims` nested `iter_mut` loops that reset every leaf of `base`
+    /// (a Vec / Vec<Vec> / Vec<Vec<Vec>>) to `default_val`.
+    fn emit_zero_nested(&mut self, base: &str, ndims: usize, default_val: &str) {
+        let mut cur = base.to_string();
+        for d in 0..ndims {
+            let v = format!("__er{d}");
+            self.line(&format!("for {v} in {cur}.iter_mut() {{"));
+            self.indent();
+            cur = v;
+        }
+        self.line(&format!("*{cur} = {default_val};"));
+        for _ in 0..ndims {
+            self.dedent();
+            self.line("}");
         }
     }
 
@@ -2103,14 +2163,21 @@ impl Emitter {
         let upper0 = self.emit_expr(&decl.dims[0]).unwrap_or_else(|_| "0".into());
         let alloc0 = format!("({upper0}+1.0) as usize");
 
-        let is_2d  = decl.dims.len() >= 2;
-        let alloc1 = if is_2d {
-            let upper1 = self.emit_expr(&decl.dims[1]).unwrap_or_else(|_| "0".into());
-            Some(format!("({upper1}+1.0) as usize"))
-        } else { None };
+        let allocs: Vec<String> = decl.dims.iter().map(|d| {
+            let upper = self.emit_expr(d).unwrap_or_else(|_| "0".into());
+            format!("({upper}+1.0) as usize")
+        }).collect();
+        let ndims  = allocs.len();
+        let alloc1 = allocs.get(1).cloned(); // typed path is still 2-D-max
 
         let elem_ty = qb_type_to_rust(&decl.ty);
         let default_val = if decl.ty == QbType::String { "String::new()" } else { "Default::default()" };
+        // Fill value for resizing the outer Vec: the inner (N-1)-D structure.
+        let inner_fill = if ndims <= 1 {
+            default_val.to_string()
+        } else {
+            nested_vec_init(default_val, &allocs[1..])
+        };
 
         if is_shared {
             // Shared (GameState) — resize.  For typed (UserType) arrays, resize each
@@ -2136,26 +2203,18 @@ impl Emitter {
                         self.line(&format!("__gs.{name_bare}__{field}.resize({alloc0}, {dv});"));
                     }
                 }
-            } else if let Some(ref a1) = alloc1 {
-                self.line(&format!("__gs.{name}.resize({alloc0}, vec![{default_val}; {a1}]);"));
             } else {
-                self.line(&format!("__gs.{name}.resize({alloc0}, {default_val});"));
+                // Plain N-D shared array.
+                self.line(&format!("__gs.{name}.resize({alloc0}, {inner_fill});"));
             }
         } else {
             // Local — may need to declare first
             if !self.redim_declared.contains(&name) {
                 self.redim_declared.insert(name.clone());
-                if let Some(ref _a1) = alloc1 {
-                    self.line(&format!("let mut {name}: Vec<Vec<{elem_ty}>> = Vec::new();"));
-                } else {
-                    self.line(&format!("let mut {name}: Vec<{elem_ty}> = Vec::new();"));
-                }
+                let vec_ty = nested_vec_type(elem_ty, ndims);
+                self.line(&format!("let mut {name}: {vec_ty} = Vec::new();"));
             }
-            if let Some(ref a1) = alloc1 {
-                self.line(&format!("{name}.resize({alloc0}, vec![{default_val}; {a1}]);"));
-            } else {
-                self.line(&format!("{name}.resize({alloc0}, {default_val});"));
-            }
+            self.line(&format!("{name}.resize({alloc0}, {inner_fill});"));
         }
     }
 
@@ -2384,6 +2443,17 @@ impl Emitter {
         self.emit_expr_inner(expr).unwrap_or_else(|_| "/*err*/".into())
     }
 
+    /// Rust binding name for a local scalar. When the scalar's name collides with
+    /// a local array of the same name (QB lets `A$` and `A$()` coexist as distinct
+    /// variables), suffix the scalar so the two don't share one Rust binding.
+    fn local_scalar_name(&self, rn: &str) -> String {
+        if self.local_arrays.contains(rn) {
+            format!("{rn}__sc")
+        } else {
+            rn.to_string()
+        }
+    }
+
     // ── LValue emission ───────────────────────────────────────────────────────
 
     fn emit_lvalue(&self, lval: &LValue) -> String {
@@ -2408,7 +2478,9 @@ impl Emitter {
                         // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
                         "__fn_ret".to_string()
                     } else {
-                        rn
+                        // QB allows a scalar `A$` and an array `A$()` to coexist — they
+                        // are distinct variables. Disambiguate the scalar binding.
+                        self.local_scalar_name(&rn)
                     }
                 }
             }
@@ -3512,11 +3584,18 @@ impl Emitter {
                     }).collect();
 
                     let has_str_scalar = arg_info.iter().any(|(_, is_str, _, _)| *is_str);
+                    // A plain numeric arg that reads a shared field (`__gs.x`) conflicts
+                    // with passing `&mut __gs` to the same call (E0503) — hoist it to a
+                    // temp inside a block expression first.
+                    let needs_hoist = arg_info.iter().any(|(v, is_str, whole, byref)| {
+                        byref.is_none() && !*is_str && !*whole && v.contains("__gs")
+                    });
                     let sep = if arg_info.is_empty() { "" } else { ", " };
 
-                    if has_str_scalar {
-                        // Wrap in a Rust block expression so we can materialize string temps
-                        // before passing __gs mutably — avoids E0499 double-borrow.
+                    if has_str_scalar || needs_hoist {
+                        // Wrap in a Rust block expression so we can materialize temps
+                        // (string and shared-field reads) before passing __gs mutably —
+                        // avoids E0499/E0503 borrow conflicts.
                         let mut block_lets: Vec<String> = Vec::new();
                         let mut call_args: Vec<String> = Vec::new();
                         let mut tmp_idx = 0usize;
@@ -3530,6 +3609,12 @@ impl Emitter {
                                 tmp_idx += 1;
                                 block_lets.push(format!("let mut {tmp}: String = ({v}).to_string()"));
                                 call_args.push(format!("&mut {tmp}"));
+                            } else if v.contains("__gs") {
+                                // Hoist shared-field read to a temp f64 (copy) before the call.
+                                let tmp = format!("__fa{tmp_idx}");
+                                tmp_idx += 1;
+                                block_lets.push(format!("let {tmp} = {v}"));
+                                call_args.push(tmp);
                             } else {
                                 call_args.push(v.clone());
                             }
@@ -3788,7 +3873,7 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     if let Some(f) = fill   { scan_expr(f, result, added, exclude); }
                     if let Some(b) = border { scan_expr(b, result, added, exclude); }
                 }
-                Stmt::Window { x1, y1, x2, y2 } => {
+                Stmt::Window { x1, y1, x2, y2, .. } => {
                     for e in [x1, y1, x2, y2] { scan_expr(e, result, added, exclude); }
                 }
                 Stmt::PaletteUsing(e) => { scan_expr(e, result, added, exclude); }
@@ -4094,6 +4179,28 @@ fn qb_type_to_rust(ty: &QbType) -> &'static str {
     }
 }
 
+/// Rust type for an N-dimensional array of `elem`: `Vec<Vec<...<elem>...>>`.
+/// `ndims` 1 → `Vec<elem>`, 2 → `Vec<Vec<elem>>`, 3 → `Vec<Vec<Vec<elem>>>`.
+fn nested_vec_type(elem: &str, ndims: usize) -> String {
+    let n = ndims.max(1);
+    format!("{}{}{}", "Vec<".repeat(n), elem, ">".repeat(n))
+}
+
+/// Rust initializer for an N-dimensional array filled with `default_val`.
+/// `allocs` holds the per-dimension lengths, outermost first:
+/// `[a0, a1, a2]` → `vec![vec![vec![D; a2]; a1]; a0]`.
+fn nested_vec_init(default_val: &str, allocs: &[String]) -> String {
+    if allocs.is_empty() {
+        return format!("vec![{default_val}]");
+    }
+    // Build inside-out: innermost element is default_val, wrap with each dim.
+    let mut expr = default_val.to_string();
+    for a in allocs.iter().rev() {
+        expr = format!("vec![{expr}; {a}]");
+    }
+    expr
+}
+
 // ── String-expression detector ────────────────────────────────────────────────
 
 /// Returns true if `expr` statically evaluates to a QB String value.
@@ -4359,7 +4466,7 @@ fn collect_typed_array_fields(prog: &AnalyzedProgram)
                 if let Some(f) = fill   { visit_expr(f, map, dims); }
                 if let Some(b) = border { visit_expr(b, map, dims); }
             }
-            Stmt::Window { x1, y1, x2, y2 } => {
+            Stmt::Window { x1, y1, x2, y2, .. } => {
                 visit_expr(x1, map, dims); visit_expr(y1, map, dims);
                 visit_expr(x2, map, dims); visit_expr(y2, map, dims);
             }

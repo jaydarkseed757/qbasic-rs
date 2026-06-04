@@ -21,13 +21,13 @@ qbasic-rust/
 │   ├── lexer.rs                # Source text → Vec<Spanned<Token>>
 │   ├── parser.rs               # Tokens → AST (Program, Stmt, Expr, LValue)
 │   ├── analyzer.rs             # AST → AnalyzedProgram (symbol table, DATA)
-│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~3500 lines)
+│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~5200 lines)
 │   └── error.rs                # QbError enum (Lex / Parse / Analyze / Emit)
 │
 ├── runtime/                    # Runtime library linked by every transpiled program
 │   ├── Cargo.toml              # depends on: minifb, crossterm, rodio
 │   └── src/
-│       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~1600 lines)
+│       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3400 lines)
 │       └── sound.rs            # PLAY MML parser + SOUND/BEEP via rodio  (~300 lines)
 │
 └── basic-src/                  # Test .bas programs
@@ -265,7 +265,7 @@ first definition; the transpiler emits both — flagged on stderr).
 
 ## Emitter (`src/emitter.rs`)
 
-The largest file (~3500 lines). Walks `AnalyzedProgram` and writes Rust source.
+The largest file (~5200 lines). Walks `AnalyzedProgram` and writes Rust source.
 
 ### Emitted file structure
 
@@ -460,9 +460,9 @@ argument lists, preventing double-borrow of `__rt`.
 
 ## Runtime (`runtime/src/`)
 
-Two files totaling ~2750 lines, linked by every transpiled program.
+Two files totaling ~3700 lines, linked by every transpiled program.
 
-### `lib.rs` (~2450 lines)
+### `lib.rs` (~3400 lines)
 
 Everything except sound: Runtime struct, graphics primitives, I/O,
 math/string functions, window management.
@@ -875,6 +875,29 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M11 — More DOS programs: torus, donkey, reversi ✅
+Expanded coverage to the remaining graphics-heavy DOS QBasic programs.
+
+- **donkey.bas** (CGA SCREEN 1): authentic 2-bpp packed-INTEGER sprite GET/PUT
+  layout; PUT action verbs (PSET/PRESET/AND/OR/XOR, default XOR); DRAW fixes
+  (M-command relativity, N no-advance, color-follows-COLOR). See `donkey.md`.
+- **torus.bas** (SCREEN 12): arrays of a user TYPE flattened to per-field Vecs;
+  `SHARED … AS type` inside SUBs; `PAINT STEP`; typed-array element passed to a
+  SUB; **FUNCTION parameters pass by reference** (QB semantics — `Inside()`
+  mutates a TYPE arg the caller reads back); `WINDOW`-without-`VIEW` maps to the
+  full screen; **Y-axis inversion** for Cartesian `WINDOW`; SCREEN 11/12 PALETTE
+  decodes the 18-bit VGA DAC value. See `torus.md`.
+- **reversi.bas** (SCREEN 9): `WINDOW SCREEN` (screen-orientation, magnitude-
+  mapped so reversed corners don't flip); `ERASE`; **3-D arrays**
+  (`nested_vec_type`/`nested_vec_init`); 2-D arrays of a TYPE; shared-field args
+  to user FUNCTIONs hoisted to avoid borrow conflicts; scalar/array same-name
+  coexistence (`A$` vs `A$()`). See `reversi.md`.
+- **screen13.bas / 256c / palette256_expanded** (SCREEN 13, MCGA 256-color):
+  256-entry `palette_rgb`, VGA BIOS default palette, 18-bit DAC `PALETTE`.
+
+Verified headlessly via a `Runtime::fb_stats()` diagnostic (non-background pixel
++ distinct-color counts) where the program needs interactive input.
+
 ### M1 — Text programs ✅
 LET, PRINT, INPUT, IF/THEN/ELSE/ELSEIF, FOR/NEXT, WHILE/WEND, DO/LOOP,
 GOSUB/RETURN, SUB/END SUB, FUNCTION/END FUNCTION, DECLARE, SELECT CASE,
@@ -959,23 +982,28 @@ Tests: `type_nested`, `type_complex`.
 
 ## What's Left
 
-All 13 bundled DOS QBasic programs in `basic-src/` (gorilla, nibbles, mandel,
-donkey, sortdemo, money, pi, primes, hangman, hangman-gw, q_sort, fuzzbuzz,
-hello-world) **transpile and compile to native binaries with zero
-`// TODO`/unimplemented markers**. Remaining work is verification and a few
-rarely-used language features:
+Of the bundled DOS QBasic programs in `basic-src/`, **all but one transpile,
+compile, and render**: gorilla, torus, reversi, mandel, donkey, nibbles,
+sortdemo, money, pi, pi-gw, primes, hangman, hangman-gw, q_sort, fuzzbuzz,
+hello-world, sound, step, screen13, 256c, palette256_expanded. The current
+integration suite is **27/27**, with 64 runtime unit tests.
 
-1. **gorilla.bas full playthrough (prime target)** — compiles and links;
+Remaining work is verification and a few rarely-used features:
+
+1. **qblocks.bas** — the one bundled program that does not yet transpile (a Tetris
+   clone; not yet analyzed for the missing feature(s)).
+2. **gorilla.bas full playthrough (prime target)** — compiles and links;
    needs interactive + visual + audio verification of a complete game:
    skyline render, banana physics, POINT() collision, explosion sound, scoring,
-   wind. This is the one acceptance test that can't be checked headlessly.
-2. **Array fields inside a TYPE body** — `Bar(10) AS SINGLE` within a `TYPE`
-   block: the parser discards the dimension. Rare in typical QB programs;
-   gorillas does not use it.
+   wind. The one acceptance test that can't be checked headlessly.
+3. **PAINT tiling patterns** — `PAINT (x,y), CHR$(n), border` (B&W dither fill)
+   emits a solid-foreground stub + warning, not real pattern tiling. Dead code
+   on reversi's EGA path; no color-mode program needs it.
+4. **Array fields inside a TYPE body** — `Bar(10) AS SINGLE` within a `TYPE`
+   block: the parser discards the dimension. Rare; no bundled program uses it.
 5. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
-   (asterisk fill) are not special-cased and print literally. The named
-   gaps — `^^^^` scientific notation and wide-field `%` overflow — are now
-   implemented (see Feature Support Notes). Not needed by gorillas.
+   (asterisk fill) print literally. `^^^^` scientific notation and wide-field
+   `%` overflow are implemented (see Feature Support Notes).
 
 ---
 

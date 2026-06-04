@@ -42,10 +42,26 @@ TMP="$SCRIPT_DIR/tmp-gfx"
 mkdir -p "$GOLDEN_DIR" "$TMP"
 
 # ── Test table: name | seed | keys | exit-policy ──────────────────────────────
-# Deterministic programs first; add gorilla/donkey once their intros are pinned.
+# Only programs whose snapshot is DETERMINISTIC belong here. A good golden either
+# (a) draws once and stops, or (b) finishes its draw well within the exit window
+# so the snapshot always lands on the completed image.
+#
+# Deliberately EXCLUDED:
+#   mandel  — draws slowly, then palette-cycles forever. Any snapshot is either
+#             mid-render (timing-dependent under load) or post-render with a
+#             mutated palette, so its checksum is not reproducible. Verified
+#             headless by hand instead (QBC_FBSTATS) — see notes in run output.
+#   gorilla/donkey — more input + animation; add once their intros are scripted.
 TESTS=(
+    # SCREEN 13 palette demos — no input, no RND, terminate on their own
+    # (bare SLEEP is a no-op → Drop dumps); the ms cap is just a safety net.
+    "256c|1||ms:3000"
+    "screen13|1||ms:3000"
+    "palette256_expanded|1||ms:3000"
+    # reversi: static board, no palette cycling — fully deterministic.
     "reversi|1|Q|ms:8000"
-    "mandel|1|ENTER|presents:80"
+    # torus: the render completes within the first few frame-intervals, so
+    # presents:5 always captures the finished torus before palette rotation.
     "torus|1|ENTER|presents:5"
 )
 

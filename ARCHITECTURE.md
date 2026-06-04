@@ -986,7 +986,7 @@ Of the bundled DOS QBasic programs in `basic-src/`, **all but one transpile,
 compile, and render**: gorilla, torus, reversi, mandel, donkey, nibbles,
 sortdemo, money, pi, pi-gw, primes, hangman, hangman-gw, q_sort, fuzzbuzz,
 hello-world, sound, step, screen13, 256c, palette256_expanded. The current
-integration suite is **27/27**, with 64 runtime unit tests.
+integration suite is **27/27**, with 68 runtime unit tests.
 
 Remaining work is verification and a few rarely-used features:
 
@@ -1004,6 +1004,21 @@ Remaining work is verification and a few rarely-used features:
 5. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
    (asterisk fill) print literally. `^^^^` scientific notation and wide-field
    `%` overflow are implemented (see Feature Support Notes).
+6. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
+   source pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`, via
+   `parse_qbc_config` in `emitter.rs`) are baked in at transpile time; the
+   headless-driver env vars (`HEADLESS/KEYS/SEED/DUMP/CHECKSUM/FBSTATS/
+   EXIT_AFTER`, read by `runtime/src/lib.rs`) are read at run time. The valuable
+   half is one-directional: let the **behavioral** pragmas also be set/overridden
+   by an env var (`QBC_PACE`, `QBC_FPS`, `QBC_SCALE`, `QBC_FULLSPEED`,
+   `QBC_SLOWMO`, `QBC_TITLE`) so they can be tuned without re-transpiling — low
+   effort, since the runtime already exposes the `set_*` methods; read env after
+   the pragma-emitted calls so env wins. The reverse (debug knobs as pragmas) is
+   mostly **not** worth it: `HEADLESS/KEYS/DUMP/CHECKSUM/FBSTATS/EXIT_AFTER` are
+   external observation/test knobs, not program behavior, and `SEED`-as-pragma
+   would defeat real randomness. So: do the env-override half if/when useful;
+   skip full bidirectional unification. Needs a clear precedence rule (env
+   overrides pragma) given the shared "QBC" name.
 
 ---
 

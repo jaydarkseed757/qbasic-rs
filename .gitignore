@@ -1,5 +1,9 @@
 # Test scratch output
 tests/tmp/
+tests/tmp-gfx/
+
+# Graphics golden-test artifacts (the .txt checksums ARE committed; PPM dumps are not)
+*.ppm
 
 # Random-access record files written by test/demo programs at runtime
 *.dat

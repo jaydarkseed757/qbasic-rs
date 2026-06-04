@@ -93,6 +93,41 @@ Directives are case-insensitive. Multiple directives combine freely.
 
 ---
 
+## Headless driver (debugging & testing)
+
+Any transpiled binary honors a set of `QBC_*` environment variables that run it
+**without a window** — scripted input, a deterministic RNG, a framebuffer image
+dump, and a guaranteed auto-exit. The emitted binary is unchanged; behavior only
+differs when these are set. This makes a graphics program debuggable and
+testable on a headless box (CI, SSH) with no code edits.
+
+```bash
+# Render torus deterministically, dump the frame, print stats, exit after 5 blits
+QBC_HEADLESS=1 QBC_SEED=1 QBC_KEYS=ENTER QBC_FBSTATS=1 \
+  QBC_DUMP=/tmp/torus.ppm QBC_EXIT_AFTER=presents:5 ./bin/torus
+```
+
+| Variable | Effect |
+|----------|--------|
+| `QBC_HEADLESS=1` | Run with no window. |
+| `QBC_KEYS="DOWN,DOWN,ENTER,Q"` | Scripted keystrokes (one per `INKEY$`/`INPUT$`). Names: `UP/DOWN/LEFT/RIGHT/ENTER/ESC/SPACE/TAB/F1…`, plus single chars. Maps identically to real keypresses. |
+| `QBC_SEED=N` | Pin the RNG (overrides `RANDOMIZE TIMER`) so RND-using renders are reproducible. |
+| `QBC_DUMP=path.ppm` | Write the framebuffer as a binary PPM image (native resolution). |
+| `QBC_DUMP_AT=exit\|present:N\|ms:T` | When to dump (default `exit`). |
+| `QBC_CHECKSUM=1` | Print `QBC_CHECKSUM=<hex>` (framebuffer fingerprint) on exit. |
+| `QBC_FBSTATS=1` | Print non-background pixel count + distinct colors on exit. |
+| `QBC_EXIT_AFTER=idle\|ms:T\|presents:N` | Guaranteed termination (default `idle` + a 10 s safety cap), so a scripted run never hangs on input. |
+
+### Graphics golden tests
+`tests/run-graphics-tests.sh` runs each graphics program headless with a fixed
+seed and key script, then compares its framebuffer checksum against a committed
+golden in `tests/golden/<name>.txt` — regression coverage for rendering that the
+stdout-based suite can't provide. On a mismatch it writes `<name>.actual.ppm` for
+visual inspection. Regenerate goldens after an intended change with
+`--write-golden`.
+
+---
+
 ## Project layout
 
 ```

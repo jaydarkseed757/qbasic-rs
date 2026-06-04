@@ -343,6 +343,106 @@ pub struct Runtime {
     /// QB ERR system variable — holds the QB error code for the last error.
     /// 53 = "file not found", 24/25 = printer errors, 0 = no error.
     pub err_code: f64,
+    /// Headless driver config (Some when any `QBC_*` env var requests it).
+    /// Drives scripted input, framebuffer export, and guaranteed auto-exit so a
+    /// transpiled binary can be run non-interactively for debugging and tests.
+    headless_cfg: Option<HeadlessCfg>,
+    /// When true, `randomize()` is a no-op so `QBC_SEED` pins the RNG even past
+    /// a `RANDOMIZE TIMER` in the program (deterministic renders for goldens).
+    seed_locked: bool,
+    /// Number of `present()`/`auto_present()` blits so far (headless exit policy).
+    present_count: u64,
+    /// Consecutive empty `inkey()` polls (headless `idle` exit threshold).
+    idle_polls: u32,
+}
+
+/// When to write the framebuffer image in headless mode.
+#[derive(Clone, Copy)]
+enum DumpAt { Exit, Present(u64), Ms(u64) }
+
+/// Guaranteed-termination policy for a headless run.
+#[derive(Clone, Copy)]
+enum ExitAfter { Idle, Ms(u64), Presents(u64) }
+
+/// Parsed `QBC_*` headless-driver configuration.
+struct HeadlessCfg {
+    dump_path:  Option<String>,
+    dump_at:    DumpAt,
+    dumped:     bool,
+    checksum:   bool,
+    fbstats:    bool,
+    exit_after: ExitAfter,
+    start:      std::time::Instant,
+    safety_ms:  u64,
+}
+
+/// Parse a `kind:value` env spec like `present:50` or `ms:2000`.
+fn parse_kv(s: &str) -> Option<(&str, u64)> {
+    let (k, v) = s.split_once(':')?;
+    Some((k.trim(), v.trim().parse().ok()?))
+}
+
+/// Build a `HeadlessCfg` from the environment, or `None` if no driver var is set.
+/// Triggered by `QBC_HEADLESS`, `QBC_KEYS`, `QBC_DUMP`, `QBC_CHECKSUM`,
+/// `QBC_FBSTATS`, or `QBC_EXIT_AFTER`. (`QBC_SEED` alone does NOT force headless.)
+fn parse_headless_env() -> Option<HeadlessCfg> {
+    let env = |k: &str| std::env::var(k).ok();
+    let any = env("QBC_HEADLESS").is_some() || env("QBC_KEYS").is_some()
+        || env("QBC_DUMP").is_some() || env("QBC_CHECKSUM").is_some()
+        || env("QBC_FBSTATS").is_some() || env("QBC_EXIT_AFTER").is_some();
+    if !any { return None; }
+
+    let dump_at = match env("QBC_DUMP_AT").as_deref() {
+        Some("exit") | None => DumpAt::Exit,
+        Some(s) => match parse_kv(s) {
+            Some(("present", n)) => DumpAt::Present(n),
+            Some(("ms", n))      => DumpAt::Ms(n),
+            _ => DumpAt::Exit,
+        },
+    };
+    let exit_after = match env("QBC_EXIT_AFTER").as_deref() {
+        Some("idle") | None => ExitAfter::Idle,
+        Some(s) => match parse_kv(s) {
+            Some(("ms", n))       => ExitAfter::Ms(n),
+            Some(("presents", n)) => ExitAfter::Presents(n),
+            _ => ExitAfter::Idle,
+        },
+    };
+    Some(HeadlessCfg {
+        dump_path:  env("QBC_DUMP"),
+        dump_at,
+        dumped:     false,
+        checksum:   env("QBC_CHECKSUM").is_some(),
+        fbstats:    env("QBC_FBSTATS").is_some(),
+        exit_after,
+        start:      std::time::Instant::now(),
+        safety_ms:  10_000, // wall-clock safety cap so a run never hangs
+    })
+}
+
+/// Translate a `QBC_KEYS` token into the QB key string `inkey()` returns.
+/// Named keys map to QB's extended forms; a single char passes through.
+fn normalize_key(tok: &str) -> String {
+    match tok.to_ascii_uppercase().as_str() {
+        "UP"     => "\u{0}H".to_string(),   // extended scan codes (CHR$(0)+code)
+        "DOWN"   => "\u{0}P".to_string(),
+        "LEFT"   => "\u{0}K".to_string(),
+        "RIGHT"  => "\u{0}M".to_string(),
+        "ENTER" | "RETURN" => "\r".to_string(),
+        "ESC" | "ESCAPE"   => "\u{1b}".to_string(),
+        "SPACE"  => " ".to_string(),
+        "TAB"    => "\t".to_string(),
+        "BACKSPACE" => "\u{8}".to_string(),
+        _ => {
+            // A single letter: the unshifted key returns lowercase (matching
+            // minifb_key_to_qb), so `Q` → "q" (reversi's QUIT = ASC("q") = 113).
+            if tok.len() == 1 && tok.chars().next().unwrap().is_ascii_alphabetic() {
+                tok.to_ascii_lowercase()
+            } else {
+                tok.to_string() // digit / punctuation / multi-char literal
+            }
+        }
+    }
 }
 
 // Default output window size — both text and graphics modes scale into this.
@@ -394,6 +494,10 @@ impl Runtime {
             vp_bot: 0, // 0 = unset (use full height)
             error_pending: false,
             err_code: 0.0,
+            headless_cfg: None,
+            seed_locked: false,
+            present_count: 0,
+            idle_polls: 0,
         }
     }
 
@@ -406,10 +510,15 @@ impl Runtime {
     /// Used by `REM QBC TITLE` and/or `REM QBC SCALE` directives; the emitter
     /// calls this constructor instead of `new()` when either is present.
     pub fn new_configured(title: &str, win_w: usize, win_h: usize) -> Self {
+        // The headless driver (env-var controlled) suppresses the window so a
+        // transpiled binary can run non-interactively for debugging / tests.
+        let headless_cfg = parse_headless_env();
         // Open the window immediately so that even text-only programs display
         // output in the GUI rather than the terminal.  Window creation is
         // attempted with .ok() so it fails gracefully in headless environments.
-        let mut window = {
+        let mut window = if headless_cfg.is_some() {
+            None
+        } else {
             let opts = minifb::WindowOptions {
                 scale: minifb::Scale::X1,
                 resize: false,
@@ -423,7 +532,8 @@ impl Runtime {
         // min). set_target_fps(0) = no waiting; we do our own pacing via
         // frame_interval_ms / auto_present().
         if let Some(w) = window.as_mut() { w.set_target_fps(0); }
-        Self {
+        let is_headless = headless_cfg.is_some();
+        let mut rt = Self {
             fg_color:          7,
             bg_color:          0,
             cursor_row:        1,
@@ -460,7 +570,29 @@ impl Runtime {
             vp_bot: 0, // 0 = unset (use full height)
             error_pending: false,
             err_code: 0.0,
+            headless_cfg,
+            seed_locked: false,
+            present_count: 0,
+            idle_polls: 0,
+        };
+        // QBC_SEED pins the RNG (overrides RANDOMIZE TIMER) — applies in windowed
+        // mode too, so a seeded run can still be watched live.
+        if let Ok(s) = std::env::var("QBC_SEED") {
+            if let Ok(n) = s.trim().parse::<u32>() {
+                rt.rng = n;
+                rt.seed_locked = true;
+            }
         }
+        // QBC_KEYS pre-loads scripted keystrokes into the queue (headless input).
+        if is_headless {
+            if let Ok(keys) = std::env::var("QBC_KEYS") {
+                for k in keys.split(',') {
+                    let k = k.trim();
+                    if !k.is_empty() { rt.inject_key(&normalize_key(k)); }
+                }
+            }
+        }
+        rt
     }
 
     // ── Screen / color / cursor ───────────────────────────────────────────────
@@ -806,6 +938,19 @@ impl Runtime {
 
     /// Blocking line input with echo to the framebuffer window.
     pub fn input_line(&mut self) -> String {
+        // Headless: assemble the line from the scripted key queue up to ENTER.
+        // If the queue empties first, the program is blocked on input — finish.
+        if self.headless_cfg.is_some() {
+            let mut line = String::new();
+            loop {
+                match self.key_queue.pop_front() {
+                    Some(k) if k == "\r" || k == "\n" => return line,
+                    Some(k) => line.push_str(&k),
+                    None    => self.headless_finish(),
+                }
+            }
+        }
+
         let mut buf        = String::new();
         let mut blink      = true;
         let mut last_blink = std::time::Instant::now();
@@ -1006,6 +1151,9 @@ impl Runtime {
     // ── RNG ───────────────────────────────────────────────────────────────────
 
     pub fn randomize(&mut self, seed: f64) {
+        // QBC_SEED locks the RNG so a `RANDOMIZE TIMER` can't perturb a
+        // deterministic headless render (golden tests).
+        if self.seed_locked { return; }
         self.rng = seed.abs() as u32;
     }
 
@@ -1107,6 +1255,8 @@ impl Runtime {
     /// Flush the palette-indexed framebuffer to the minifb window.
     /// Software nearest-neighbor scales the fb (any size) into the fixed 960×600 window.
     pub fn present(&mut self) {
+        // Headless driver: drives the dump/exit policies (and may terminate here).
+        self.headless_tick();
         if self.window.is_none() { return; }
         let fw = self.width  as usize;
         let fh = self.height as usize;
@@ -1412,6 +1562,95 @@ impl Runtime {
         (nonzero, seen.iter().filter(|&&s| s).count())
     }
 
+    /// Native-resolution framebuffer as RGB triples (palette-resolved). This is
+    /// the same palette lookup `present()` does, factored out for image export.
+    pub fn fb_to_rgb(&self) -> Vec<(u8, u8, u8)> {
+        self.fb.iter().map(|&i| self.palette_rgb[i as usize]).collect()
+    }
+
+    /// Write the framebuffer as a binary P6 PPM at native resolution.
+    pub fn export_ppm(&self, path: &str) -> std::io::Result<()> {
+        use std::io::Write;
+        let (w, h) = (self.width as usize, self.height as usize);
+        let mut buf = Vec::with_capacity(w * h * 3 + 32);
+        buf.extend_from_slice(format!("P6\n{w} {h}\n255\n").as_bytes());
+        for &i in &self.fb {
+            let (r, g, b) = self.palette_rgb[i as usize];
+            buf.push(r); buf.push(g); buf.push(b);
+        }
+        std::fs::File::create(path)?.write_all(&buf)
+    }
+
+    /// Deterministic fingerprint of the visible image (framebuffer + palette),
+    /// for golden-image regression tests.
+    pub fn fb_checksum(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.width.hash(&mut h);
+        self.height.hash(&mut h);
+        self.fb.hash(&mut h);
+        // Only the in-use palette entries matter, but hashing all 256 is simplest
+        // and still deterministic.
+        for c in self.palette_rgb.iter() { c.hash(&mut h); }
+        h.finish()
+    }
+
+    /// Push a scripted key onto the input queue (headless driver / tests).
+    pub fn inject_key(&mut self, key: &str) {
+        self.key_queue.push_back(key.to_string());
+    }
+
+    /// Headless exit funnel: honor `QBC_DUMP`/`QBC_CHECKSUM`/`QBC_FBSTATS`, then
+    /// terminate. Called from the exit-policy checks, blocking-input guards, and
+    /// `quit()`. No-op (returns) when not in headless mode.
+    fn headless_finish(&mut self) -> ! {
+        if let Some(cfg) = self.headless_cfg.take() {
+            if let Some(path) = &cfg.dump_path {
+                let _ = self.export_ppm(path);
+            }
+            if cfg.checksum {
+                println!("QBC_CHECKSUM={:016x}", self.fb_checksum());
+            }
+            if cfg.fbstats {
+                let (nz, nc) = self.fb_stats();
+                eprintln!("QBC_FBSTATS nonzero={nz} colors={nc}");
+            }
+        }
+        std::process::exit(0);
+    }
+
+    /// Headless bookkeeping called from present()/auto_present(): handles the
+    /// `QBC_DUMP_AT` interval dump and the `QBC_EXIT_AFTER` presents/ms policies
+    /// plus the wall-clock safety cap. Returns immediately when not headless.
+    fn headless_tick(&mut self) {
+        if self.headless_cfg.is_none() { return; }
+        self.present_count += 1;
+        // Copy out the small cfg fields so no borrow of headless_cfg is held
+        // across the `&self`/`&mut self` method calls below.
+        let (dump_at, exit_after, start, safety_ms, dumped, dump_path) = {
+            let c = self.headless_cfg.as_ref().unwrap();
+            (c.dump_at, c.exit_after, c.start, c.safety_ms, c.dumped, c.dump_path.clone())
+        };
+        let elapsed_ms = start.elapsed().as_millis() as u64;
+        // Interval dump (does not exit).
+        let do_dump = match dump_at {
+            DumpAt::Present(n) => self.present_count >= n,
+            DumpAt::Ms(t)      => elapsed_ms >= t,
+            DumpAt::Exit       => false,
+        };
+        if do_dump && !dumped {
+            if let Some(c) = self.headless_cfg.as_mut() { c.dumped = true; }
+            if let Some(path) = dump_path { let _ = self.export_ppm(&path); }
+        }
+        // Exit policies + safety cap.
+        let should_exit = elapsed_ms >= safety_ms || match exit_after {
+            ExitAfter::Presents(n) => self.present_count >= n,
+            ExitAfter::Ms(t)       => elapsed_ms >= t,
+            ExitAfter::Idle        => false,
+        };
+        if should_exit { self.headless_finish(); }
+    }
+
     pub fn pset(&mut self, x: f64, y: f64, color: f64) {
         self.gfx_x = x;
         self.gfx_y = y;
@@ -1624,6 +1863,14 @@ impl Runtime {
         let count = (n as usize).max(1);
         let mut result = String::new();
         while result.len() < count {
+            // Headless: satisfy the read from the scripted queue; if it can't be
+            // satisfied, the program is blocked on input that won't come — finish.
+            if self.headless_cfg.is_some() {
+                match self.key_queue.pop_front() {
+                    Some(k) => { result.push_str(&k); continue; }
+                    None    => self.headless_finish(),
+                }
+            }
             // Block until we get a character
             let ch = loop {
                 let k = self.inkey();
@@ -1792,6 +2039,8 @@ impl Runtime {
     /// Called by emitted END / STOP — waits for keypress then exits.
     /// Uses the same logic as Drop so the window stays readable.
     pub fn quit(&mut self) -> ! {
+        // Headless: dump/checksum and exit immediately (no wait-for-key).
+        if self.headless_cfg.is_some() { self.headless_finish(); }
         // Drop will run after process::exit is NOT called here — we do the
         // wait ourselves so we can call process::exit cleanly afterward.
         self.wait_for_key();
@@ -1845,6 +2094,10 @@ impl Runtime {
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        // Headless: a program that falls off the end of main() (no END → quit())
+        // still gets its framebuffer dump/checksum. headless_finish() exits, so
+        // wait_for_key() below is reached only in the windowed case.
+        if self.headless_cfg.is_some() { self.headless_finish(); }
         // Programs that fall off the end of main() (no END statement) still
         // get the "press any key" pause via wait_for_key().
         self.wait_for_key();
@@ -3364,5 +3617,66 @@ mod pace_tests {
         for i in 0..200 { rt2.pset((i % 100) as f64, 0.0, 1.0); }
         assert!(t1.elapsed() < std::time::Duration::from_millis(15),
                 "default throttle must not block, took {:?}", t1.elapsed());
+    }
+}
+
+#[cfg(test)]
+mod headless_tests {
+    use super::*;
+
+    // export_ppm writes a valid P6 header + RGB pixel bytes at native resolution.
+    #[test]
+    fn export_ppm_round_trips() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0); // 320x200, known VGA palette
+        rt.pset(0.0, 0.0, 1.0);
+        let path = std::env::temp_dir().join(format!("qbc_ppm_{}.ppm", std::process::id()));
+        rt.export_ppm(path.to_str().unwrap()).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let header = format!("P6\n{} {}\n255\n", rt.width, rt.height);
+        assert!(bytes.starts_with(header.as_bytes()), "bad PPM header");
+        assert_eq!(bytes.len(), header.len() + (rt.width * rt.height) as usize * 3);
+        // Pixel (0,0) is color index 1; its RGB must be the first pixel triple.
+        let (r, g, b) = rt.palette_rgb[1];
+        let off = header.len();
+        assert_eq!((bytes[off], bytes[off + 1], bytes[off + 2]), (r, g, b));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // fb_checksum is stable across calls and changes when a pixel changes.
+    #[test]
+    fn fb_checksum_stable_and_sensitive() {
+        let mut rt = Runtime::headless();
+        rt.screen(9.0);
+        let a = rt.fb_checksum();
+        assert_eq!(a, rt.fb_checksum(), "checksum must be stable");
+        rt.pset(10.0, 10.0, 5.0);
+        assert_ne!(a, rt.fb_checksum(), "checksum must change with the framebuffer");
+    }
+
+    // inject_key feeds scripted keys that inkey() returns in order, then "".
+    #[test]
+    fn inject_key_feeds_inkey_in_order() {
+        let mut rt = Runtime::headless();
+        rt.inject_key("a");
+        rt.inject_key(&normalize_key("DOWN"));
+        rt.inject_key(&normalize_key("ENTER"));
+        assert_eq!(rt.inkey(), "a");
+        assert_eq!(rt.inkey(), "\u{0}P"); // DOWN scan code (ASC of last byte = 80)
+        assert_eq!(rt.inkey(), "\r");
+        assert_eq!(rt.inkey(), ""); // queue drained
+    }
+
+    // normalize_key matches the windowed minifb_key_to_qb mapping exactly, so a
+    // scripted run behaves identically to real keypresses.
+    #[test]
+    fn normalize_key_matches_real_input() {
+        assert_eq!(normalize_key("UP"), minifb_key_to_qb(Key::Up));
+        assert_eq!(normalize_key("DOWN"), minifb_key_to_qb(Key::Down));
+        assert_eq!(normalize_key("LEFT"), minifb_key_to_qb(Key::Left));
+        assert_eq!(normalize_key("RIGHT"), minifb_key_to_qb(Key::Right));
+        assert_eq!(normalize_key("ENTER"), minifb_key_to_qb(Key::Enter));
+        assert_eq!(normalize_key("Q"), minifb_key_to_qb(Key::Q)); // lowercased "q"
+        assert_eq!(normalize_key("5"), minifb_key_to_qb(Key::Key5));
     }
 }

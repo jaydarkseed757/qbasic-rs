@@ -214,11 +214,30 @@ impl Analyzer {
             Expr::BinOp { op, lhs, rhs } => {
                 let l = self.fold_const(lhs)?;
                 let r = self.fold_const(rhs)?;
+                // QB `\` and MOD round both operands to integers (CINT, banker's)
+                // first — must match runtime qb_idiv/qb_mod so a folded const value
+                // equals what the program would compute at runtime.
+                let cint = |x: f64| -> i64 {
+                    if (x - x.trunc()).abs() == 0.5 {
+                        let f = x.floor();
+                        (if (f as i64) % 2 == 0 { f } else { f + 1.0 }) as i64
+                    } else {
+                        x.round() as i64
+                    }
+                };
                 Some(match op {
                     BinOp::Add => l + r,
                     BinOp::Sub => l - r,
                     BinOp::Mul => l * r,
                     BinOp::Div => l / r,
+                    BinOp::IntDiv => {
+                        if cint(r) == 0 { return None; }
+                        (cint(l) / cint(r)) as f64
+                    }
+                    BinOp::Mod => {
+                        if cint(r) == 0 { return None; }
+                        (cint(l) % cint(r)) as f64
+                    }
                     BinOp::And => ((l as i64) & (r as i64)) as f64,
                     BinOp::Or  => ((l as i64) | (r as i64)) as f64,
                     _ => return None,

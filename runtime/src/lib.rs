@@ -371,6 +371,7 @@ struct HeadlessCfg {
     dumped:     bool,
     checksum:   bool,
     fbstats:    bool,
+    text_to_fb: bool,
     exit_after: ExitAfter,
     start:      std::time::Instant,
     safety_ms:  u64,
@@ -389,7 +390,8 @@ fn parse_headless_env() -> Option<HeadlessCfg> {
     let env = |k: &str| std::env::var(k).ok();
     let any = env("QBC_HEADLESS").is_some() || env("QBC_KEYS").is_some()
         || env("QBC_DUMP").is_some() || env("QBC_CHECKSUM").is_some()
-        || env("QBC_FBSTATS").is_some() || env("QBC_EXIT_AFTER").is_some();
+        || env("QBC_FBSTATS").is_some() || env("QBC_EXIT_AFTER").is_some()
+        || env("QBC_TEXT_FB").is_some();
     if !any { return None; }
 
     let dump_at = match env("QBC_DUMP_AT").as_deref() {
@@ -414,6 +416,7 @@ fn parse_headless_env() -> Option<HeadlessCfg> {
         dumped:     false,
         checksum:   env("QBC_CHECKSUM").is_some(),
         fbstats:    env("QBC_FBSTATS").is_some(),
+        text_to_fb: env("QBC_TEXT_FB").is_some(),
         exit_after,
         start:      std::time::Instant::now(),
         safety_ms:  10_000, // wall-clock safety cap so a run never hangs
@@ -886,8 +889,15 @@ impl Runtime {
         // tests keep working.  With a SCREEN call the program is a real
         // graphics program; window-only output is correct and desirable.
         // If the window failed to open (headless environment) always fall back
-        // to stdout so tests running in CI still capture output.
-        let use_stdout = !self.had_screen_call || self.window.is_none();
+        // to stdout so tests running in CI still capture output — EXCEPT when the
+        // QBC_TEXT_FB driver flag is set, where a graphics program renders its
+        // text INTO the framebuffer so a screenshot captures the full screen
+        // (score panels, labels, title screens), not just the vector graphics.
+        // (Off by default so the graphics golden tests keep their stable,
+        // graphics-only checksums and present-count exit policies.)
+        let text_to_fb = self.headless_cfg.as_ref().map_or(false, |c| c.text_to_fb);
+        let use_stdout = !self.had_screen_call
+            || (self.window.is_none() && !text_to_fb);
         if use_stdout {
             if newline {
                 println!("{s}");

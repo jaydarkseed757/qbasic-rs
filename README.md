@@ -6,6 +6,24 @@ The primary correctness target is **GORILLAS.BAS** — the classic gorilla-throw
 
 ---
 
+## Screenshots
+
+Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
+[Headless driver](#headless-driver-debugging--testing)).
+
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/torus.png" width="420"><br><b>torus.bas</b> — interactive 3D torus (SCREEN 12, VGA DAC palette)</td>
+<td align="center"><img src="docs/screenshots/reversi.png" width="420"><br><b>reversi.bas</b> — Reversi/Othello with an AI opponent (SCREEN 9)</td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/mandel.png" width="420"><br><b>mandel.bas</b> — Mandelbrot renderer (VIEW/WINDOW, PALETTE cycling)</td>
+<td align="center"><img src="docs/screenshots/256c.png" width="420"><br><b>256c.bas</b> — 256-color VGA palette (SCREEN 13)</td>
+</tr>
+</table>
+
+---
+
 ## What it does
 
 ```
@@ -112,7 +130,8 @@ QBC_HEADLESS=1 QBC_SEED=1 QBC_KEYS=ENTER QBC_FBSTATS=1 \
 | `QBC_HEADLESS=1` | Run with no window. |
 | `QBC_KEYS="DOWN,DOWN,ENTER,Q"` | Scripted keystrokes (one per `INKEY$`/`INPUT$`). Names: `UP/DOWN/LEFT/RIGHT/ENTER/ESC/SPACE/TAB/F1…`, plus single chars. Maps identically to real keypresses. |
 | `QBC_SEED=N` | Pin the RNG (overrides `RANDOMIZE TIMER`) so RND-using renders are reproducible. |
-| `QBC_DUMP=path.ppm` | Write the framebuffer as a binary PPM image (native resolution). |
+| `QBC_DUMP=path.ppm` | Write the framebuffer as a binary PPM image (native resolution). Convert to PNG with `tools/ppm2png.py`. |
+| `QBC_TEXT_FB=1` | Render text into the framebuffer (score panels, labels, titles) instead of stdout — for full-screen screenshots. Off by default so the golden tests stay graphics-only. |
 | `QBC_DUMP_AT=exit\|present:N\|ms:T` | When to dump (default `exit`). |
 | `QBC_CHECKSUM=1` | Print `QBC_CHECKSUM=<hex>` (framebuffer fingerprint) on exit. |
 | `QBC_FBSTATS=1` | Print non-background pixel count + distinct colors on exit. |

@@ -106,6 +106,45 @@ without manual `-L` flags when run via `cargo run`.
 
 ---
 
+## Supported QBasic Keywords & Functions
+
+The authoritative lists live in the lexer keyword table (`src/lexer.rs`), the
+statement parser (`src/parser.rs`), and the emitter's built-in dispatch
+(`src/emitter.rs`). This set covers all 24 bundled DOS programs.
+
+### Statements & keywords
+
+| Group | Keywords |
+|-------|----------|
+| **Control flow** | `IF` / `THEN` / `ELSE` / `ELSEIF`, `SELECT` / `CASE` / `IS` (ranges via `TO`), `FOR` / `TO` / `STEP` / `NEXT`, `WHILE` / `WEND`, `DO` / `LOOP` / `UNTIL`, `GOTO`, `GOSUB` / `RETURN`, `EXIT`, `END`, `STOP` |
+| **Procedures & decls** | `SUB`, `FUNCTION`, `DECLARE`, `CALL`, `DEF` (DEF FN), `DIM`, `REDIM` (+ `PRESERVE`), `ERASE`, `SHARED`, `STATIC`, `COMMON`, `CONST`, `TYPE` / `AS`, `OPTION` (BASE), `LET`, `DEFINT`/`DEFSNG`/`DEFDBL`/`DEFSTR`, `SWAP` |
+| **Data** | `DATA` / `READ` / `RESTORE` |
+| **I/O & text** | `PRINT` / `LPRINT` (+ `PRINT USING`), `INPUT` (+ `LINE INPUT`), `LOCATE`, `COLOR`, `CLS`, `WIDTH`, `VIEW PRINT`, `REM` / `'` |
+| **Files** | `OPEN`, `CLOSE`, `FIELD`, `GET`/`PUT` (`#n`), `LSET`/`RSET`, `WRITE`, `PRINT #`, `INPUT #`, `LINE INPUT #` |
+| **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
+| **Sound** | `PLAY`, `SOUND`, `BEEP` |
+| **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE`, `DEF SEG` (parsed/ignored) |
+| **Operators** | `AND`, `OR`, `XOR`, `NOT`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
+
+### Built-in functions
+
+| Group | Functions |
+|-------|-----------|
+| **Math** | `INT FIX ABS SQR SGN SIN COS TAN ATN EXP LOG` |
+| **Type / convert** | `CINT CLNG CSNG CDBL`; binary `MKD$ MKI$ MKS$ MKL$` / `CVD CVI CVS CVL` |
+| **String** | `LEN LEFT$ RIGHT$ MID$ UCASE$ LCASE$ LTRIM$ RTRIM$ STR$ VAL CHR$ ASC INSTR SPACE$ STRING$ HEX$ OCT$` |
+| **Runtime / system** | `RND TIMER INKEY$ INPUT$ POINT PMAP PEEK ERR EOF LOF ENVIRON$ UBOUND LBOUND` |
+
+### Not supported / stubbed
+- `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
+- `PRINT USING` `$$` / `**` floating tokens → printed literally
+- Array fields declared *inside* a `TYPE` body → dimension discarded
+- SCREEN-13 `GET`/`PUT` sprites assume the EGA planar layout (mode-13 is 8bpp packed)
+- Direct port I/O (`OUT` / `INP`), `CHAIN` / `SHELL` → not modeled (stubbed to program end)
+
+---
+
 ## Lexer (`src/lexer.rs`)
 
 Converts raw source bytes to `Vec<Spanned<Token>>` where each token carries

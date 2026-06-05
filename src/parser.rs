@@ -177,6 +177,9 @@ pub enum Stmt {
     /// Multiple statements from one source line (e.g. multi-var DIM)
     Block(Vec<Stmt>),
 
+    /// ON expr GOTO/GOSUB label1, label2, …  — computed branch. `expr` (1-based,
+    /// rounded) selects the Nth label; 0 or out-of-range falls through.
+    OnGoto { expr: Expr, labels: Vec<String>, is_gosub: bool },
     // ── Error handling ────────────────────────────────────────────────────────
     /// ON ERROR GOTO label  (label="0" disables the handler)
     OnError { label: String },
@@ -585,9 +588,24 @@ impl Parser {
                     while !self.at_eol() { self.advance(); } // consume any trailing tokens
                     return Ok(Some(Stmt::OnError { label }));
                 }
-                // ON … other forms (ON … GOSUB, ON … GOTO) — skip
+                // ON <expr> (GOTO|GOSUB) label, label, … — computed branch.
+                let expr = self.parse_expr()?;
+                let is_gosub = matches!(self.peek(), Token::Gosub);
+                // consume GOTO or GOSUB
+                if matches!(self.peek(), Token::Goto | Token::Gosub) { self.advance(); }
+                let mut labels = Vec::new();
+                loop {
+                    match self.peek().clone() {
+                        Token::IntLit(n) => { self.advance(); labels.push(n.to_string()); }
+                        Token::Ident(s) | Token::IdentInt(s) |
+                        Token::IdentStr(s) | Token::IdentSng(s) |
+                        Token::IdentDbl(s) => { self.advance(); labels.push(s); }
+                        _ => break,
+                    }
+                    if self.peek() == &Token::Comma { self.advance(); } else { break; }
+                }
                 while !self.at_eol() { self.advance(); }
-                return Ok(None);
+                return Ok(Some(Stmt::OnGoto { expr, labels, is_gosub }));
             }
             Token::Resume => {
                 self.advance(); // consume RESUME

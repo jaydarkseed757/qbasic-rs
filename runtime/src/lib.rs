@@ -1325,6 +1325,10 @@ impl Runtime {
             self.put_sprite_cga(data, gx, gy, action);
             return;
         }
+        if self.screen_mode == 13 {
+            self.put_sprite_mode13(data, gx, gy, action);
+            return;
+        }
         let header = data[0] as i64 as u32;
         let width  = ((header & 0xFFFF) + 1) as i32;
         let height = (((header >> 16) & 0xFFFF) + 1) as i32;
@@ -1417,6 +1421,10 @@ impl Runtime {
             self.get_sprite_cga(x1, y1, x2, y2, data);
             return;
         }
+        if self.screen_mode == 13 {
+            self.get_sprite_mode13(x1, y1, x2, y2, data);
+            return;
+        }
         let x1 = x1 as i32;
         let y1 = y1 as i32;
         let x2 = x2 as i32;
@@ -1482,6 +1490,72 @@ impl Runtime {
                 let b = row * bytes_per_row + col / 4;
                 let shift = 6 - 2 * (col % 4);
                 bytes[b] |= color << shift;
+            }
+        }
+        for (i, chunk) in bytes.chunks(2).enumerate() {
+            let lo = chunk[0] as u16;
+            let hi = *chunk.get(1).unwrap_or(&0) as u16;
+            data[2 + i] = (lo | (hi << 8)) as i16 as f64;
+        }
+    }
+
+    /// PUT for MCGA SCREEN 13 (256-color, 8 bits/pixel — linear "chunky", not
+    /// planar). Layout: data[0] = width_px*8 (x-extent in bits), data[1] =
+    /// height_px, then a byte stream of `width` bytes/row (one full color index
+    /// per pixel), two bytes per INTEGER element (low byte first).
+    fn put_sprite_mode13(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
+        if data.len() < 2 { return; }
+        let width  = (data[0] as i64 as u16 as usize) / 8;
+        let height = data[1] as i64 as u16 as usize;
+        if width == 0 || height == 0 { return; }
+        let mask = self.sprite_color_mask(); // = 255 in mode 13
+        let gx = gx as i32;
+        let gy = gy as i32;
+        // byte b lives in element 2 + b/2, low byte first (little-endian INTEGER).
+        let get_byte = |b: usize| -> u8 {
+            let elem = 2 + b / 2;
+            if elem >= data.len() { return 0; }
+            let w = data[elem] as i64 as u16;
+            if b & 1 == 0 { (w & 0xFF) as u8 } else { (w >> 8) as u8 }
+        };
+        for row in 0..height {
+            let sy = gy + row as i32;
+            if sy < 0 || sy as u32 >= self.height { continue; }
+            let row_byte0 = row * width;
+            for col in 0..width {
+                let sx = gx + col as i32;
+                if sx < 0 || sx as u32 >= self.width { continue; }
+                let color = get_byte(row_byte0 + col); // full 0–255 index
+                let fb_idx = (sy as u32 * self.width + sx as u32) as usize;
+                self.put_pixel(fb_idx, color, mask, action);
+            }
+        }
+        self.present();
+    }
+
+    /// GET for MCGA SCREEN 13 — capture into the 8-bpp chunky INTEGER layout
+    /// (see `put_sprite_mode13`). Symmetric with the mode-13 PUT path.
+    fn get_sprite_mode13(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+        let x1 = x1 as i32;
+        let y1 = y1 as i32;
+        let x2 = x2 as i32;
+        let y2 = y2 as i32;
+        let width  = ((x2 - x1 + 1).max(1)) as usize;
+        let height = ((y2 - y1 + 1).max(1)) as usize;
+        let total_bytes = width * height;                 // 1 byte per pixel
+        let total_elems = 2 + (total_bytes + 1) / 2;       // 2-word header + data
+        data.clear();
+        data.resize(total_elems, 0.0);
+        data[0] = (width * 8) as f64;                      // x-extent in bits
+        data[1] = height as f64;
+        let mut bytes = vec![0u8; total_bytes];
+        for row in 0..height {
+            let sy = y1 + row as i32;
+            for col in 0..width {
+                let sx = x1 + col as i32;
+                if sx < 0 || sy < 0 || sx as u32 >= self.width || sy as u32 >= self.height { continue; }
+                // Store the FULL 8-bit color index (no masking to 4 bits).
+                bytes[row * width + col] = self.fb[(sy as u32 * self.width + sx as u32) as usize];
             }
         }
         for (i, chunk) in bytes.chunks(2).enumerate() {
@@ -3688,5 +3762,92 @@ mod headless_tests {
         assert_eq!(normalize_key("ENTER"), minifb_key_to_qb(Key::Enter));
         assert_eq!(normalize_key("Q"), minifb_key_to_qb(Key::Q)); // lowercased "q"
         assert_eq!(normalize_key("5"), minifb_key_to_qb(Key::Key5));
+    }
+}
+
+#[cfg(test)]
+mod mode13_sprite_tests {
+    use super::*;
+
+    // GET→PUT round-trips an 8-bit (256-color) sprite pixel-exact. The old EGA
+    // planar path truncated colors to `& 15` and mispacked the layout.
+    #[test]
+    fn mode13_sprite_round_trips_8bit_color() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        let (w, h) = (6usize, 4usize);
+        // Pattern includes colors > 15 (e.g. up to ~207) that 4-bit would lose.
+        for y in 0..h {
+            for x in 0..w {
+                rt.pset((5 + x) as f64, (5 + y) as f64, ((x * 40 + y * 7) % 256) as f64);
+            }
+        }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(5.0, 5.0, (5 + w - 1) as f64, (5 + h - 1) as f64, &mut spr);
+        // Header: word0 = width*8 (bits), word1 = height; 2-word header + data.
+        assert_eq!(spr[0], (w * 8) as f64);
+        assert_eq!(spr[1], h as f64);
+        assert_eq!(spr.len(), 2 + (w * h + 1) / 2);
+
+        rt.put_sprite(&spr, 50.0, 50.0, PutAction::Pset);
+        let mut saw_high = false;
+        for y in 0..h {
+            for x in 0..w {
+                let src = rt.point((5 + x) as f64, (5 + y) as f64);
+                let dst = rt.point((50 + x) as f64, (50 + y) as f64);
+                assert_eq!(src, dst, "pixel ({x},{y}) blit mismatch");
+                if src > 15.0 { saw_high = true; }
+            }
+        }
+        assert!(saw_high, "test must include a color > 15 to be meaningful");
+    }
+
+    // PUT … XOR twice at the same spot restores whatever was underneath.
+    #[test]
+    fn mode13_put_xor_is_self_inverse() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        // Non-blank background under the blit target.
+        for y in 0..8 {
+            for x in 0..8 {
+                rt.pset((30 + x) as f64, (30 + y) as f64, ((x + y * 8) % 256) as f64);
+            }
+        }
+        // A separate 4x4 sprite.
+        for y in 0..4 {
+            for x in 0..4 {
+                rt.pset(x as f64, y as f64, (100 + x + y) as f64);
+            }
+        }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 3.0, 3.0, &mut spr);
+
+        let snapshot = |rt: &Runtime| -> Vec<u8> {
+            let mut v = Vec::new();
+            for y in 0..8u32 {
+                for x in 0..8u32 {
+                    v.push(rt.fb[((30 + y) * rt.width + (30 + x)) as usize]);
+                }
+            }
+            v
+        };
+        let before = snapshot(&rt);
+        rt.put_sprite(&spr, 30.0, 30.0, PutAction::Xor);
+        rt.put_sprite(&spr, 30.0, 30.0, PutAction::Xor);
+        assert_eq!(before, snapshot(&rt), "XOR twice must restore the background");
+    }
+
+    // PRESET inverts within the mode's 8-bit depth (color → 255 - color).
+    #[test]
+    fn mode13_put_preset_inverts_8bit() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.pset(0.0, 0.0, 10.0);
+        rt.pset(1.0, 0.0, 200.0);
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 1.0, 0.0, &mut spr);
+        rt.put_sprite(&spr, 100.0, 0.0, PutAction::Preset);
+        assert_eq!(rt.point(100.0, 0.0), 245.0); // 255 - 10
+        assert_eq!(rt.point(101.0, 0.0), 55.0);  // 255 - 200
     }
 }

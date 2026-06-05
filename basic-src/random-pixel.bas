@@ -1,0 +1,19 @@
+REM QBC FPS 30
+CLS
+SCREEN 13
+RANDOMIZE TIMER
+
+DO WHILE INKEY$ = ""
+    X = INT(RND * 320)
+    Y = INT(RND * 200)
+    C = INT(RND * 256)
+
+    PSET (X, Y), C
+LOOP
+
+SCREEN 0
+WIDTH 80
+CLS
+PRINT "Done."
+
+

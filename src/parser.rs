@@ -144,6 +144,7 @@ pub enum Stmt {
     Pset   { x: Expr, y: Expr, color: Option<Expr>, preset: bool, step: bool },
     Paint  { x: Expr, y: Expr, fill: Expr, border: Option<Expr>, step: bool },
     Play(Expr),
+    Poke { addr: Expr, val: Expr },
     Sound { freq: Expr, duration: Expr },
     Beep,
     Randomize(Option<Expr>),
@@ -637,8 +638,11 @@ impl Parser {
                 return Ok(None);
             }
             Token::Poke => {
-                while !self.at_eol() { self.advance(); }
-                return Ok(None);
+                self.advance(); // consume POKE
+                let addr = self.parse_expr()?;
+                self.expect(&Token::Comma)?;
+                let val = self.parse_expr()?;
+                Ok(Stmt::Poke { addr, val })
             }
             Token::Width => {
                 while !self.at_eol() { self.advance(); }

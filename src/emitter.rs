@@ -1512,6 +1512,12 @@ impl Emitter {
 
             // ── Sound ─────────────────────────────────────────────────────────
             Stmt::Play(e)  => { let s = self.emit_expr(e)?; self.line(&format!("__rt.play(&{s});")); }
+            Stmt::Poke { addr, val } => {
+                let a = self.emit_expr_inline(addr);
+                let v = self.emit_expr_inline(val);
+                self.line(&format!("__rt.qb_poke({a}, {v});"));
+            }
+
             Stmt::Sound { freq, duration } => {
                 // Hoist both args to temps to prevent double-borrow when freq
                 // or duration contains __rt calls (e.g. RND).
@@ -4050,6 +4056,10 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     scan_expr(freq, result, added, exclude);
                     scan_expr(duration, result, added, exclude);
                 }
+                Stmt::Poke { addr, val } => {
+                    scan_expr(addr, result, added, exclude);
+                    scan_expr(val, result, added, exclude);
+                }
                 Stmt::Swap(a, b) => {
                     if let LValue::Scalar { name, ty } = a { push(name, ty, result, added, exclude); }
                     if let LValue::Scalar { name, ty } = b { push(name, ty, result, added, exclude); }
@@ -4293,7 +4303,7 @@ fn rust_fn_name(name: &str) -> String {
         "HEX$"    => "qb_hex".into(),
         "OCT$"    => "qb_oct".into(),
         "TIMER"   => "qb_timer".into(),
-        "PEEK"    => "qb_peek".into(),
+        "PEEK"    => "__rt.qb_peek".into(),
         "ENVIRON$"=> "qb_environ".into(),
         // Binary type-conversion functions
         "MKD"     => "MKD".into(),

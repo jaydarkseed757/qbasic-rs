@@ -116,7 +116,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 
 | Group | Keywords |
 |-------|----------|
-| **Control flow** | `IF` / `THEN` / `ELSE` / `ELSEIF`, `SELECT` / `CASE` / `IS` (ranges via `TO`), `FOR` / `TO` / `STEP` / `NEXT`, `WHILE` / `WEND`, `DO` / `LOOP` / `UNTIL`, `GOTO`, `GOSUB` / `RETURN`, `EXIT`, `END`, `STOP` |
+| **Control flow** | `IF` / `THEN` / `ELSE` / `ELSEIF`, `SELECT` / `CASE` / `IS` (ranges via `TO`), `FOR` / `TO` / `STEP` / `NEXT`, `WHILE` / `WEND`, `DO` / `LOOP` / `UNTIL`, `GOTO`, `GOSUB` / `RETURN`, `ON` _expr_ `GOTO` / `GOSUB` (computed branch), `EXIT`, `END`, `STOP` |
 | **Procedures & decls** | `SUB`, `FUNCTION`, `DECLARE`, `CALL`, `DEF` (DEF FN), `DIM`, `REDIM` (+ `PRESERVE`), `ERASE`, `SHARED`, `STATIC`, `COMMON`, `CONST`, `TYPE` / `AS`, `OPTION` (BASE), `LET`, `DEFINT`/`DEFSNG`/`DEFDBL`/`DEFSTR`, `SWAP` |
 | **Data** | `DATA` / `READ` / `RESTORE` |
 | **I/O & text** | `PRINT` / `LPRINT` (+ `PRINT USING`), `INPUT` (+ `LINE INPUT`), `LOCATE`, `COLOR`, `CLS`, `WIDTH`, `VIEW PRINT`, `REM` / `'` |
@@ -916,6 +916,28 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M12 — Tooling, MCGA sprites, GW-BASIC mega test ✅
+Debugging infrastructure plus the last language gaps for the bundled set
+(build-all 28/28).
+
+- **Headless driver** — any transpiled binary honors `QBC_*` env vars (read once
+  in `new_configured`, byte-identical when unset): `QBC_HEADLESS`, `QBC_KEYS`,
+  `QBC_SEED`, `QBC_DUMP`/`QBC_DUMP_AT`, `QBC_CHECKSUM`, `QBC_FBSTATS`,
+  `QBC_TEXT_FB`, `QBC_EXIT_AFTER`. Enables deterministic, windowless renders for
+  CI/SSH and turned multi-round "black screen" debugging into framebuffer diffs.
+- **Graphics golden tests** — `tests/run-graphics-tests.sh` diffs `fb_checksum`
+  against committed goldens (256c, screen13, palette256_expanded, reversi, torus);
+  `tools/ppm2png.py` exports PPM dumps to PNG for the README gallery. mandel is
+  excluded (timing-dependent + infinite palette cycle).
+- **SCREEN 13 (MCGA) GET/PUT sprites** — 8-bpp chunky layout
+  (`get_sprite_mode13`/`put_sprite_mode13`: `data[0]=width*8`, `data[1]=height`,
+  one color byte/pixel). All three sprite depths now covered (EGA planar, CGA
+  2-bpp, MCGA 8-bpp). See `screen13-sprite.bas`.
+- **`ON expr GOTO/GOSUB`** — computed multi-way branch lowered to
+  `match qb_cint(expr) as i64`; targets join the `__pc` state machine / GOSUB-fn
+  set. Plus shared/promoted-scalar naming fixes in the FOR counter and DEF-FN /
+  PRINT argument paths (kitchen_sink-gw.bas).
+
 ### M11 — More DOS programs: torus, donkey, reversi ✅
 Expanded coverage to the remaining graphics-heavy DOS QBasic programs.
 
@@ -1024,11 +1046,12 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is 25/25 (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is 28/28 (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
-palette256_expanded, random-pixel, qblocks). The integration suite is **27/27**,
-with 71 runtime unit tests and 5 graphics golden tests.
+palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, loopyloop,
+pixel-gw). The integration suite is **27/27**, with 71 runtime unit tests and
+5 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:
 

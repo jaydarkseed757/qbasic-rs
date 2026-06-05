@@ -2532,7 +2532,24 @@ impl Emitter {
         match lval {
             LValue::Scalar { name, ty } => {
                 let lower = name.to_lowercase();
-                if self.shared_names.contains(&lower) {
+                // Guard: if the shared variable is numeric but THIS access is a
+                // string (ty == String), they are DISTINCT variables that share
+                // the same base name (e.g. numeric `X` and string `X$` both
+                // normalise to key "x").  Reject only that direction.
+                //
+                // We do NOT reject when shared=String but access=Single:
+                // a `DIM SHARED Available AS STRING` referenced without a `$`
+                // sigil gets LValue type Single from the parser, so the shared
+                // type may be String while ty is Single — they are the same var.
+                let type_matches = self.shared_types.get(&lower)
+                    .map(|sty| {
+                        let shared_is_numeric = sty != &QbType::String;
+                        let access_is_string  = ty  == &QbType::String;
+                        // Only reject: shared numeric slot ← string access
+                        !(shared_is_numeric && access_is_string)
+                    })
+                    .unwrap_or(true); // no entry in shared_types → assume OK
+                if self.shared_names.contains(&lower) && type_matches {
                     // For shared scalars, use the bare rust_ident (no sigil suffix).
                     // The GameState field was generated from the DIM declaration name,
                     // which may differ from the $ sigil form used at access sites.
@@ -5096,7 +5113,14 @@ fn detect_cross_boundary_scalars(
                && !result.contains_key(name)
                && !exclude.contains(name)
             {
-                result.insert(name.clone(), ty.clone());
+                // Use main's authoritative type, not the gosub's.  This guards
+                // against name collisions between e.g. `X` (f64, in main) and
+                // `X$` (String, in a gosub body): both normalise to key "x" in
+                // collect_scalar_names, so a gosub-body String X$ can falsely
+                // appear to be the same cross-boundary variable as numeric X.
+                // The main body is the canonical declaration site.
+                let effective_ty = main_scalars.get(name).cloned().unwrap_or_else(|| ty.clone());
+                result.insert(name.clone(), effective_ty);
             }
         }
     }

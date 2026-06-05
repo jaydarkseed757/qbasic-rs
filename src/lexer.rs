@@ -239,6 +239,11 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
     let mut out   = Vec::new();
     let mut chars = source.chars().peekable();
     let mut line  = 1u32;
+    // True once we see an integer literal in statement position — i.e. the
+    // program is GW-BASIC / line-numbered style.  In that mode a physical line
+    // that does NOT begin with a line number is a continuation of the previous
+    // logical line and must NOT introduce a Newline token.
+    let mut in_line_numbered_mode = false;
 
     macro_rules! push {
         ($tok:expr) => {{ out.push(Spanned::new($tok, line)); }};
@@ -251,17 +256,38 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
 
             // ── Newline ───────────────────────────────────────────────────────
             '\n' => {
-                // Collapse consecutive blank lines into a single Newline token.
-                // The parser calls skip_newlines() anyway, but this keeps the
-                // token stream tidy.
+                // In line-numbered (GW-BASIC) mode a physical line that does
+                // not start with a line number continues the previous logical
+                // line.  Detect this by cloning the iterator and peeking past
+                // any leading whitespace.  If the first non-whitespace char is
+                // a digit (new line number), blank, or EOF → new logical line
+                // (emit Newline as normal).  Otherwise → continuation (no token).
                 let last_is_newline = out.last()
                     .map(|s: &Spanned| s.token == Token::Newline)
                     .unwrap_or(true);
-                if !last_is_newline {
-                    push!(Token::Newline);
-                }
                 chars.next();
                 line += 1;
+
+                if in_line_numbered_mode {
+                    let mut probe = chars.clone();
+                    while matches!(probe.peek(), Some(&' ') | Some(&'\t') | Some(&'\r')) {
+                        probe.next();
+                    }
+                    let is_new_logical_line = matches!(
+                        probe.peek(),
+                        None | Some(&'\n') | Some(&('0'..='9'))
+                    );
+                    if is_new_logical_line && !last_is_newline {
+                        push!(Token::Newline);
+                    }
+                    // Continuation: emit nothing; leading whitespace is consumed
+                    // by the outer loop's whitespace arm on the next iteration.
+                } else {
+                    // Non-line-numbered program: every \n is a statement separator.
+                    if !last_is_newline {
+                        push!(Token::Newline);
+                    }
+                }
             }
 
             // ── Line comment ──────────────────────────────────────────────────
@@ -300,6 +326,19 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
             // ── Numeric literal ───────────────────────────────────────────────
             '0'..='9' => {
                 let tok = lex_number(&mut chars, line)?;
+                // Entering line-numbered mode: first IntLit seen in statement
+                // position (start of stream or immediately after a Newline) is
+                // a GW-BASIC line number.
+                if !in_line_numbered_mode {
+                    if matches!(tok, Token::IntLit(_)) {
+                        let in_stmt_pos = out.last()
+                            .map(|s| s.token == Token::Newline)
+                            .unwrap_or(true); // empty = very start of file
+                        if in_stmt_pos {
+                            in_line_numbered_mode = true;
+                        }
+                    }
+                }
                 push!(tok);
             }
 

@@ -982,17 +982,16 @@ Tests: `type_nested`, `type_complex`.
 
 ## What's Left
 
-Of the bundled DOS QBasic programs in `basic-src/`, **all but one transpile,
-compile, and render**: gorilla, torus, reversi, mandel, donkey, nibbles,
-sortdemo, money, pi, pi-gw, primes, hangman, hangman-gw, q_sort, fuzzbuzz,
-hello-world, sound, step, screen13, 256c, palette256_expanded. The current
-integration suite is **27/27**, with 68 runtime unit tests.
+**Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
+renders** — `build-all.sh` is 24/24 (gorilla, torus, reversi, mandel, donkey,
+nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
+q_sort, fuzzbuzz, hello-world, sound, step, screen13, 256c, palette256_expanded,
+random-pixel, qblocks). The integration suite is **27/27**, with 68 runtime unit
+tests and 5 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:
 
-1. **qblocks.bas** — the one bundled program that does not yet transpile (a Tetris
-   clone; not yet analyzed for the missing feature(s)).
-2. **gorilla.bas full playthrough (prime target)** — compiles and links;
+1. **gorilla.bas full playthrough (prime target)** — compiles and links;
    needs interactive + visual + audio verification of a complete game:
    skyline render, banana physics, POINT() collision, explosion sound, scoring,
    wind. The one acceptance test that can't be checked headlessly.

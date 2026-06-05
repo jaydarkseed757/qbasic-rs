@@ -389,14 +389,24 @@ impl Emitter {
             .map(|p| p.name.to_lowercase())
             .collect();
 
+        // CONST names are compile-time values, never variables — they must resolve
+        // to the emitted `const` item, NOT be promoted into GameState. (e.g. a
+        // program with `CONST TRUE = -1` referenced across scopes would otherwise
+        // get a `qb_true` GameState field shadowing the const with a 0.0 default.)
+        let const_names: HashSet<String> = prog.consts.iter().map(|(n, _)| n.to_lowercase())
+            .chain(prog.str_consts.iter().map(|(n, _)| n.to_lowercase()))
+            .collect();
+
         // Detect scalars that cross GOSUB function boundaries and promote them
         // to GameState so the GOSUB function can read the caller's local values.
         let cross_scalars = detect_cross_boundary_scalars(&main_stmts, &gosub_fns, &sub_param_names);
         for (name_lc, ty) in &cross_scalars {
             let rust_name = rust_ident_typed(name_lc, ty);
-            // Avoid double-promotion if already DIM SHARED or promoted as array
+            // Avoid double-promotion if already DIM SHARED or promoted as array,
+            // and never promote a CONST.
             if !self.shared_names.contains(name_lc.as_str())
                && !self.promoted_arrays.contains(rust_name.as_str())
+               && !const_names.contains(name_lc.as_str())
             {
                 self.shared_names.insert(name_lc.clone());
                 self.shared_types.insert(name_lc.clone(), ty.clone());
@@ -972,6 +982,10 @@ impl Emitter {
                 }
             }
         }
+        // Exclude user FUNCTION names: a bare reference to a zero-arg FUNCTION is a
+        // CALL (`X = StillWantsToPlay`), not a variable — never declare a local that
+        // would shadow the fn. (Function names are reserved in QB.)
+        combined_exclude.extend(self.user_fns.iter().cloned());
         let locals = collect_locals(body, &combined_exclude);
         for (name, ty) in &locals {
             // Disambiguate a scalar that shares its name with a local array.
@@ -1051,7 +1065,19 @@ impl Emitter {
                             self.emit_typed_arr_to_scalar(&rn2, &ra, &ri, &flds2);
                             return Ok(());
                         }
-                        // scalar = scalar TYPE var — fall through (field-prefixed already handled)
+                        // scalar = scalar TYPE var (whole-record copy, e.g.
+                        // `OldBlock = CurBlock`) → per-field assignment. Field paths
+                        // come from flatten_type_fields so they match the GameState
+                        // field names (handles nested TYPEs).
+                        if let Some(rhs_rn) = rhs_scalar_type_name {
+                            if let Some(tn) = self.var_type_name.get(&rn).cloned() {
+                                let fields: Vec<String> =
+                                    flatten_type_fields(&tn, &self.type_defs.clone())
+                                        .into_iter().map(|(f, _)| f).collect();
+                                self.emit_scalar_type_copy(&rn, &rhs_rn, &fields);
+                                return Ok(());
+                            }
+                        }
                     }
                 }
 
@@ -1386,26 +1412,41 @@ impl Emitter {
             }
             Stmt::Erase(names) => self.emit_erase(names),
             Stmt::PaletteUsing(arr) => {
-                // PALETTE USING arr(start_idx) — pass slice of array from start_idx.
-                // arr is parsed as an indexed Call (e.g. PaletteArray(0)) — we want
-                // a slice from that index, not the element value.
+                // PALETTE USING arr[(start_idx)] — pass a slice of the array.
+                // The arg can be indexed (`PaletteArray(0)`) or a bare array name
+                // (`PALETTE USING Colors`). Resolve to the array binding directly so
+                // a bare name is NOT routed through scalar-name disambiguation
+                // (which would append `__sc` and slice an f64).
+                let arr_binding = |this: &Self, name: &str| -> String {
+                    let lower = name.to_lowercase();
+                    if this.shared_names.contains(&lower) {
+                        let ty = this.shared_types.get(&lower).cloned().unwrap_or(QbType::Double);
+                        format!("__gs.{}", rust_ident_typed(name, &ty))
+                    } else {
+                        rust_ident(name)
+                    }
+                };
+                let is_array = |this: &Self, name: &str| -> bool {
+                    let lower = name.to_lowercase();
+                    this.local_arrays.contains(&rust_ident(name))
+                        || this.array_names.contains(&lower)
+                };
                 let (arr_name, start_idx) = match arr {
+                    // Indexed: PALETTE USING arr(start)
                     Expr::Call { name, args } if !args.is_empty() => {
-                        let lower = name.to_lowercase();
-                        let arr_expr = if self.shared_names.contains(&lower) {
-                            let ty = self.shared_types.get(&lower).cloned().unwrap_or(QbType::Double);
-                        let rn = rust_ident_typed(name, &ty);
-                            format!("__gs.{rn}")
-                        } else {
-                            rust_ident(name)
-                        };
-                        let idx = self.lift_expr(&args[0]);
-                        (arr_expr, idx)
+                        (arr_binding(self, name), self.lift_expr(&args[0]))
                     }
-                    _ => {
-                        // Bare array name or other expr — treat start as 0
-                        (self.lift_expr(arr), "0".to_string())
+                    // Bare array name (no subscript) → slice from the lower bound.
+                    Expr::Var(LValue::Scalar { name, .. }) if is_array(self, name) => {
+                        let lo = self.arr_lo(&name.to_lowercase(), 0);
+                        (arr_binding(self, name), lo.to_string())
                     }
+                    Expr::Call { name, args } if args.is_empty() && is_array(self, name) => {
+                        let lo = self.arr_lo(&name.to_lowercase(), 0);
+                        (arr_binding(self, name), lo.to_string())
+                    }
+                    // Fallback (other expr) — best effort, start at 0.
+                    _ => (self.lift_expr(arr), "0".to_string()),
                 };
                 self.line(&format!("__rt.palette_using(&{arr_name}[({start_idx}) as usize..]);"));
             }
@@ -2674,6 +2715,21 @@ impl Emitter {
         Some(fields.iter().map(|(f, _)| f.clone()).collect())
     }
 
+    /// Whole-record copy between two scalar TYPE variables (`OldBlock = CurBlock`):
+    /// emit one per-field assignment. `lhs`/`rhs` are rust_ident names; `fields`
+    /// are the flattened field paths (matching the GameState field names).
+    fn emit_scalar_type_copy(&mut self, lhs: &str, rhs: &str, fields: &[String]) {
+        for f in fields {
+            let l = if self.shared_names.contains(lhs) {
+                format!("__gs.{lhs}__{f}")
+            } else { format!("{lhs}__{f}") };
+            let r = if self.shared_names.contains(rhs) {
+                format!("__gs.{rhs}__{f}")
+            } else { format!("{rhs}__{f}") };
+            self.line(&format!("{l} = {r}.clone();"));
+        }
+    }
+
     /// Emit field-by-field copy from a typed array element to another typed array element.
     /// `lhs_arr`, `lhs_idx`: destination; `rhs_arr`, `rhs_idx`: source.
     /// All names are rust_ident-lowercase.
@@ -2980,7 +3036,16 @@ impl Emitter {
                             let field_var = format!("{base_name}__{fname}");
                             // Field might itself be a byref param (when passing a SUB param onward)
                             let arg = if self.shared_names.contains(&name_lc) {
-                                format!("&mut __gs.{field_var}")
+                                // Shared TYPE field lives in __gs; passing both __gs
+                                // and &mut __gs.field would double-borrow (E0499).
+                                // Hoist to a temp and write back after the call so
+                                // byref mutations still propagate.
+                                let gs_field = format!("__gs.{field_var}");
+                                let tmp = format!("__tmp_gst{}", self.lift_counter);
+                                self.lift_counter += 1;
+                                self.line(&format!("let mut {tmp} = {gs_field}.clone();"));
+                                writebacks.push((gs_field, tmp.clone()));
+                                format!("&mut {tmp}")
                             } else if self.numeric_params.contains(&field_var) {
                                 // Already &mut — reborrow
                                 format!("&mut *{field_var}")
@@ -3380,6 +3445,18 @@ impl Emitter {
                     else { c.to_string() }
                 }).collect();
                 format!("\"{}\"", escaped)
+            }
+            // A bare reference to a ZERO-ARG user FUNCTION is a call in QB:
+            // `IF CheckFit = FALSE` calls CheckFit() and compares. (Read path only —
+            // assignment to the function's own name is handled in emit_lvalue via
+            // current_fn_name_lc → __fn_ret, so this never turns a write into a call.)
+            Expr::Var(LValue::Scalar { name, .. })
+                if self.user_fns.contains(&name.to_lowercase())
+                   && self.sub_params.get(&rust_ident(name)).map_or(false, |p| p.is_empty())
+                   && self.current_fn_name_lc.as_deref() != Some(rust_ident(name).as_str())
+                   && !self.shared_names.contains(&name.to_lowercase()) =>
+            {
+                format!("{}({})", rust_ident(name), self.rt_args())
             }
             Expr::Var(lv) => self.emit_lvalue(lv),
 

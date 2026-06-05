@@ -70,13 +70,21 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `hangman-gw.bas` | Hangman word game (GW-BASIC style, line numbers, GOTO state machine) | ✅ |
 | `sound.bas` | Minimal PLAY/MML demo (text-mode, audible arpeggio) | ✅ |
 | `screen13.bas` | SCREEN 13 (MCGA 320×200, 256-color VGA DAC palette) demo | ✅ |
+| `screen13-sprite.bas` | SCREEN 13 GET/PUT sprites (8-bpp MCGA chunky layout) | ✅ |
+| `kitchen_sink-gw.bas` | GW-BASIC "mega test" — menu loop, ON GOTO/GOSUB, DEF FN, RESTORE | ✅ |
+
+Highlights shown above; **all 28 bundled programs** in `basic-src/` transpile and
+run (`bash basic-src/build-all.sh` → 28/28). The full set adds `nibbles`,
+`donkey`, `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`,
+`random-pixel`, `qblocks`, `loopyloop`, `pixel-gw`, and the `pi-gw`/`hangman-gw`
+GW-BASIC variants.
 
 ---
 
 ## Features
 
 ### Language coverage
-- **Control flow**: IF/ELSEIF/ELSE, FOR/NEXT, WHILE/WEND, DO/LOOP, SELECT CASE (incl. ranges)
+- **Control flow**: IF/ELSEIF/ELSE, FOR/NEXT, WHILE/WEND, DO/LOOP, SELECT CASE (incl. ranges), GOTO, GOSUB/RETURN, ON…GOTO/GOSUB (computed branch)
 - **Subroutines**: SUB/END SUB, FUNCTION/END FUNCTION, GOSUB/RETURN, STATIC locals (persist across calls). Parameters pass by reference (QB semantics), including TYPE records.
 - **Data**: DIM, REDIM, ERASE, DIM SHARED, COMMON SHARED, DATA/READ/RESTORE, CONST, user-defined TYPE (nested, fixed-length strings), 1-D/2-D/3-D arrays incl. arrays of TYPE
 - **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT, PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
@@ -155,10 +163,10 @@ qbasic-rust/
 │   ├── lexer.rs           # Source text → tokens
 │   ├── parser.rs          # Tokens → AST
 │   ├── analyzer.rs        # AST → symbol table + AnalyzedProgram
-│   └── emitter.rs         # AnalyzedProgram → Rust source  (~5200 lines)
+│   └── emitter.rs         # AnalyzedProgram → Rust source  (~5300 lines)
 │
 ├── runtime/src/
-│   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3400 lines)
+│   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3850 lines)
 │   └── sound.rs           # PLAY/SOUND/BEEP via rodio  (~300 lines)
 │
 └── basic-src/             # .bas source files

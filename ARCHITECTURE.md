@@ -140,8 +140,10 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 - `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
 - `PRINT USING` `$$` / `**` floating tokens → printed literally
 - Array fields declared *inside* a `TYPE` body → dimension discarded
-- SCREEN-13 `GET`/`PUT` sprites assume the EGA planar layout (mode-13 is 8bpp packed)
 - Direct port I/O (`OUT` / `INP`), `CHAIN` / `SHELL` → not modeled (stubbed to program end)
+
+`GET`/`PUT` sprites are fully supported across pixel depths: EGA 4-plane planar
+(SCREEN 9/12), CGA 2bpp packed (SCREEN 1), and MCGA 8bpp chunky (SCREEN 13).
 
 ---
 
@@ -1022,11 +1024,11 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is 24/24 (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is 25/25 (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
-q_sort, fuzzbuzz, hello-world, sound, step, screen13, 256c, palette256_expanded,
-random-pixel, qblocks). The integration suite is **27/27**, with 68 runtime unit
-tests and 5 graphics golden tests.
+q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
+palette256_expanded, random-pixel, qblocks). The integration suite is **27/27**,
+with 71 runtime unit tests and 5 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:
 

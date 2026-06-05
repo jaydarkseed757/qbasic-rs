@@ -354,6 +354,8 @@ pub struct Runtime {
     present_count: u64,
     /// Consecutive empty `inkey()` polls (headless `idle` exit threshold).
     idle_polls: u32,
+    /// Simulated byte memory for POKE/PEEK.  QB POKE stores a byte; PEEK reads it back.
+    poke_mem: std::collections::HashMap<u32, u8>,
 }
 
 /// When to write the framebuffer image in headless mode.
@@ -501,6 +503,7 @@ impl Runtime {
             seed_locked: false,
             present_count: 0,
             idle_polls: 0,
+            poke_mem: std::collections::HashMap::new(),
         }
     }
 
@@ -577,6 +580,7 @@ impl Runtime {
             seed_locked: false,
             present_count: 0,
             idle_polls: 0,
+            poke_mem: std::collections::HashMap::new(),
         };
         // QBC_SEED pins the RNG (overrides RANDOMIZE TIMER) — applies in windowed
         // mode too, so a seeded run can still be watched live.
@@ -1985,6 +1989,20 @@ impl Runtime {
         sound::play_beep();
     }
 
+    /// POKE addr, val — store a byte in the simulated memory map.
+    /// QB's POKE stores an unsigned byte (0–255) at the given address.
+    pub fn qb_poke(&mut self, addr: f64, val: f64) {
+        let a = (addr as i64) as u32;
+        let v = ((val as i64) & 0xFF) as u8;
+        self.poke_mem.insert(a, v);
+    }
+
+    /// PEEK(addr) — read a byte previously written by POKE (returns 0 if never written).
+    pub fn qb_peek(&mut self, addr: f64) -> f64 {
+        let a = (addr as i64) as u32;
+        self.poke_mem.get(&a).copied().unwrap_or(0) as f64
+    }
+
     /// SOUND freq, duration — freq in Hz, duration in PC timer ticks (18.2/sec).
     pub fn sound(&mut self, freq: f64, dur: f64) {
         sound::play_sound(freq, dur);
@@ -2817,7 +2835,9 @@ pub fn qb_oct(n: f64) -> String { format!("{:o}", n as i64) }
 #[inline] pub fn qb_xor(a: f64, b: f64) -> f64  { ((a as i64) ^ (b as i64)) as f64 }
 #[inline] pub fn qb_csng(x: f64) -> f64          { x }
 #[inline] pub fn qb_cdbl(x: f64) -> f64          { x }
-#[inline] pub fn qb_peek(_addr: f64) -> f64      { 0.0 }
+// POKE/PEEK are now methods on Runtime so they share the poke_mem store.
+// The free function stub is kept for any remaining call sites.
+#[inline] pub fn qb_peek(_addr: f64) -> f64      { 0.0 } // stub — not used when Runtime available
 
 pub fn qb_environ(name: &str) -> String {
     std::env::var(name).unwrap_or_default()

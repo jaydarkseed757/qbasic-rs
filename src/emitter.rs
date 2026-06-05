@@ -401,7 +401,11 @@ impl Emitter {
         // to GameState so the GOSUB function can read the caller's local values.
         let cross_scalars = detect_cross_boundary_scalars(&main_stmts, &gosub_fns, &sub_param_names);
         for (name_lc, ty) in &cross_scalars {
-            let rust_name = rust_ident_typed(name_lc, ty);
+            // Use the BARE name (not rust_ident_typed) so the GameState field
+            // matches how emit_lvalue references a shared scalar (`__gs.{bare}`).
+            // rust_ident_typed would suffix a string `A$` to `a_s`, leaving the
+            // field orphaned while every reference emitted `__gs.a`.
+            let rust_name = rust_ident(name_lc);
             // Avoid double-promotion if already DIM SHARED or promoted as array,
             // and never promote a CONST.
             if !self.shared_names.contains(name_lc.as_str())
@@ -628,7 +632,7 @@ impl Emitter {
         let mut ps = self.promoted_scalars.clone();
         ps.sort_by_key(|(n, _)| n.clone());
         let shared_rust_names: HashSet<String> =
-            shared.iter().map(|s| rust_ident_typed(&s.name, &s.ty)).collect();
+            shared.iter().map(|s| rust_ident(&s.name)).collect();
         for (rust_name, ty) in &ps {
             if !shared_rust_names.contains(rust_name) {
                 let rust_ty = qb_type_to_rust(ty);
@@ -1134,22 +1138,27 @@ impl Emitter {
             }
 
             Stmt::For { var, from, to, step, body } => {
-                let v = rust_ident(var);
+                let v = rust_ident(var); // unique suffix for the __for_to_/__for_step_ temps
+                // Reference form for the counter: `__gs.i` when it's a shared/
+                // promoted variable (e.g. a GOSUB target reads the loop counter,
+                // common in state-machine programs), `(*i)` for a byref param,
+                // or the bare local `i`. Identical to `v` for plain locals.
+                let vref = self.emit_lvalue(&LValue::Scalar { name: var.clone(), ty: QbType::Single });
                 let f = self.emit_expr(from)?;
                 let t = self.emit_expr(to)?;
                 let s = step.as_ref().map(|e| self.emit_expr(e).unwrap())
                             .unwrap_or_else(|| "1.0_f64".into());
-                // FOR var is pre-declared by collect_locals at function scope — just assign.
-                self.line(&format!("{v} = {f};"));
+                // FOR var is pre-declared by collect_locals (or promoted to GameState) — just assign.
+                self.line(&format!("{vref} = {f};"));
                 self.line(&format!("let __for_to_{v}: f64 = {t};"));
                 self.line(&format!("let __for_step_{v}: f64 = {s};"));
                 self.line(&format!(
-                    "while (__for_step_{v} > 0.0 && {v} <= __for_to_{v}) || \
-                           (__for_step_{v} < 0.0 && {v} >= __for_to_{v}) {{"
+                    "while (__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
+                           (__for_step_{v} < 0.0 && {vref} >= __for_to_{v}) {{"
                 ));
                 self.indent();
                 self.emit_stmts(body)?;
-                self.line(&format!("{v} += __for_step_{v};"));
+                self.line(&format!("{vref} += __for_step_{v};"));
                 self.dedent();
                 self.line("}");
             }
@@ -1692,6 +1701,28 @@ impl Emitter {
             Stmt::End | Stmt::Stop => self.line("__rt.quit();"),
 
             // ── Error handling ────────────────────────────────────────────────
+            Stmt::OnGoto { expr, labels, is_gosub } => {
+                // ON expr GOTO/GOSUB L1,L2,… — 1-based, rounded; 0/out-of-range
+                // falls through. Reuse the Goto/Gosub emission per branch so the
+                // state-machine (`__pc`) and inline-GOSUB-fn logic are shared.
+                let e = self.lift_expr(expr);
+                self.line(&format!("match qb_cint({e}) as i64 {{"));
+                self.indent();
+                for (i, label) in labels.iter().enumerate() {
+                    self.line(&format!("{} => {{", i + 1));
+                    self.indent();
+                    if *is_gosub {
+                        self.emit_stmt(&Stmt::Gosub(label.clone()))?;
+                    } else {
+                        self.emit_stmt(&Stmt::Goto(label.clone()))?;
+                    }
+                    self.dedent();
+                    self.line("}");
+                }
+                self.line("_ => {}");
+                self.dedent();
+                self.line("}");
+            }
             Stmt::OnError { label } => {
                 if label == "0" {
                     self.on_error_label = String::new();
@@ -3212,7 +3243,18 @@ impl Emitter {
                                 let v = self.emit_expr_inner(e).unwrap_or_default();
                                 call_args.push(format!("&mut {v}"));
                             } else {
-                                call_args.push(self.lift_expr(e));
+                                let v = self.lift_expr(e);
+                                if v.contains("__gs") {
+                                    // Reading a shared field while we also pass
+                                    // `&mut __gs` to the call conflicts (E0503) —
+                                    // hoist the value to a temp first.
+                                    let tmp = format!("__fa{}", self.lift_counter);
+                                    self.lift_counter += 1;
+                                    self.line(&format!("let {tmp} = {v};"));
+                                    call_args.push(tmp);
+                                } else {
+                                    call_args.push(v);
+                                }
                             }
                         }
                     }
@@ -3226,15 +3268,23 @@ impl Emitter {
                 }
                 // Built-in — recurse into args but don't lift
                 let a: Vec<String> = args.iter().map(|a| self.lift_expr(a)).collect();
-                // Special cases that need __rt
-                if name_lc == "rnd"    { return "__rt.rnd()".into(); }
-                if name_lc == "inkey$" { return "__rt.inkey()".into(); }
+                // Special cases that need __rt — hoist to a temp (like Expr::Point
+                // below) so the call doesn't double-borrow __rt when it ends up as
+                // an argument to another `__rt.method(...)` (e.g. PRINT INT(RND*100)).
+                let mut hoist = |this: &mut Self, call: String| -> String {
+                    let tmp = format!("__tmp{}", this.lift_counter);
+                    this.lift_counter += 1;
+                    this.line(&format!("let {tmp} = {call};"));
+                    tmp
+                };
+                if name_lc == "rnd"    { return hoist(self, "__rt.rnd()".into()); }
+                if name_lc == "inkey$" { return hoist(self, "__rt.inkey()".into()); }
                 if name_lc == "pmap" && a.len() == 2 {
-                    return format!("__rt.pmap({}, {})", a[0], a[1]);
+                    return hoist(self, format!("__rt.pmap({}, {})", a[0], a[1]));
                 }
                 if name_lc == "input$" {
                     let n = a.first().cloned().unwrap_or_else(|| "1.0".into());
-                    return format!("__rt.input_str({n})");
+                    return hoist(self, format!("__rt.input_str({n})"));
                 }
                 // UBOUND / LBOUND
                 if name_lc == "ubound" || name_lc == "lbound" {
@@ -4681,6 +4731,11 @@ fn collect_gosub_targets(stmts: &[Stmt]) -> HashSet<String> {
             Stmt::OnError { label } if label != "0" && label.parse::<i64>().is_err() => {
                 targets.insert(label.clone());
             }
+            // ON expr GOSUB L1,L2,… — every label is a GOSUB target (extracted as
+            // a fn so the call + RETURN works), including numeric line labels.
+            Stmt::OnGoto { labels, is_gosub: true, .. } => {
+                for l in labels { targets.insert(l.clone()); }
+            }
             Stmt::If { then_body, elseif_branches, else_body, .. } => {
                 targets.extend(collect_gosub_targets(then_body));
                 for (_, eb) in elseif_branches { targets.extend(collect_gosub_targets(eb)); }
@@ -4706,6 +4761,10 @@ fn collect_goto_targets(stmts: &[Stmt]) -> HashSet<String> {
     for stmt in stmts {
         match stmt {
             Stmt::Goto(label) => { targets.insert(label.clone()); }
+            // ON expr GOTO L1,L2,… — every label is a GOTO target (stays an SM arm).
+            Stmt::OnGoto { labels, is_gosub: false, .. } => {
+                for l in labels { targets.insert(l.clone()); }
+            }
             Stmt::If { then_body, elseif_branches, else_body, .. } => {
                 targets.extend(collect_goto_targets(then_body));
                 for (_, eb) in elseif_branches { targets.extend(collect_goto_targets(eb)); }
@@ -5141,6 +5200,9 @@ fn collect_sm_local_arrays_inner(
 fn stmt_has_numeric_goto(stmt: &Stmt) -> bool {
     match stmt {
         Stmt::Goto(label) => label.parse::<u32>().is_ok(),
+        // ON expr GOTO <numeric> implies a line-numbered program → state machine.
+        Stmt::OnGoto { labels, is_gosub: false, .. } =>
+            labels.iter().any(|l| l.parse::<u32>().is_ok()),
         Stmt::If { then_body, elseif_branches, else_body, .. } => {
             then_body.iter().any(stmt_has_numeric_goto)
             || elseif_branches.iter().any(|(_, b)| b.iter().any(stmt_has_numeric_goto))

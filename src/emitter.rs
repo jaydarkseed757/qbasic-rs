@@ -3302,6 +3302,9 @@ impl Emitter {
                 };
                 if name_lc == "rnd"    { return hoist(self, "__rt.rnd()".into()); }
                 if name_lc == "inkey$" { return hoist(self, "__rt.inkey()".into()); }
+                if name_lc == "peek" && a.len() == 1 {
+                    return hoist(self, format!("__rt.qb_peek({})", a[0]));
+                }
                 if name_lc == "pmap" && a.len() == 2 {
                     return hoist(self, format!("__rt.pmap({}, {})", a[0], a[1]));
                 }

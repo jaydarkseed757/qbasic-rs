@@ -72,12 +72,15 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `screen13.bas` | SCREEN 13 (MCGA 320×200, 256-color VGA DAC palette) demo | ✅ |
 | `screen13-sprite.bas` | SCREEN 13 GET/PUT sprites (8-bpp MCGA chunky layout) | ✅ |
 | `kitchen_sink-gw.bas` | GW-BASIC "mega test" — menu loop, ON GOTO/GOSUB, DEF FN, RESTORE | ✅ |
+| `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
+| `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
+| `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
 
-Highlights shown above; **all 28 bundled programs** in `basic-src/` transpile and
-run (`bash basic-src/build-all.sh` → 28/28). The full set adds `nibbles`,
-`donkey`, `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`,
-`random-pixel`, `qblocks`, `loopyloop`, `pixel-gw`, and the `pi-gw`/`hangman-gw`
-GW-BASIC variants.
+Highlights shown above; **31 of 32 bundled programs** in `basic-src/` transpile and
+run (`bash basic-src/build-all.sh` → 31/32; `kitchen_sink-qbasic` is the one
+remaining failure). The full set also adds `nibbles`, `donkey`, `q_sort`,
+`fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`, `qblocks`,
+`loopyloop`, `pixel-gw`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
 
 ---
 
@@ -90,9 +93,13 @@ GW-BASIC variants.
 - **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT, PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
 - **Sound**: PLAY (full MML parser), SOUND, BEEP — wired to `rodio`
 - **I/O**: PRINT, PRINT USING, INPUT, LOCATE, COLOR, CLS, INKEY$, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization
+- **Memory**: POKE (simulated byte store via `HashMap<u32, u8>`), PEEK (reads back stored byte or 0), DEF SEG (parsed/ignored)
 
 ### GOTO → state machine
 Line-numbered BASIC programs that use GOTO are compiled to a `match __pc { ... }` state machine, with each line number becoming a match arm. Programs that use only GOSUB get clean named Rust functions instead.
+
+### GW-BASIC physical line continuation
+A logical GW-BASIC line may wrap across multiple physical file lines — any physical line that doesn't begin with a line number is treated as a continuation of the previous logical line. The lexer detects line-numbered mode automatically and suppresses `Newline` tokens at continuation boundaries. Non-line-numbered programs are byte-identical.
 
 ### REM QBC pragmas
 Embed transpiler directives anywhere in a `.bas` source file:
@@ -163,10 +170,10 @@ qbasic-rust/
 │   ├── lexer.rs           # Source text → tokens
 │   ├── parser.rs          # Tokens → AST
 │   ├── analyzer.rs        # AST → symbol table + AnalyzedProgram
-│   └── emitter.rs         # AnalyzedProgram → Rust source  (~5300 lines)
+│   └── emitter.rs         # AnalyzedProgram → Rust source  (~5370 lines)
 │
 ├── runtime/src/
-│   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3850 lines)
+│   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3875 lines)
 │   └── sound.rs           # PLAY/SOUND/BEEP via rodio  (~300 lines)
 │
 └── basic-src/             # .bas source files

@@ -21,13 +21,13 @@ qbasic-rust/
 │   ├── lexer.rs                # Source text → Vec<Spanned<Token>>
 │   ├── parser.rs               # Tokens → AST (Program, Stmt, Expr, LValue)
 │   ├── analyzer.rs             # AST → AnalyzedProgram (symbol table, DATA)
-│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~5200 lines)
+│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~5370 lines)
 │   └── error.rs                # QbError enum (Lex / Parse / Analyze / Emit)
 │
 ├── runtime/                    # Runtime library linked by every transpiled program
 │   ├── Cargo.toml              # depends on: minifb, crossterm, rodio
 │   └── src/
-│       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3400 lines)
+│       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3875 lines)
 │       └── sound.rs            # PLAY MML parser + SOUND/BEEP via rodio  (~300 lines)
 │
 └── basic-src/                  # Test .bas programs
@@ -124,7 +124,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
-| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE`, `DEF SEG` (parsed/ignored) |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `DEF SEG` (parsed/ignored) |
 | **Operators** | `AND`, `OR`, `XOR`, `NOT`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
@@ -306,7 +306,7 @@ first definition; the transpiler emits both — flagged on stderr).
 
 ## Emitter (`src/emitter.rs`)
 
-The largest file (~5200 lines). Walks `AnalyzedProgram` and writes Rust source.
+The largest file (~5370 lines). Walks `AnalyzedProgram` and writes Rust source.
 
 ### Emitted file structure
 
@@ -501,9 +501,9 @@ argument lists, preventing double-borrow of `__rt`.
 
 ## Runtime (`runtime/src/`)
 
-Two files totaling ~3700 lines, linked by every transpiled program.
+Two files totaling ~4175 lines, linked by every transpiled program.
 
-### `lib.rs` (~3400 lines)
+### `lib.rs` (~3875 lines)
 
 Everything except sound: Runtime struct, graphics primitives, I/O,
 math/string functions, window management.
@@ -916,6 +916,24 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M13 — GW-BASIC line continuation, POKE/PEEK memory ✅
+Physical-line continuation support for GW-BASIC programs plus real POKE/PEEK
+byte-accurate memory (build-all 31/32).
+
+- **Physical line continuation** — GW-BASIC programs where a logical line wraps
+  across multiple physical file lines without repeating the line number. Lexer
+  detects `in_line_numbered_mode` on the first `IntLit` at statement position;
+  `\n` handling suppresses `Newline` tokens when the next physical line is a
+  continuation (no leading digit). Non-line-numbered programs: byte-identical.
+- **`POKE` / `PEEK`** — `POKE addr, val` now stores `val & 0xFF` in a
+  `HashMap<u32, u8>` (`poke_mem`) on `Runtime`; `PEEK(addr)` returns the stored
+  byte or 0. Previously both were stubs. `PEEK` added to `lift_expr` hoist table
+  to avoid double-borrow in `PRINT PEEK(...)`.
+- **evil.bas** — GW-BASIC "self-modifying POKE matrix" demo; three physical line
+  continuations, simulated POKE/PEEK memory, `DEFINT A-Z`, `DEF SEG`.
+- **pokeit.bas** — minimal regression: `POKE 1040, D` → `PRINT PEEK(1040)` → ` 25`.
+- **demo1.bas** — SCREEN 13 demoscene-style intro (star field + scrolling text).
+
 ### M12 — Tooling, MCGA sprites, GW-BASIC mega test ✅
 Debugging infrastructure plus the last language gaps for the bundled set
 (build-all 28/28).
@@ -1046,11 +1064,12 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is 28/28 (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is 31/32 (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, loopyloop,
-pixel-gw). The integration suite is **27/27**, with 71 runtime unit tests and
+pixel-gw, evil, pokeit, demo1; `kitchen_sink-qbasic` is the one remaining
+failure). The integration suite is **27/27**, with 71 runtime unit tests and
 5 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:

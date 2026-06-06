@@ -20,6 +20,9 @@ Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
 <td align="center"><img src="docs/screenshots/mandel.png" width="420"><br><b>mandel.bas</b> — Mandelbrot renderer (VIEW/WINDOW, PALETTE cycling)</td>
 <td align="center"><img src="docs/screenshots/256c.png" width="420"><br><b>256c.bas</b> — 256-color VGA palette (SCREEN 13)</td>
 </tr>
+<tr>
+<td align="center"><img src="docs/screenshots/donkey.png" width="420"><br><b>donkey.bas</b> — IBM PC Donkey (CGA SCREEN 1, DRAW sprites, GOTO state machine)</td>
+</tr>
 </table>
 
 ---

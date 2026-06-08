@@ -136,6 +136,12 @@ pub struct Emitter {
     /// take `__gs: &mut GameState`), it is suppressed and the `__gs` binding in
     /// main is skipped. Set by emit_game_state, read when emitting main.
     gamestate_emitted: bool,
+    /// Bare-lowercase names of scalars that have an explicit local `DIM name`
+    /// inside the current SUB/FUNCTION body.  Cleared on entry to each sub/fn.
+    /// Used by emit_lvalue to detect the case where a local integer `B` and a
+    /// DIM SHARED string `B$` share the same base name: the local DIM shadows
+    /// the shared string for numeric accesses in that scope.
+    local_dim_names: HashSet<String>,
 }
 
 impl Emitter {
@@ -178,6 +184,7 @@ impl Emitter {
             file_fields: HashMap::new(),
             on_error_label: String::new(),
             gamestate_emitted: true,
+            local_dim_names: HashSet::new(),
         }
     }
 
@@ -231,10 +238,15 @@ impl Emitter {
         if is_str_expr(expr) { return true; }
         // Shared scalar variable parsed with wrong type (e.g. `Available AS STRING` parsed
         // as Integer under DEFINT A-Z) — look up authoritative type from shared_types.
+        // Exception: if the current scope has an explicit local DIM for this name with
+        // a numeric type (e.g. DIM B AS INTEGER when B$ is DIM SHARED), the local
+        // declaration shadows the shared string — do NOT treat as string.
         if let Expr::Var(LValue::Scalar { name, .. }) = expr {
             let lc = name.to_lowercase();
-            if let Some(ty) = self.shared_types.get(&lc) {
-                if *ty == QbType::String { return true; }
+            if !self.local_dim_names.contains(&lc) {
+                if let Some(ty) = self.shared_types.get(&lc) {
+                    if *ty == QbType::String { return true; }
+                }
             }
         }
         // Shared array element accessed via Expr::Call (parser didn't add $ sigil):
@@ -701,12 +713,28 @@ impl Emitter {
             // Collect local arrays for disambiguation inside this body
             self.local_arrays = collect_local_array_names(&sub.body);
 
+            // Track explicit local DIM declarations so emit_lvalue can distinguish
+            // e.g. local integer `B` from DIM SHARED string `B$` (same base name).
+            self.local_dim_names = collect_local_dim_names(&sub.body);
+
             let mut exclude = globals.clone();
             for p in &sub.params {
                 exclude.insert(rust_ident_typed(&p.name, &p.ty));
                 exclude.insert(rust_ident(&p.name));
             }
-            exclude.extend(self.shared_names.clone());
+            // For shared scalars, exclude by their typed Rust name so a locally
+            // DIM'd numeric variable with the same base name as a shared string
+            // variable (e.g. DIM B AS INTEGER when B$ is DIM SHARED) is NOT
+            // suppressed from the locals list.  String shared vars get excluded
+            // as "b_s"; a local integer "b" is then free to be declared locally.
+            for name_lc in &self.shared_names {
+                let sty = self.shared_types.get(name_lc).cloned().unwrap_or(QbType::Single);
+                if sty == QbType::String {
+                    exclude.insert(rust_ident_typed(name_lc, &sty));
+                } else {
+                    exclude.insert(name_lc.clone());
+                }
+            }
             // Exclude TYPE field arrays that are actually passed as params
             for (pname, fields) in self.typed_fields.clone().iter() {
                 if sub.params.iter().any(|p| rust_ident(&p.name) == *pname && !p.dims.is_empty()) {
@@ -808,6 +836,9 @@ impl Emitter {
 
             self.local_arrays = collect_local_array_names(&inline_body);
 
+            // Track explicit local DIM declarations (same reason as emit_subs).
+            self.local_dim_names = collect_local_dim_names(&inline_body);
+
             let mut exclude = globals.clone();
             for p in &f.params {
                 exclude.insert(rust_ident_typed(&p.name, &p.ty));
@@ -818,7 +849,16 @@ impl Emitter {
             exclude.insert(rust_ident(&f.name));
             // Also exclude "__fn_ret" so emit_locals doesn't re-declare it
             exclude.insert("__fn_ret".to_string());
-            exclude.extend(self.shared_names.clone());
+            // Same type-aware exclusion as emit_subs: string shared vars excluded
+            // by typed name so a local integer with the same base name can coexist.
+            for name_lc in &self.shared_names {
+                let sty = self.shared_types.get(name_lc).cloned().unwrap_or(QbType::Single);
+                if sty == QbType::String {
+                    exclude.insert(rust_ident_typed(name_lc, &sty));
+                } else {
+                    exclude.insert(name_lc.clone());
+                }
+            }
             self.emit_locals(&inline_body, &exclude)?;
             self.emit_stmts(&inline_body)?;
             self.current_sub_gosubs.clear();
@@ -1983,7 +2023,10 @@ impl Emitter {
                             self.line(&format!("{lhs} = {tmp};"));
                         }
                         _ => {
-                            self.line(&format!("{lhs} = {tmp}.parse().unwrap_or_default();"));
+                            // QB INPUT # trims whitespace before parsing a numeric field.
+                            // qb_print_num() emits " N " (leading space for positives,
+                            // trailing space always), so without .trim() the parse fails.
+                            self.line(&format!("{lhs} = {tmp}.trim().parse().unwrap_or_default();"));
                         }
                     }
                 } else {
@@ -2483,10 +2526,10 @@ impl Emitter {
                 LValue::Scalar { ty: QbType::String, .. } => {
                     self.line(&format!("{lhs} = __rt.input_line();"));
                 }
-                // Numeric — parse
+                // Numeric — parse (trim whitespace first; QB ignores leading/trailing spaces)
                 _ => {
                     self.line(&format!(
-                        "{lhs} = __rt.input_line().parse().unwrap_or_default();"
+                        "{lhs} = __rt.input_line().trim().parse().unwrap_or_default();"
                     ));
                 }
             }
@@ -2551,11 +2594,27 @@ impl Emitter {
                     .map(|sty| {
                         let shared_is_numeric = sty != &QbType::String;
                         let access_is_string  = ty  == &QbType::String;
-                        // Only reject: shared numeric slot ← string access
-                        !(shared_is_numeric && access_is_string)
+                        // Reject: shared numeric slot ← string access
+                        if shared_is_numeric && access_is_string { return false; }
+                        // Reject: shared string slot ← numeric access, but ONLY when
+                        // there is an explicit local `DIM name` in the current sub/fn
+                        // that declares this name as a numeric type.  Without a local
+                        // DIM, the sigil-less access `B` may just be `B$` referenced
+                        // without its $ (QB allows `Available$` to be used as `Available`).
+                        if !shared_is_numeric && !access_is_string
+                            && self.local_dim_names.contains(&lower)
+                        {
+                            return false; // local integer shadows the shared string
+                        }
+                        true
                     })
                     .unwrap_or(true); // no entry in shared_types → assume OK
-                if self.shared_names.contains(&lower) && type_matches {
+                let rn = rust_ident_typed(name, ty);
+                if self.numeric_params.contains(&rn) {
+                    // Byref numeric param — parameters shadow any shared var with the same
+                    // base name (e.g. SUB DrawPlayer(Player%) shadows DIM SHARED Player(1 TO 2)).
+                    format!("(*{rn})")
+                } else if self.shared_names.contains(&lower) && type_matches {
                     // For shared scalars, use the bare rust_ident (no sigil suffix).
                     // The GameState field was generated from the DIM declaration name,
                     // which may differ from the $ sigil form used at access sites.
@@ -2563,20 +2622,14 @@ impl Emitter {
                     // but `Available$` access would produce `available_s` via rust_ident_typed.
                     let gs_name = rust_ident(name);
                     format!("__gs.{gs_name}")
+                } else if self.current_fn_name_lc.as_deref() == Some(rn.as_str()) {
+                    // Assignment to the function name inside a FUNCTION body →
+                    // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
+                    "__fn_ret".to_string()
                 } else {
-                    let rn = rust_ident_typed(name, ty);
-                    if self.numeric_params.contains(&rn) {
-                        // Byref numeric param — deref to read/write through the &mut f64
-                        format!("(*{rn})")
-                    } else if self.current_fn_name_lc.as_deref() == Some(rn.as_str()) {
-                        // Assignment to the function name inside a FUNCTION body →
-                        // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
-                        "__fn_ret".to_string()
-                    } else {
-                        // QB allows a scalar `A$` and an array `A$()` to coexist — they
-                        // are distinct variables. Disambiguate the scalar binding.
-                        self.local_scalar_name(&rn)
-                    }
+                    // QB allows a scalar `A$` and an array `A$()` to coexist — they
+                    // are distinct variables. Disambiguate the scalar binding.
+                    self.local_scalar_name(&rn)
                 }
             }
             LValue::Index { name, ty, indices } => {
@@ -2728,14 +2781,18 @@ impl Emitter {
     }
 
     /// If `lval` is an index into a known typed array, return (base_name, index_expr, fields).
+    /// Returns `(arr_rust_name, subscript, fields)` where `subscript` is the full
+    /// bracketed index string for all dimensions, e.g. `"[(x) as usize][(y) as usize]"`.
     fn typed_array_index<'a>(&'a self, lval: &'a LValue)
         -> Option<(String, String, Vec<String>)>
     {
         if let LValue::Index { name, ty, indices } = lval {
             let lower = rust_ident_typed(name, ty);
             if let Some(fields) = self.typed_fields.get(lower.as_str()) {
-                let idx = self.emit_expr_inline(&indices[0]);
-                return Some((lower, idx, fields.clone()));
+                let subscript: String = indices.iter()
+                    .map(|idx| format!("[({}) as usize]", self.emit_expr_inline(idx)))
+                    .collect();
+                return Some((lower, subscript, fields.clone()));
             }
         }
         None
@@ -2754,8 +2811,10 @@ impl Emitter {
                     || self.array_names.contains(&name_lc));
             if is_typed_arr {
                 if let Some(fields) = self.typed_fields.get(lower.as_str()) {
-                    let idx = self.emit_expr_inline(&args[0]);
-                    return Some((lower, idx, fields.clone()));
+                    let subscript: String = args.iter()
+                        .map(|a| format!("[({}) as usize]", self.emit_expr_inline(a)))
+                        .collect();
+                    return Some((lower, subscript, fields.clone()));
                 }
             }
         }
@@ -2774,12 +2833,18 @@ impl Emitter {
     /// are the flattened field paths (matching the GameState field names).
     fn emit_scalar_type_copy(&mut self, lhs: &str, rhs: &str, fields: &[String]) {
         for f in fields {
-            let l = if self.shared_names.contains(lhs) {
-                format!("__gs.{lhs}__{f}")
-            } else { format!("{lhs}__{f}") };
-            let r = if self.shared_names.contains(rhs) {
-                format!("__gs.{rhs}__{f}")
-            } else { format!("{rhs}__{f}") };
+            let lf = format!("{lhs}__{f}");
+            let l = if self.numeric_params.contains(&lf) {
+                format!("*{lf}")
+            } else if self.shared_names.contains(lhs) {
+                format!("__gs.{lf}")
+            } else { lf };
+            let rf = format!("{rhs}__{f}");
+            let r = if self.numeric_params.contains(&rf) {
+                format!("(*{rf})")
+            } else if self.shared_names.contains(rhs) {
+                format!("__gs.{rf}")
+            } else { rf };
             self.line(&format!("{l} = {r}.clone();"));
         }
     }
@@ -2787,8 +2852,10 @@ impl Emitter {
     /// Emit field-by-field copy from a typed array element to another typed array element.
     /// `lhs_arr`, `lhs_idx`: destination; `rhs_arr`, `rhs_idx`: source.
     /// All names are rust_ident-lowercase.
-    fn emit_typed_array_copy(&mut self, lhs_arr: &str, lhs_idx: &str,
-                                        rhs_arr: &str, rhs_idx: &str,
+    /// `lhs_sub` and `rhs_sub` are full bracket subscript strings, e.g.
+    /// `"[(x) as usize]"` or `"[(x) as usize][(y) as usize]"` for multi-dim arrays.
+    fn emit_typed_array_copy(&mut self, lhs_arr: &str, lhs_sub: &str,
+                                        rhs_arr: &str, rhs_sub: &str,
                                         fields: &[String])
     {
         for field in fields {
@@ -2800,57 +2867,72 @@ impl Emitter {
             } else { format!("{rhs_arr}__{field}") };
             // Use clone() for the rhs to avoid borrow issues with String fields
             self.line(&format!(
-                "{lhs_prefix}[({lhs_idx}) as usize] = {rhs_prefix}[({rhs_idx}) as usize].clone();"
+                "{lhs_prefix}{lhs_sub} = {rhs_prefix}{rhs_sub}.clone();"
             ));
         }
     }
 
     /// Emit field-by-field copy from a typed array element to a scalar TYPE variable.
-    fn emit_typed_arr_to_scalar(&mut self, scalar: &str, arr: &str, idx: &str, fields: &[String]) {
+    /// `sub` is the full bracket subscript string, e.g. `"[(x) as usize][(y) as usize]"`.
+    fn emit_typed_arr_to_scalar(&mut self, scalar: &str, arr: &str, sub: &str, fields: &[String]) {
         for field in fields {
             let arr_prefix = if self.shared_names.contains(arr) {
                 format!("__gs.{arr}__{field}")
             } else { format!("{arr}__{field}") };
+            let sf = format!("{scalar}__{field}");
+            let lhs = if self.numeric_params.contains(&sf) {
+                format!("*{sf}")
+            } else if self.shared_names.contains(scalar) {
+                format!("__gs.{sf}")
+            } else { sf };
             self.line(&format!(
-                "{scalar}__{field} = {arr_prefix}[({idx}) as usize].clone();"
+                "{lhs} = {arr_prefix}{sub}.clone();"
             ));
         }
     }
 
     /// Emit field-by-field copy from a scalar TYPE variable to a typed array element.
-    fn emit_scalar_to_typed_arr(&mut self, arr: &str, idx: &str, scalar: &str, fields: &[String]) {
+    /// `sub` is the full bracket subscript string.
+    fn emit_scalar_to_typed_arr(&mut self, arr: &str, sub: &str, scalar: &str, fields: &[String]) {
         for field in fields {
             let arr_prefix = if self.shared_names.contains(arr) {
                 format!("__gs.{arr}__{field}")
             } else { format!("{arr}__{field}") };
+            let sf = format!("{scalar}__{field}");
+            let rhs = if self.numeric_params.contains(&sf) {
+                format!("(*{sf})")
+            } else if self.shared_names.contains(scalar) {
+                format!("__gs.{sf}")
+            } else { sf };
             self.line(&format!(
-                "{arr_prefix}[({idx}) as usize] = {scalar}__{field}.clone();"
+                "{arr_prefix}{sub} = {rhs}.clone();"
             ));
         }
     }
 
     /// Emit field-by-field SWAP between two typed array elements.
-    fn emit_typed_array_swap(&mut self, arr_a: &str, idx_a: &str,
-                                       arr_b: &str, idx_b: &str,
+    /// `sub_a` and `sub_b` are full bracket subscript strings.
+    fn emit_typed_array_swap(&mut self, arr_a: &str, sub_a: &str,
+                                       arr_b: &str, sub_b: &str,
                                        fields: &[String])
     {
-        let same_arr = arr_a == arr_b;
         for field in fields {
             let prefix_a = if self.shared_names.contains(arr_a) {
                 format!("__gs.{arr_a}__{field}")
             } else { format!("{arr_a}__{field}") };
-            if same_arr {
-                // Vec::swap avoids the double-mutable-borrow error
-                self.line(&format!(
-                    "{prefix_a}.swap(({idx_a}) as usize, ({idx_b}) as usize);"
-                ));
+            let prefix_b = if self.shared_names.contains(arr_b) {
+                format!("__gs.{arr_b}__{field}")
+            } else { format!("{arr_b}__{field}") };
+            if arr_a == arr_b {
+                // Same Vec — use a temp to avoid the double-mutable-borrow error.
+                // f64 fields are Copy, String fields need clone/reassign.
+                let tc = self.lift_counter; self.lift_counter += 1;
+                self.line(&format!("{{ let __swap_tmp{tc} = {prefix_a}{sub_a}.clone();"));
+                self.line(&format!("  {prefix_a}{sub_a} = {prefix_b}{sub_b}.clone();"));
+                self.line(&format!("  {prefix_b}{sub_b} = __swap_tmp{tc}; }}"));
             } else {
-                let prefix_b = if self.shared_names.contains(arr_b) {
-                    format!("__gs.{arr_b}__{field}")
-                } else { format!("{arr_b}__{field}") };
                 self.line(&format!(
-                    "std::mem::swap(&mut {prefix_a}[({idx_a}) as usize], \
-                     &mut {prefix_b}[({idx_b}) as usize]);"
+                    "std::mem::swap(&mut {prefix_a}{sub_a}, &mut {prefix_b}{sub_b});"
                 ));
             }
         }
@@ -3033,17 +3115,34 @@ impl Emitter {
                             || self.array_names.contains(&name_lc));
                     if is_typed_arr {
                         if let Some(fields) = self.typed_fields.get(lower.as_str()).cloned() {
-                            // Hoist index to a temp — evaluated once for all fields
-                            let idx_val = self.lift_expr(&iargs[0]);
-                            let tc = self.lift_counter; self.lift_counter += 1;
-                            self.line(&format!("let __taidx{tc} = ({idx_val}) as usize;"));
-                            for field in &fields {
-                                let prefix = if in_shared {
-                                    format!("__gs.{lower}__{field}")
-                                } else {
-                                    format!("{lower}__{field}")
-                                };
-                                result.push(format!("&mut {prefix}[__taidx{tc}]"));
+                            // Hoist all indices to temps (one per dimension) evaluated
+                            // once and shared across all field accesses.
+                            let mut idx_temps: Vec<String> = Vec::new();
+                            for idx in iargs {
+                                let idx_val = self.lift_expr(idx);
+                                let tc = self.lift_counter; self.lift_counter += 1;
+                                self.line(&format!("let __taidx{tc} = ({idx_val}) as usize;"));
+                                idx_temps.push(format!("__taidx{tc}"));
+                            }
+                            let subscript: String = idx_temps.iter()
+                                .map(|t| format!("[{t}]"))
+                                .collect();
+                            if in_shared {
+                                // Shared TYPE array: borrow __gs whole for the call AND
+                                // its fields → conflict. Hoist each field to a temp and
+                                // write back after the call.
+                                for field in &fields {
+                                    let gs_path = format!("__gs.{lower}__{field}{subscript}");
+                                    let tc = self.lift_counter; self.lift_counter += 1;
+                                    let tmp = format!("__tmp_gs{tc}");
+                                    self.line(&format!("let mut {tmp} = {gs_path};"));
+                                    writebacks.push((gs_path, tmp.clone()));
+                                    result.push(format!("&mut {tmp}"));
+                                }
+                            } else {
+                                for field in &fields {
+                                    result.push(format!("&mut {lower}__{field}{subscript}"));
+                                }
                             }
                             continue;
                         }
@@ -3341,7 +3440,15 @@ impl Emitter {
                         };
                         let arr_lc = arr_name_raw.trim_end_matches("_s").to_string();
                         if self.shared_names.contains(&arr_lc) {
-                            let rname = if let Some(ty) = self.shared_types.get(&arr_lc) {
+                            // For TYPE arrays flattened to per-field Vecs, use the first
+                            // field Vec (all fields have the same length).
+                            let rname = if let Some(fields) = self.typed_fields.get(arr_lc.as_str()) {
+                                if let Some(f0) = fields.first() {
+                                    format!("{arr_lc}__{f0}")
+                                } else {
+                                    rust_ident_typed(&arr_lc, &self.shared_types.get(&arr_lc).cloned().unwrap_or(QbType::Single))
+                                }
+                            } else if let Some(ty) = self.shared_types.get(&arr_lc) {
                                 rust_ident_typed(&arr_lc, ty)
                             } else {
                                 arr_name_raw.clone()
@@ -3446,7 +3553,25 @@ impl Emitter {
                 self.line(&format!("let {tmp} = {call};"));
                 tmp
             }
-            // Literals and simple variable refs — safe to emit inline
+            // Zero-arg user FUNCTION referenced without parens (e.g. `ComputeMem` in
+            // `HEX$(ComputeMem)`) — emit_expr_inner would inline the call as
+            // `computemem(__rt, __gs)`, which double-borrows __rt/__gs when nested
+            // inside another __rt method call.  Hoist to a temp here, same as the
+            // Expr::Call branch above handles explicit `ComputeMem()`.
+            Expr::Var(LValue::Scalar { name, .. }) => {
+                let lower = rust_ident(name);
+                if self.user_fns.contains(&lower) && !self.user_subs.contains(&lower) {
+                    let rt = if self.in_main { "&mut __rt, &mut __gs" } else { "__rt, __gs" };
+                    let call = format!("{lower}({rt})");
+                    let tmp = format!("__tmp{}", self.lift_counter);
+                    self.lift_counter += 1;
+                    self.line(&format!("let {tmp} = {call};"));
+                    tmp
+                } else {
+                    self.emit_expr_inner(expr).unwrap_or_else(|_| "0.0".into())
+                }
+            }
+            // Literals and other simple refs — safe to emit inline
             _ => self.emit_expr_inner(expr).unwrap_or_else(|_| "0.0".into()),
         }
     }
@@ -3640,7 +3765,15 @@ impl Emitter {
                         };
                         let arr_name_lc = arr_name.to_lowercase();
                         if self.shared_names.contains(&arr_name_lc) {
-                            let rname = if let Some(ty) = self.shared_types.get(&arr_name_lc) {
+                            // For TYPE arrays flattened to per-field Vecs, use the first
+                            // field Vec (all fields have the same length).
+                            let rname = if let Some(fields) = self.typed_fields.get(arr_name.as_str()) {
+                                if let Some(f0) = fields.first() {
+                                    format!("{arr_name}__{f0}")
+                                } else {
+                                    rust_ident_typed(&arr_name, &self.shared_types.get(&arr_name_lc).cloned().unwrap_or(QbType::Single))
+                                }
+                            } else if let Some(ty) = self.shared_types.get(&arr_name_lc) {
                                 rust_ident_typed(&arr_name, ty)
                             } else {
                                 arr_name.clone()
@@ -4205,6 +4338,39 @@ fn collect_local_array_names(stmts: &[Stmt]) -> HashSet<String> {
                     if d.ty != QbType::String {
                         names.insert(d.name.to_lowercase());
                     }
+                }
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, names);
+                    for (_, b) in elseif_branches { visit(b, names); }
+                    if let Some(b) = else_body { visit(b, names); }
+                }
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } => {
+                    visit(body, names);
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, names); }
+                    if let Some(b) = default { visit(b, names); }
+                }
+                Stmt::Block(inner) => visit(inner, names),
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut names);
+    names
+}
+
+/// Collect bare-lowercase names of all explicit scalar DIM declarations
+/// (non-shared, non-array) in the given statement list.  Used to detect when
+/// a local `DIM B AS INTEGER` shadows a DIM SHARED string `B$` that shares
+/// the same base name after sigil-stripping.
+fn collect_local_dim_names(stmts: &[Stmt]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Dim(d) if d.dims.is_empty() && !d.shared => {
+                    names.insert(d.name.to_lowercase());
                 }
                 Stmt::If { then_body, elseif_branches, else_body, .. } => {
                     visit(then_body, names);
@@ -5338,6 +5504,7 @@ fn collect_dim_shared_names(stmts: &[Stmt]) -> HashSet<String> {
         for stmt in stmts {
             match stmt {
                 Stmt::Dim(d) if d.shared => { out.insert(rust_ident(&d.name)); }
+                Stmt::ReDim(d) if d.shared => { out.insert(rust_ident(&d.name)); }
                 Stmt::Block(inner) => visit(inner, out),
                 Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } =>
                     visit(body, out),

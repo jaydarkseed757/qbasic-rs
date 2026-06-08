@@ -56,10 +56,19 @@ fn main() -> Result<()> {
     let args = Args::parse();
     let total_start = Instant::now();
 
-    // 1. Read source — accept Latin-1 / CP437 files (like nibbles.bas) by
-    //    decoding each byte as its Unicode scalar value.
+    // 1. Read source.
+    //    • Try UTF-8 first so money.bas / other modern files with box-drawing
+    //      characters stored as proper Unicode are decoded correctly.
+    //    • Fall back to byte-per-char for genuine Latin-1 / CP437 files whose
+    //      raw bytes 0x80-0xFF would be invalid UTF-8 (like nibbles.bas with
+    //      raw DOS bytes in string literals).  In that mode every byte N maps
+    //      to U+00N0, which equals its CP437 glyph index in FONT_8X8.
     let raw_bytes = std::fs::read(&args.input)?;
-    let source: String = raw_bytes.iter().map(|&b| b as char).collect();
+    let source: String = if let Ok(s) = std::str::from_utf8(&raw_bytes) {
+        s.to_owned()
+    } else {
+        raw_bytes.iter().map(|&b| b as char).collect()
+    };
     let src_bytes  = raw_bytes.len();
     let src_lines  = source.lines().count();
     let blank_lines   = source.lines().filter(|l| l.trim().is_empty()).count();

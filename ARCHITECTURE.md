@@ -154,8 +154,10 @@ its source line number for error reporting.
 
 **Key behaviors:**
 
-- **CP437 / Latin-1 safe** — source bytes are decoded as `b as char` so
-  extended characters in old `.bas` files don't cause UTF-8 errors.
+- **CP437 / Latin-1 safe** — `main.rs` tries `std::str::from_utf8()` first
+  (for modern UTF-8–saved files like `money.bas`); falls back to `byte as char`
+  for genuine DOS CP437 files, so extended characters (box-drawing, block
+  elements) don't cause UTF-8 errors.
 - **Case-insensitive** — all identifiers are uppercased for keyword lookup;
   original casing is preserved in `Ident(word)` for variable names.
 - **Sigils** — `$`, `%`, `!`, `#`, `&` immediately following an identifier
@@ -916,6 +918,36 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M14 — money.bas full support: binary I/O, CP437 font, INPUT# trim ✅
+Full end-to-end support for `money.bas` (Microsoft 1990 money manager) including
+binary random-access I/O, extended ASCII rendering, and numeric save/load
+round-trip (build-all 33/34).
+
+- **UTF-8 source decoding** (`src/main.rs`) — source reader tries `from_utf8()`
+  first, falls back to `byte as char` for CP437/Latin-1 DOS files.
+- **CP437 / extended ASCII font** — `FONT_8X8` extended from 128 → 256 entries
+  (box-drawing 0x80–0xFF: `─ │ ┌ ┐ └ ┘ ├ ┤ ┬ ┴ ┼ █ ▓ ▒ ░` etc.).
+  `draw_char_fb` uses the full code-point index instead of `& 0x7F`.
+- **Latin-1 binary encoding** — `MKD$`/`CVD`, `MKI$`/`CVI`, `MKS$`/`CVS`,
+  `MKL$`/`CVL` encode IEEE 754 LE bytes as Latin-1 chars; `qb_lset`/`qb_rset`
+  use `.chars().count()` for correct binary-string padding; `qb_field_get`/
+  `qb_field_put` share the same encoding. INTEGER/LONG/fixed-STRING fields are
+  byte-exact with DOS QBasic 1.1.
+- **`INPUT #n` numeric parse trim** — `qb_print_num` emits `" N "` (QB leading-
+  space convention); added `.trim()` before `.parse()` in both `INPUT #n, numVar`
+  (file) and interactive `INPUT numVar`. Root cause of the "black menu" symptom:
+  `colorpref` parsed as 0.0 → `colors[x][0]` (unpopulated) → black-on-black.
+- **`local_dim_names`** — `HashSet<String>` tracks explicit `DIM` declarations
+  per scope to prevent a local numeric `B` from being shadowed by a promoted
+  shared string `B$`. Type-aware exclusion: strings by typed name (`b_s`),
+  numerics by bare name (`b`).
+- **Parser additions** — `ON KEY(n) GOSUB/GOTO`, `KEY(n) ON/OFF/STOP`,
+  `TIMER ON/OFF/STOP` → no-ops; `CLEAR` → no-op; `REDIM SHARED` propagates
+  `shared=true`; removed dead duplicate FIELD handler (41 lines) that shadowed
+  `parse_field()` and discarded field-length info.
+- **`pokemix.bas`** and **`qmaze.bas`** — two new bundled programs; both pass
+  build-all with no additional transpiler changes.
+
 ### M13 — GW-BASIC line continuation, POKE/PEEK memory ✅
 Physical-line continuation support for GW-BASIC programs plus real POKE/PEEK
 byte-accurate memory (build-all 31/32).
@@ -1046,10 +1078,15 @@ Sequential files (`FOR INPUT/OUTPUT/APPEND`): `OPEN`, `CLOSE`, `INPUT #n`,
 `LINE INPUT #n`, `PRINT #n`, `WRITE #n`. Random-access files (`FOR RANDOM`):
 `FIELD`, `GET #n`, `PUT #n`, `LSET`, `RSET`. Binary type conversions: `MKD$`,
 `MKI$`, `MKS$`, `MKL$`, `CVD`, `CVI`, `CVS`, `CVL` (IEEE 754 little-endian).
-`qb_lset`/`qb_rset` free functions pad/truncate to field length.
-`qb_field_get`/`qb_field_put` slice record buffers for GET/PUT.
-FIELD variable declarations collected into `emit_locals` so field vars are
-pre-declared as `String` locals. Test program: money.bas (Microsoft 1990).
+`qb_lset`/`qb_rset` free functions pad/truncate to field length using
+`.chars().count()` for correct binary-string handling. `qb_field_get`/
+`qb_field_put` encode/decode field bytes as Latin-1 chars (byte `b` ↔
+`char::from_u32(b as u32)`) so the 8-bit byte values of `MKD$` binary strings
+round-trip through QB string variables correctly. FIELD variable declarations
+collected into `emit_locals` so field vars are pre-declared as `String` locals.
+`INPUT #n, numVar` emits `.trim().parse()` so QB's leading-space numeric format
+(`qb_print_num` → `" N "`) round-trips through save/load correctly.
+Test program: money.bas (Microsoft 1990).
 
 ### M7 — User-defined TYPE completeness ✅
 Recursive TYPE flattening (`flatten_type_fields`): nested TYPEs to arbitrary
@@ -1064,13 +1101,13 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is 31/32 (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is 33/34 (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, loopyloop,
-pixel-gw, evil, pokeit, demo1; `kitchen_sink-qbasic` is the one remaining
-failure). The integration suite is **27/27**, with 71 runtime unit tests and
-5 graphics golden tests.
+pixel-gw, evil, pokeit, demo1, pokemix, qmaze; `kitchen_sink-qbasic` is the one
+remaining failure). The integration suite is **27/27**, with 84 runtime unit tests
+and 5 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:
 

@@ -589,6 +589,25 @@ impl Parser {
                     while !self.at_eol() { self.advance(); } // consume any trailing tokens
                     return Ok(Some(Stmt::OnError { label }));
                 }
+                // ON KEY(n) GOSUB / ON TIMER(n) GOSUB — QB event traps; no-op.
+                // Peek to see if the identifier is KEY or TIMER followed by '('.
+                let is_event_trap = if let Token::Ident(ref s) = self.peek().clone() {
+                    let su = s.to_uppercase();
+                    (su == "KEY" || su == "TIMER") && {
+                        // peek one more: is there a '(' next?
+                        let saved = self.pos;
+                        self.advance(); // consume KEY/TIMER
+                        let has_paren = self.peek() == &Token::LParen;
+                        self.pos = saved; // restore
+                        has_paren
+                    }
+                } else {
+                    false
+                };
+                if is_event_trap {
+                    while !self.at_eol() { self.advance(); }
+                    return Ok(Some(Stmt::Block(vec![])));
+                }
                 // ON <expr> (GOTO|GOSUB) label, label, … — computed branch.
                 let expr = self.parse_expr()?;
                 let is_gosub = matches!(self.peek(), Token::Gosub);
@@ -653,51 +672,11 @@ impl Parser {
                 while !self.at_eol() { self.advance(); }
                 return Ok(None);
             }
-            // FIELD #n, width AS Var$, ... — declare the string buffer variables
-            Token::Ident(ref s) if s.eq_ignore_ascii_case("FIELD") => {
-                // Skip up to the first comma (skips #n and optional RANDOM/binary info)
-                while !self.at_eol() {
-                    if matches!(self.peek(), Token::Comma) { self.advance(); break; }
-                    self.advance();
-                }
-                // Parse "width AS VarName$" pairs
-                let mut decls: Vec<Stmt> = Vec::new();
-                while !self.at_eol() {
-                    // skip width expression (anything up to AS or EOL)
-                    while !self.at_eol() {
-                        if matches!(self.peek(), Token::Ident(ref s) if s.eq_ignore_ascii_case("AS")) {
-                            break;
-                        }
-                        self.advance();
-                    }
-                    if self.at_eol() { break; }
-                    self.advance(); // consume AS
-                    // FIELD vars may be lexed as IdentStr (IoDate$→IdentStr("IoDate")),
-                    // IdentInt, IdentDbl, or plain Ident. Handle all sigil variants.
-                    let (vname_raw, ty) = match self.peek().clone() {
-                        Token::IdentStr(n) => (n.clone(), QbType::String),
-                        Token::IdentInt(n) => (n.clone(), QbType::Integer),
-                        Token::IdentDbl(n) => (n.clone(), QbType::Double),
-                        Token::IdentSng(n) => (n.clone(), QbType::Single),
-                        Token::Ident(n)    => (n.clone(), QbType::String), // undecorated → treat as string buffer
-                        _ => { if matches!(self.peek(), Token::Comma) { self.advance(); } continue; }
-                    };
-                    self.advance(); // consume variable name
-                    // Store the name WITHOUT sigil so rust_ident_typed can handle it uniformly
-                    decls.push(Stmt::Dim(VarDecl {
-                        name: vname_raw.clone(),
-                        ty,
-                        dims: Vec::new(),
-                        dim_lower: Vec::new(),
-                        shared: false,
-                    }));
-                    if matches!(self.peek(), Token::Comma) { self.advance(); }
-                }
-                if decls.is_empty() { return Ok(None); }
-                if decls.len() == 1 { return Ok(Some(decls.remove(0))); }
-                return Ok(Some(Stmt::Block(decls)));
+            // CLEAR [, [expr] [, expr]] — QB memory/stack init; no-op for us (skip)
+            Token::Ident(ref s) if s.eq_ignore_ascii_case("CLEAR") => {
+                while !self.at_eol() { self.advance(); }
+                return Ok(None);
             }
-
             // File I/O statements
             Token::Ident(ref s) if s.eq_ignore_ascii_case("OPEN") => {
                 self.advance();
@@ -936,12 +915,14 @@ impl Parser {
     fn parse_redim(&mut self) -> Result<Stmt> {
         self.expect(&Token::ReDim)?;
         if self.peek() == &Token::Preserve { self.advance(); }
-        let first = Stmt::ReDim(self.parse_var_decl(false)?);
+        // REDIM SHARED name(...) — treat as shared DIM (marks the array as shared)
+        let shared = if self.peek() == &Token::Shared { self.advance(); true } else { false };
+        let first = Stmt::ReDim(self.parse_var_decl(shared)?);
         if self.peek() != &Token::Comma { return Ok(first); }
         let mut stmts = vec![first];
         while self.peek() == &Token::Comma {
             self.advance();
-            stmts.push(Stmt::ReDim(self.parse_var_decl(false)?));
+            stmts.push(Stmt::ReDim(self.parse_var_decl(shared)?));
         }
         Ok(Stmt::Block(stmts))
     }
@@ -1089,6 +1070,21 @@ impl Parser {
                 let expr = self.parse_expr()?;
                 Ok(Stmt::Let { var: LValue::Index { name, ty, indices: exprs }, expr })
             } else {
+                // KEY(n) ON/OFF/STOP — QB key-event enable/disable; no-op.
+                if name.to_uppercase() == "KEY"
+                    && matches!(self.peek(), Token::On | Token::Stop)
+                {
+                    while !self.at_eol() { self.advance(); }
+                    return Ok(Stmt::Block(vec![]));
+                }
+                if name.to_uppercase() == "KEY" {
+                    if let Token::Ident(ref s) = self.peek().clone() {
+                        if s.to_uppercase() == "OFF" {
+                            while !self.at_eol() { self.advance(); }
+                            return Ok(Stmt::Block(vec![]));
+                        }
+                    }
+                }
                 // sub call with parenthesized args
                 Ok(Stmt::Call { name, args: exprs })
             }
@@ -1116,6 +1112,23 @@ impl Parser {
             // sub call without parens: SubName arg1, arg2
             let mut args = Vec::new();
             if !self.at_eol() {
+                // TIMER ON/OFF/STOP — QB timer interrupt control; skip (no-op).
+                // Detected here (not in parse_stmt match) because TIMER is also a
+                // runtime function and can't be a dedicated keyword in parse_stmt.
+                if name.to_uppercase() == "TIMER"
+                    && matches!(self.peek(), Token::On | Token::Stop)
+                {
+                    while !self.at_eol() { self.advance(); }
+                    return Ok(Stmt::Block(vec![]));
+                }
+                if name.to_uppercase() == "TIMER" {
+                    if let Token::Ident(s) = self.peek().clone() {
+                        if s.to_uppercase() == "OFF" {
+                            while !self.at_eol() { self.advance(); }
+                            return Ok(Stmt::Block(vec![]));
+                        }
+                    }
+                }
                 args.push(self.parse_expr()?);
                 while self.peek() == &Token::Comma {
                     self.advance();
@@ -1792,10 +1805,12 @@ impl Parser {
     fn parse_randomize(&mut self) -> Result<Stmt> {
         self.expect(&Token::Randomize)?;
         if self.at_eol() { return Ok(Stmt::Randomize(None)); }
-        // RANDOMIZE TIMER is a common idiom — map to randomize_timer()
+        // RANDOMIZE TIMER [MOD n] is a common idiom — map to randomize_timer()
+        // (any optional modifier after TIMER is consumed and ignored)
         if let Token::Ident(s) = self.peek().clone() {
             if s.to_uppercase() == "TIMER" {
                 self.advance();
+                while !self.at_eol() { self.advance(); } // consume optional MOD n etc.
                 return Ok(Stmt::Randomize(None));
             }
         }

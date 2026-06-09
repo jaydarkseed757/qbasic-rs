@@ -734,6 +734,14 @@ impl Runtime {
                 }
             }
         }
+        // QBC_PACE overrides the compile-time REM QBC PACE pragma at run-time
+        // so you can slow circle/pixel drawing without recompiling:
+        //   QBC_PACE=30 ./bin/gorilla
+        if let Ok(v) = std::env::var("QBC_PACE") {
+            if let Ok(fps) = v.trim().parse::<f64>() {
+                rt.set_pace(fps);
+            }
+        }
         rt
     }
 
@@ -2087,6 +2095,10 @@ impl Runtime {
             self.last_present = now;
         } else {
             self.pump_events();
+            // Yield 1 ms so INKEY$-based busy-wait loops (e.g. gorilla's
+            // Rest() SUB) don't spin the CPU at 100% and so their timer
+            // checks are accurate to ~1 ms rather than sub-microsecond.
+            std::thread::sleep(std::time::Duration::from_millis(1));
         }
         match self.key_queue.pop_front() {
             Some(k) if k == "\u{0}" => "".to_string(), // DRAIN sentinel → "" (stops drain loops)

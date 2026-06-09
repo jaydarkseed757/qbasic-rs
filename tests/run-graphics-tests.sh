@@ -74,6 +74,10 @@ TESTS=(
     # stop the WHILE INKEY$<>"":WEND drain-loops in SparklePause and GetNum#.
     # presents:80 always lands on a mid-flight frame with seed 42.
     "gorilla|42|DRAIN,ENTER,ENTER,ENTER,1,ENTER,9.8,ENTER,P,DRAIN,4,5,ENTER,DRAIN,5,0,ENTER|presents:80"
+    # donkey: SCREEN 1 (CGA), DRAIN stops title-screen buffer flush, SPACE
+    # continues past the title.  presents:10 captures road + car + donkey all
+    # visible in their seed-42 positions.
+    "donkey|42|DRAIN,SPACE|presents:10"
 )
 
 echo "Building runtime + transpiler (release)..."

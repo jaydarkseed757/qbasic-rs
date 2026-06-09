@@ -2903,6 +2903,26 @@ pub fn qb_val(s: &str) -> f64 {
     // QB VAL parses the longest valid numeric prefix (after leading whitespace)
     // and ignores the rest. A sign/exponent char is only valid in its grammatical
     // position — e.g. VAL("1-2") = 1, VAL("12e") = 12, VAL("-.5") = -0.5.
+    //
+    // Also handles QB hex/octal prefixes:
+    //   &H or &h  →  parse hex digits that follow
+    //   &O or &o  →  parse octal digits that follow
+    let trimmed = s.trim_start();
+    if trimmed.starts_with("&H") || trimmed.starts_with("&h") {
+        let hex = &trimmed[2..];
+        let end = hex.bytes().take_while(|b| b.is_ascii_hexdigit()).count();
+        return if end > 0 {
+            i64::from_str_radix(&hex[..end], 16).unwrap_or(0) as f64
+        } else { 0.0 };
+    }
+    if trimmed.starts_with("&O") || trimmed.starts_with("&o") {
+        let oct = &trimmed[2..];
+        let end = oct.bytes().take_while(|b| matches!(b, b'0'..=b'7')).count();
+        return if end > 0 {
+            i64::from_str_radix(&oct[..end], 8).unwrap_or(0) as f64
+        } else { 0.0 };
+    }
+
     let bytes = s.trim_start().as_bytes();
     let mut i = 0;
     let n = bytes.len();
@@ -3367,6 +3387,12 @@ mod numeric_tests {
         assert_eq!(qb_val("-.5"), -0.5);
         assert_eq!(qb_val("1.5e3"), 1500.0);
         assert_eq!(qb_val("2E-2"), 0.02);
+        // hex / octal prefixes
+        assert_eq!(qb_val("&H6F"), 111.0);
+        assert_eq!(qb_val("&hFF"), 255.0);
+        assert_eq!(qb_val("&H0"),  0.0);
+        assert_eq!(qb_val("&O10"), 8.0);
+        assert_eq!(qb_val("&o77"), 63.0);
     }
     #[test]
     fn val_stops_at_invalid_chars() {

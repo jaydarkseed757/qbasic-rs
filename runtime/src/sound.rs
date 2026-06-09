@@ -197,19 +197,20 @@ pub fn parse_mml(mml: &str, state: &mut MmlState) -> Vec<PlayEvent> {
 // ── Frequency helpers ─────────────────────────────────────────────────────────
 
 /// Semitone offset from C (0=C, 1=C#, …, 11=B) in given QB octave → Hz.
-/// QB octave 4: A4 = 440 Hz, C4 = 261.63 Hz.
+/// QB octave 3: middle C (O3 C = 261.63 Hz), concert A (O3 A = 440 Hz).
+/// N37 = middle C = O3 C; N46 = O3 A = 440 Hz. O4 A = 880 Hz.
 fn semitone_to_freq(octave: i32, semitone: i32) -> f32 {
-    // Semitones above A4 (octave 4, note A = semitone 9)
-    let a4_semitone = 4 * 12 + 9; // 57
+    // A440 lives at QB O3 A (octave=3, semitone=9 → abs=45)
+    let a440_abs = 3 * 12 + 9; // 45
     let abs_semitone = octave * 12 + semitone;
-    440.0_f32 * 2.0_f32.powf((abs_semitone - a4_semitone) as f32 / 12.0)
+    440.0_f32 * 2.0_f32.powf((abs_semitone - a440_abs) as f32 / 12.0)
 }
 
 /// QB PLAY N command: absolute note number 1–84 → Hz.
-/// N1 = A0 (27.5 Hz), N49 = A4 (440 Hz).
+/// N1 = O0 C (32.7 Hz), N37 = middle C (261.63 Hz), N46 = A440.
 fn note_num_to_freq(n: i32) -> f32 {
-    // N49 = A4 = 440 Hz
-    440.0_f32 * 2.0_f32.powf((n - 49) as f32 / 12.0)
+    // N46 = O3 A = 440 Hz (concert A in QB octave 3)
+    440.0_f32 * 2.0_f32.powf((n - 46) as f32 / 12.0)
 }
 
 // ── Playback ──────────────────────────────────────────────────────────────────
@@ -237,7 +238,11 @@ fn events_to_pcm(events: &[PlayEvent]) -> Vec<f32> {
                 } else {
                     1.0
                 };
-                samples.push((phase * std::f64::consts::TAU).sin() as f32 * amp * 0.25);
+                // Sawtooth wave: harmonically rich like the original PC speaker.
+                // A 65 Hz sawtooth has audible harmonics at 130, 260, 520 Hz even
+                // when the fundamental is below laptop-speaker cutoff (~200 Hz).
+                let sample = (phase * 2.0 - 1.0) as f32;
+                samples.push(sample * amp * 0.20); // slightly lower amp than sine (sawtooth is louder)
                 phase = (phase + phase_step).fract();
             }
         }

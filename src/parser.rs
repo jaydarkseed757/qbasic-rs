@@ -451,6 +451,11 @@ impl Parser {
             Token::For    => self.parse_for(),
             Token::While  => self.parse_while(),
             Token::Do     => self.parse_do(),
+            // Bare LOOP outside any DO block (QB64/GW-BASIC extension — LOOP used
+            // as a "restart enclosing loop" continue).  The real closing LOOP of a
+            // DO…LOOP is consumed directly by parse_do's expect(), so only a
+            // genuinely unmatched LOOP ever reaches parse_stmt.  Treat as no-op.
+            Token::Loop   => { self.advance(); Ok(Stmt::Block(vec![])) }
             Token::Select => self.parse_select(),
             Token::Goto   => { self.advance(); Ok(Stmt::Goto(self.parse_label()?)) }
             Token::Gosub  => { self.advance(); Ok(Stmt::Gosub(self.parse_label()?)) }

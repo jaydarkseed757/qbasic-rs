@@ -390,6 +390,12 @@ impl Emitter {
         for name in &cross {
             self.shared_names.insert(name.clone());
             self.promoted_arrays.insert(name.clone());
+            // Also populate shared_types so emit_expr_inner and emit_game_state can use
+            // the correct type (e.g. String → _s suffix, correct Vec element in GameState).
+            if let Some(sym) = prog.global_scope.symbols.values()
+                                    .find(|s| rust_ident(&s.name) == *name) {
+                self.shared_types.insert(name.clone(), sym.ty.clone());
+            }
         }
 
         // Collect all parameter names from named SUBs/FUNCTIONs so we can exclude
@@ -637,7 +643,17 @@ impl Emitter {
             .collect();
         promoted.sort();
         for name in &promoted {
-            fields.push(format!("{name}: Vec<f64>,"));
+            // Look up the original type and dimensionality from the scope symbols
+            // so string arrays get _s suffix and multi-dim arrays get Vec<Vec<…>>.
+            let (field_name, elem_ty_str, ndims) = scope.symbols.values()
+                .find(|s| rust_ident(&s.name) == *name)
+                .map(|sym| {
+                    let field = rust_ident_typed(&sym.name, &sym.ty);
+                    let elem  = qb_type_to_rust(&sym.ty);
+                    (field, elem, sym.dims.max(1))
+                })
+                .unwrap_or_else(|| (name.clone(), "f64", 1));
+            fields.push(format!("{field_name}: {},", nested_vec_type(elem_ty_str, ndims)));
         }
 
         // Promoted scalars: cross GOSUB boundary, not already in global_scope as DIM SHARED
@@ -1757,7 +1773,14 @@ impl Emitter {
                 for (i, label) in labels.iter().enumerate() {
                     self.line(&format!("{} => {{", i + 1));
                     self.indent();
-                    if *is_gosub {
+                    // Use Gosub if: (a) explicitly ON GOSUB, or (b) the named
+                    // label was extracted as a GOSUB fn (user_fns has it) — this
+                    // handles the `ON x GOTO Named_label` → fn call rewrite.
+                    // Numeric GOTO targets remain GOTOs (state machine arms).
+                    let treat_as_gosub = *is_gosub ||
+                        (label.parse::<u32>().is_err()
+                         && self.user_fns.contains(&rust_ident(label)));
+                    if treat_as_gosub {
                         self.emit_stmt(&Stmt::Gosub(label.clone()))?;
                     } else {
                         self.emit_stmt(&Stmt::Goto(label.clone()))?;
@@ -3277,9 +3300,13 @@ impl Emitter {
         match expr {
             Expr::Call { name, args } => {
                 let lower = rust_ident(name); // sigil-stripped lowercase
-                let name_lc = name.to_lowercase();
+                let name_lc = name.to_lowercase(); // full lowercase WITH sigil, for built-in checks
+                // Sigil-stripped bare name for array-vs-function disambiguation:
+                // Expr::Call stores the full name-with-sigil ("Names$") while
+                // shared_names/array_names keys are sigil-free ("names").
+                let name_bare = name.trim_end_matches(['$', '%', '!', '#', '&']).to_lowercase();
                 // Array access — not a fn call, emit directly
-                if (self.shared_names.contains(&name_lc) && self.array_names.contains(&name_lc))
+                if (self.shared_names.contains(&name_bare) && self.array_names.contains(&name_bare))
                     || self.local_arrays.contains(&lower)
                     || self.array_params.contains(&lower)
                 {
@@ -3787,14 +3814,17 @@ impl Emitter {
 
                 // Array disambiguation: shared array or local/param array.
                 // Wasted-slots: raw QB index is used directly as the Vec index.
-                let name_lc = name.to_lowercase();
-                if self.shared_names.contains(&name_lc) && self.array_names.contains(&name_lc) {
+                // Use a sigil-stripped bare name for set lookups: Expr::Call stores the
+                // full name-with-sigil ("Names$") while shared_names/array_names keys are
+                // sigil-free ("names") — from VarDecl.name which is stripped at parse time.
+                let name_bare = name.trim_end_matches(['$', '%', '!', '#', '&']).to_lowercase();
+                if self.shared_names.contains(&name_bare) && self.array_names.contains(&name_bare) {
                     let idx: Vec<_> = args.iter()
                         .map(|e| self.emit_expr_inner(e).unwrap())
                         .collect();
                     let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
                     // Use typed name so string arrays get _s suffix
-                    let rname = if let Some(ty) = self.shared_types.get(&name_lc) {
+                    let rname = if let Some(ty) = self.shared_types.get(&name_bare) {
                         rust_ident_typed(name, ty)
                     } else {
                         lower.clone()
@@ -4932,6 +4962,16 @@ fn collect_gosub_targets(stmts: &[Stmt]) -> HashSet<String> {
             Stmt::OnGoto { labels, is_gosub: true, .. } => {
                 for l in labels { targets.insert(l.clone()); }
             }
+            // Named ON GOTO targets are also extracted as GOSUB fns so the emitter
+            // can convert `ON x GOTO Label` into a direct fn call (Fix 3 in
+            // emit_stmt).  Numeric labels must stay in the __pc state machine.
+            Stmt::OnGoto { labels, is_gosub: false, .. } => {
+                for l in labels {
+                    if l.parse::<u32>().is_err() {
+                        targets.insert(l.clone());
+                    }
+                }
+            }
             Stmt::If { then_body, elseif_branches, else_body, .. } => {
                 targets.extend(collect_gosub_targets(then_body));
                 for (_, eb) in elseif_branches { targets.extend(collect_gosub_targets(eb)); }
@@ -5319,16 +5359,27 @@ fn detect_cross_boundary_arrays(
     for (_, body) in gosub_fns {
         let gosub_arrays = collect_array_names_stmts(body);
         // Any name that appears in BOTH main and this GOSUB body is cross-boundary
+        // (catches arrays DIM'd in both scopes, e.g. old-style GOSUB subroutines
+        //  that also DIM their own array).
         for name in gosub_arrays.intersection(&main_arrays) {
             result.insert(name.clone());
         }
-        // Also: anything DIM'd only inside the GOSUB that appears in main
-        // (the intersection above already catches this)
+        // Also find array USES in the GOSUB body (subscript reads/writes like
+        // Numbers(I)) by scanning for Expr::Call with non-empty args where the
+        // name matches a known main-body array.  This handles ON GOTO→fn targets
+        // that use main-body arrays without re-declaring them.
+        let mut uses = HashSet::new();
+        collect_array_use_refs_stmts(body, &main_arrays, &mut uses);
+        result.extend(uses);
     }
 
     // Cross-references between two different GOSUB blocks
     let gosub_array_sets: Vec<HashSet<String>> =
-        gosub_fns.iter().map(|(_, b)| collect_array_names_stmts(b)).collect();
+        gosub_fns.iter().map(|(_, b)| {
+            let mut s = collect_array_names_stmts(b);
+            collect_array_use_refs_stmts(b, &main_arrays, &mut s);
+            s
+        }).collect();
     for i in 0..gosub_array_sets.len() {
         for j in (i + 1)..gosub_array_sets.len() {
             for name in gosub_array_sets[i].intersection(&gosub_array_sets[j]) {
@@ -5338,6 +5389,111 @@ fn detect_cross_boundary_arrays(
     }
 
     result
+}
+
+/// Collect names of subscript-accessed arrays in `stmts`, filtered to only
+/// names that are already known to be arrays (present in `known_arrays`).
+/// This avoids promoting plain function calls (e.g. `factorial(n)`) — only
+/// calls whose name is a confirmed array declaration are collected.
+fn collect_array_use_refs_stmts(stmts: &[Stmt], known_arrays: &HashSet<String>,
+                                 out: &mut HashSet<String>) {
+    for stmt in stmts {
+        collect_array_use_refs_stmt(stmt, known_arrays, out);
+    }
+}
+
+fn collect_array_use_refs_stmt(stmt: &Stmt, known_arrays: &HashSet<String>,
+                                out: &mut HashSet<String>) {
+    // Helper to recurse into an expression
+    fn scan_expr(e: &Expr, ka: &HashSet<String>, out: &mut HashSet<String>) {
+        match e {
+            Expr::Call { name, args } if !args.is_empty() => {
+                // Strip sigil chars ($, %, !, #, &) before lowercasing: Expr::Call
+                // stores the full name-with-sigil (e.g. "Names$") while known_arrays
+                // keys are sigil-free (DIM VarDecl.name strips the sigil at parse time).
+                let bare = name.trim_end_matches(['$', '%', '!', '#', '&']).to_lowercase();
+                if ka.contains(&bare) { out.insert(bare); }
+                for a in args { scan_expr(a, ka, out); }
+            }
+            Expr::Call { args, .. } => {
+                for a in args { scan_expr(a, ka, out); }
+            }
+            Expr::BinOp { lhs, rhs, .. } => { scan_expr(lhs, ka, out); scan_expr(rhs, ka, out); }
+            Expr::UnOp  { operand, .. }   => scan_expr(operand, ka, out),
+            _ => {}
+        }
+    }
+    // Helper to recurse into an LValue
+    fn scan_lv(lv: &LValue, ka: &HashSet<String>, out: &mut HashSet<String>) {
+        match lv {
+            LValue::Index { name, indices, .. } => {
+                let n = rust_ident(name);
+                if ka.contains(&n) { out.insert(n); }
+                for e in indices { scan_expr(e, ka, out); }
+            }
+            LValue::Field { base, .. } => scan_lv(base, ka, out),
+            _ => {}
+        }
+    }
+
+    match stmt {
+        Stmt::Let { var, expr }     => { scan_lv(var, known_arrays, out); scan_expr(expr, known_arrays, out); }
+        Stmt::LSet { var, expr } | Stmt::RSet { var, expr } => {
+            scan_lv(var, known_arrays, out); scan_expr(expr, known_arrays, out);
+        }
+        Stmt::Print { args, .. } | Stmt::PrintFile { args, .. } => {
+            for a in args {
+                if let PrintArg::Expr(e) | PrintArg::Tab(e) | PrintArg::Spc(e) = a {
+                    scan_expr(e, known_arrays, out);
+                }
+            }
+        }
+        Stmt::PrintUsing { fmt, args, .. } => {
+            scan_expr(fmt, known_arrays, out);
+            for e in args { scan_expr(e, known_arrays, out); }
+        }
+        Stmt::Input  { vars, .. } => { for lv in vars { scan_lv(lv, known_arrays, out); } }
+        Stmt::Read   (vars)       => { for lv in vars { scan_lv(lv, known_arrays, out); } }
+        Stmt::Call   { args, .. } => { for e in args { scan_expr(e, known_arrays, out); } }
+        Stmt::If { cond, then_body, elseif_branches, else_body } => {
+            scan_expr(cond, known_arrays, out);
+            collect_array_use_refs_stmts(then_body, known_arrays, out);
+            for (ec, b) in elseif_branches {
+                scan_expr(ec, known_arrays, out);
+                collect_array_use_refs_stmts(b, known_arrays, out);
+            }
+            if let Some(b) = else_body { collect_array_use_refs_stmts(b, known_arrays, out); }
+        }
+        Stmt::For { from, to, step, body, .. } => {
+            scan_expr(from, known_arrays, out);
+            scan_expr(to,   known_arrays, out);
+            if let Some(s) = step { scan_expr(s, known_arrays, out); }
+            collect_array_use_refs_stmts(body, known_arrays, out);
+        }
+        Stmt::While { cond, body } => {
+            scan_expr(cond, known_arrays, out);
+            collect_array_use_refs_stmts(body, known_arrays, out);
+        }
+        Stmt::Do { kind, body } => {
+            match kind {
+                DoKind::WhilePre(e) | DoKind::UntilPre(e) |
+                DoKind::WhilePost(e) | DoKind::UntilPost(e) => scan_expr(e, known_arrays, out),
+                DoKind::Infinite => {}
+            }
+            collect_array_use_refs_stmts(body, known_arrays, out);
+        }
+        Stmt::Select { expr, cases, default } => {
+            scan_expr(expr, known_arrays, out);
+            for c in cases { collect_array_use_refs_stmts(&c.body, known_arrays, out); }
+            if let Some(b) = default { collect_array_use_refs_stmts(b, known_arrays, out); }
+        }
+        Stmt::Block(inner)  => collect_array_use_refs_stmts(inner, known_arrays, out),
+        Stmt::Dim(d) | Stmt::ReDim(d) if !d.dims.is_empty() => {
+            for e in &d.dims      { scan_expr(e, known_arrays, out); }
+            for e in &d.dim_lower { scan_expr(e, known_arrays, out); }
+        }
+        _ => {}
+    }
 }
 
 // ── State-machine helpers ─────────────────────────────────────────────────────

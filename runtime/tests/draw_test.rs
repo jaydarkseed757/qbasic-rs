@@ -137,14 +137,24 @@ fn test_mml_parse_basic() {
     // Default state: O4, L4, T120
     let mut state = default_mml_state();
 
-    // "O4L4A" — A4, quarter note at 120 BPM = 500ms
-    let events = parse_mml_test("O4L4A", &mut state);
+    // QB O3 A = concert A (440 Hz). O3 is QB's "middle" octave (middle C = O3 C).
+    let events = parse_mml_test("O3L4A", &mut state);
     assert_eq!(events.len(), 2); // note + rest (MN style: 7/8 sound, 1/8 rest)
     let (freq, dur) = events[0];
-    assert!((freq - 440.0).abs() < 1.0, "A4 should be ~440 Hz, got {}", freq);
+    assert!((freq - 440.0).abs() < 1.0, "O3 A should be ~440 Hz (concert A), got {}", freq);
     assert!((dur as f64 - 437.5).abs() < 5.0, "Quarter at 120 BPM ≈ 437ms sound, got {}", dur);
 
-    // "O4L4A" played again — state preserved, no MB flag
+    // O3 C = middle C (261.63 Hz)
+    let events = parse_mml_test("O3L4C", &mut state);
+    let (freq, _) = events[0];
+    assert!((freq - 261.63).abs() < 1.0, "O3 C should be middle C ~261.63 Hz, got {}", freq);
+
+    // O4 A = 880 Hz (one octave above concert A)
+    let events = parse_mml_test("O4L4A", &mut state);
+    let (freq, _) = events[0];
+    assert!((freq - 880.0).abs() < 1.0, "O4 A should be 880 Hz, got {}", freq);
+
+    // state preserved, no MB flag
     assert!(!state.background);
 
     // "MBT120O0L32E" — background mode, O0, L32, E note
@@ -154,8 +164,9 @@ fn test_mml_parse_basic() {
     assert_eq!(state.length, 32);
     assert!(!events.is_empty());
     let (freq, _) = events[0];
-    // E0 should be very low (~20.6 Hz)
-    assert!(freq < 30.0, "E0 should be <30 Hz, got {}", freq);
+    // O0 E = ~41 Hz (very low, sub-bass)
+    assert!(freq < 60.0, "O0 E should be <60 Hz, got {}", freq);
+    assert!(freq > 20.0, "O0 E should be >20 Hz, got {}", freq);
 }
 
 #[test]

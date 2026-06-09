@@ -63,6 +63,12 @@ TESTS=(
     # torus: the render completes within the first few frame-intervals, so
     # presents:5 always captures the finished torus before palette rotation.
     "torus|1|ENTER|presents:5"
+    # hangman-gfx: SCREEN 12, word chosen by RND (pinned via seed), gallows
+    # drawn before the first INPUT prompt — presents:1 captures the initial
+    # board (empty gallows + underscores) without needing any key input.
+    "hangman-gfx|1||presents:1"
+    # duck: SCREEN 9, pure DRAW+PAINT scene, fully deterministic (no RND).
+    "duck|1||presents:1"
 )
 
 echo "Building runtime + transpiler (release)..."

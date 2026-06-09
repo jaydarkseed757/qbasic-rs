@@ -6,6 +6,9 @@
 DECLARE SUB InitStars ()
 DECLARE SUB UpdateStars ()
 DECLARE SUB DrawScroller ()
+DECLARE SUB InitSprite ()
+DECLARE SUB UpdateSprite ()
+DECLARE SUB DrawSprite ()
 
 SCREEN 13
 RANDOMIZE TIMER
@@ -19,33 +22,21 @@ DIM SHARED SZ(NumStars)
 DIM SHARED ScrollText$
 DIM SHARED ScrollPos
 
+DIM SHARED BX, BY, BDX, BDY
+
 ScrollText$ = " *** GREETINGS FROM QBASIC 4.5 *** HELLO TO ALL DOS CODERS *** LONG LIVE VGA MODE 13H *** THIS IS A RETRO DEMOSCENE STYLE INTRO WRITTEN IN PURE QBASIC *** "
 ScrollPos = 1
 
 InitStars
+InitSprite
 
 DO
 
     CLS
 
     UpdateStars
-
-    ' Demo logo bars
-    FOR I = 0 TO 7
-        ColorVal = 50 + INT(50 * SIN(TIMER * 2 + I))
-        IF ColorVal < 1 THEN ColorVal = 1
-
-        X = 50
-        Y = 40 + I
-
-        LINE (X, Y)-(270, Y), ColorVal
-    NEXT
-
-    ColorVal = 100 + INT(50 * SIN(TIMER * 4))
-
-    FOR Y = 70 TO 110
-        LINE (80, Y)-(240, Y), ColorVal
-    NEXT
+    UpdateSprite
+    DrawSprite
 
     DrawScroller
 
@@ -58,6 +49,59 @@ SCREEN 0
 WIDTH 80
 CLS
 END
+
+' ==========================================
+' SPRITE
+' ==========================================
+
+SUB InitSprite
+    BX = 80
+    BY = 60
+    BDX = 2.1
+    BDY = 1.7
+END SUB
+
+SUB UpdateSprite
+    BX = BX + BDX
+    BY = BY + BDY
+
+    IF BX < 10 THEN BX = 10: BDX = -BDX
+    IF BX > 310 THEN BX = 310: BDX = -BDX
+    IF BY < 10 THEN BY = 10: BDY = -BDY
+    IF BY > 145 THEN BY = 145: BDY = -BDY
+END SUB
+
+SUB DrawSprite
+    R = 9
+
+    ' Pulsing outer color — cycles through warm palette
+    SpriteColor = 128 + INT(60 * SIN(TIMER * 3))
+    IF SpriteColor < 1 THEN SpriteColor = 1
+    IF SpriteColor > 255 THEN SpriteColor = 255
+
+    ' Mid-ring color
+    MidColor = 160 + INT(60 * SIN(TIMER * 3 + 1))
+    IF MidColor < 1 THEN MidColor = 1
+    IF MidColor > 255 THEN MidColor = 255
+
+    ' Filled diamond using horizontal line spans
+    FOR DY = -R TO R
+        W = R - ABS(DY)
+        C = SpriteColor
+        IF ABS(DY) < 5 THEN C = MidColor
+        LINE (BX - W, BY + DY)-(BX + W, BY + DY), C
+    NEXT DY
+
+    ' Bright white core
+    LINE (BX - 1, BY)-(BX + 1, BY), 15
+    PSET (BX, BY - 1), 15
+    PSET (BX, BY + 1), 15
+    PSET (BX, BY), 15
+END SUB
+
+' ==========================================
+' SCROLLER
+' ==========================================
 
 SUB DrawScroller
 
@@ -91,6 +135,10 @@ SUB DrawScroller
     END IF
 
 END SUB
+
+' ==========================================
+' STARS
+' ==========================================
 
 SUB InitStars
 
@@ -133,4 +181,3 @@ SUB UpdateStars
     NEXT
 
 END SUB
-

@@ -69,6 +69,11 @@ TESTS=(
     "hangman-gfx|1||presents:1"
     # duck: SCREEN 9, pure DRAW+PAINT scene, fully deterministic (no RND).
     "duck|1||presents:1"
+    # gorilla: scripted through intro+inputs+GorillaIntro, then one throw
+    # (angle 45°, velocity 50); captures the banana mid-flight.  DRAIN tokens
+    # stop the WHILE INKEY$<>"":WEND drain-loops in SparklePause and GetNum#.
+    # presents:80 always lands on a mid-flight frame with seed 42.
+    "gorilla|42|DRAIN,ENTER,ENTER,ENTER,1,ENTER,9.8,ENTER,P,DRAIN,4,5,ENTER,DRAIN,5,0,ENTER|presents:80"
 )
 
 echo "Building runtime + transpiler (release)..."

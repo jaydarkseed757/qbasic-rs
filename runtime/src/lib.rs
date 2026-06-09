@@ -569,6 +569,10 @@ fn normalize_key(tok: &str) -> String {
         "SPACE"  => " ".to_string(),
         "TAB"    => "\t".to_string(),
         "BACKSPACE" => "\u{8}".to_string(),
+        // DRAIN / BARRIER — synthetic "queue empty" sentinel for headless scripts.
+        // A QBasic `WHILE INKEY$ <> "": WEND` drain-loop pops this and sees ""
+        // (stopping the loop) while leaving subsequent scripted keys intact.
+        "DRAIN" | "BARRIER" => "\u{0}".to_string(),
         _ => {
             // A single letter: the unshifted key returns lowercase (matching
             // minifb_key_to_qb), so `Q` → "q" (reversi's QUIT = ASC("q") = 113).
@@ -1034,7 +1038,16 @@ impl Runtime {
         // (score panels, labels, title screens), not just the vector graphics.
         // (Off by default so the graphics golden tests keep their stable,
         // graphics-only checksums and present-count exit policies.)
+        //
+        // Special case: a headless *graphics* program (had_screen_call=true) with
+        // no window and no QBC_TEXT_FB is silently dropped — not stdout (would spam
+        // at native CPU speed from tight INKEY$ loops like gorilla's GetNum#
+        // cursor-blink PRINT) and not the framebuffer (would corrupt golden checksums
+        // by drawing label text into a graphics-only fb snapshot).
         let text_to_fb = self.headless_cfg.as_ref().map_or(false, |c| c.text_to_fb);
+        if self.had_screen_call && self.window.is_none() && !text_to_fb {
+            return; // headless graphics: suppress text output silently
+        }
         let use_stdout = !self.had_screen_call
             || (self.window.is_none() && !text_to_fb);
         if use_stdout {
@@ -2075,7 +2088,11 @@ impl Runtime {
         } else {
             self.pump_events();
         }
-        self.key_queue.pop_front().unwrap_or_default()
+        match self.key_queue.pop_front() {
+            Some(k) if k == "\u{0}" => "".to_string(), // DRAIN sentinel → "" (stops drain loops)
+            Some(k) => k,
+            None    => "".to_string(),
+        }
     }
 
     pub fn spc(&self, n: f64) -> String { qb_space(n) }
@@ -3943,6 +3960,28 @@ mod headless_tests {
         assert_eq!(rt.inkey(), "\u{0}P"); // DOWN scan code (ASC of last byte = 80)
         assert_eq!(rt.inkey(), "\r");
         assert_eq!(rt.inkey(), ""); // queue drained
+    }
+
+    // DRAIN sentinel: inkey() returns "" when it pops the \x00 sentinel injected
+    // by normalize_key("DRAIN"), allowing WHILE INKEY$<>"":WEND drain-loops to
+    // exit while leaving subsequent scripted keys intact.
+    #[test]
+    fn drain_sentinel_stops_drain_loop_without_consuming_later_keys() {
+        let mut rt = Runtime::headless();
+        rt.inject_key(&normalize_key("DRAIN")); // \x00 sentinel
+        rt.inject_key(&normalize_key("ENTER")); // \r — next real key
+        assert_eq!(rt.inkey(), "");  // DRAIN → "" (drain-loop exits)
+        assert_eq!(rt.inkey(), "\r"); // ENTER is still in the queue
+        assert_eq!(rt.inkey(), "");  // queue now truly empty
+    }
+
+    // normalize_key maps BARRIER as an alias for DRAIN.
+    #[test]
+    fn barrier_is_alias_for_drain() {
+        assert_eq!(normalize_key("DRAIN"), normalize_key("BARRIER"));
+        let mut rt = Runtime::headless();
+        rt.inject_key(&normalize_key("BARRIER"));
+        assert_eq!(rt.inkey(), ""); // sentinel returns ""
     }
 
     // normalize_key matches the windowed minifb_key_to_qb mapping exactly, so a

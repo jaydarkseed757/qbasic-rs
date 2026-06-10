@@ -22,6 +22,7 @@ Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/donkey.png" width="420"><br><b>donkey.bas</b> — IBM PC Donkey (CGA SCREEN 1, DRAW sprites, GOTO state machine)</td>
+<td align="center"><img src="docs/screenshots/gorilla.png" width="420"><br><b>gorilla.bas</b> — Gorillas mid-throw (SCREEN 9 EGA, CIRCLE/PAINT/GET/PUT, PLAY audio)</td>
 </tr>
 </table>
 

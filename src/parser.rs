@@ -1934,7 +1934,9 @@ impl Parser {
             let file_num = self.parse_expr()?;
             let record = if self.peek() == &Token::Comma {
                 self.advance();
-                if self.at_eol() { None } else { Some(self.parse_expr()?) }
+                // Empty record (double-comma) = sequential position → None
+                if self.at_eol() || self.peek() == &Token::Comma { None }
+                else { Some(self.parse_expr()?) }
             } else { None };
             // QB random-access record variable: `PUT #n, rec, var`. When `var`
             // is a TYPE variable the emitter serializes its fields into the
@@ -1980,7 +1982,9 @@ impl Parser {
             let file_num = self.parse_expr()?;
             let record = if self.peek() == &Token::Comma {
                 self.advance();
-                if self.at_eol() { None } else { Some(self.parse_expr()?) }
+                // Empty record (double-comma) = sequential position → None
+                if self.at_eol() || self.peek() == &Token::Comma { None }
+                else { Some(self.parse_expr()?) }
             } else { None };
             // QB random-access record variable: `GET #n, rec, var`. When `var`
             // is a TYPE variable the emitter deserializes the record buffer into

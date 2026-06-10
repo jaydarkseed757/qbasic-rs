@@ -450,6 +450,29 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                     continue;
                 }
 
+                // QB4.5 line continuation: a bare `_` at end of a logical line
+                // (followed only by optional spaces/tabs then `\n`) joins the
+                // next physical line without emitting a Newline token.
+                if word == "_" {
+                    // Peek past any trailing spaces/tabs.
+                    let mut probe = chars.clone();
+                    while matches!(probe.peek(), Some(&' ') | Some(&'\t') | Some(&'\r')) {
+                        probe.next();
+                    }
+                    if matches!(probe.peek(), Some(&'\n') | None) {
+                        // It is a continuation — consume the trailing whitespace
+                        // and the newline, bump the line counter, emit nothing.
+                        while matches!(chars.peek(), Some(&' ') | Some(&'\t') | Some(&'\r')) {
+                            chars.next();
+                        }
+                        if chars.peek() == Some(&'\n') {
+                            chars.next();
+                            line += 1;
+                        }
+                        continue;
+                    }
+                }
+
                 // Check for sigil immediately following the identifier
                 let sigil = match chars.peek() {
                     Some(&'$') => { chars.next(); Some('$') }

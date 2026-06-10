@@ -136,6 +136,10 @@ pub struct Emitter {
     /// take `__gs: &mut GameState`), it is suppressed and the `__gs` binding in
     /// main is skipped. Set by emit_game_state, read when emitting main.
     gamestate_emitted: bool,
+    /// Bare-lowercase names of local string arrays (non-shared, `DIM name(...) AS STRING`).
+    /// Used by emit_lvalue to emit the correct `_s`-suffixed name for string array accesses
+    /// that were parsed without the `$` sigil.
+    local_string_arrays: HashSet<String>,
     /// Bare-lowercase names of scalars that have an explicit local `DIM name`
     /// inside the current SUB/FUNCTION body.  Cleared on entry to each sub/fn.
     /// Used by emit_lvalue to detect the case where a local integer `B` and a
@@ -184,6 +188,7 @@ impl Emitter {
             file_fields: HashMap::new(),
             on_error_label: String::new(),
             gamestate_emitted: true,
+            local_string_arrays: HashSet::new(),
             local_dim_names: HashSet::new(),
         }
     }
@@ -236,26 +241,31 @@ impl Emitter {
     /// and shared array types from shared_types.
     fn is_str_expr_ctx(&self, expr: &Expr) -> bool {
         if is_str_expr(expr) { return true; }
-        // Shared scalar variable parsed with wrong type (e.g. `Available AS STRING` parsed
-        // as Integer under DEFINT A-Z) — look up authoritative type from shared_types.
-        // Exception: if the current scope has an explicit local DIM for this name with
-        // a numeric type (e.g. DIM B AS INTEGER when B$ is DIM SHARED), the local
-        // declaration shadows the shared string — do NOT treat as string.
         if let Expr::Var(LValue::Scalar { name, .. }) = expr {
             let lc = name.to_lowercase();
+            // String param declared with `AS STRING` (no sigil): name_s is in str_params.
+            let rn_s = rust_ident_typed(name, &QbType::String);
+            if self.str_params.contains(&rn_s) { return true; }
+            // Shared scalar variable parsed with wrong type (e.g. `Available AS STRING` parsed
+            // as Integer under DEFINT A-Z) — look up authoritative type from shared_types.
+            // Exception: if the current scope has an explicit local DIM for this name with
+            // a numeric type (e.g. DIM B AS INTEGER when B$ is DIM SHARED), the local
+            // declaration shadows the shared string — do NOT treat as string.
             if !self.local_dim_names.contains(&lc) {
                 if let Some(ty) = self.shared_types.get(&lc) {
                     if *ty == QbType::String { return true; }
                 }
             }
         }
-        // Shared array element accessed via Expr::Call (parser didn't add $ sigil):
+        // Shared or local array element accessed via Expr::Call (parser didn't add $ sigil):
         // e.g. OptionTitle(I) where OptionTitle is DIM SHARED AS STRING
         if let Expr::Call { name, .. } = expr {
             let lc = name.to_lowercase();
+            let name_bare = name.trim_end_matches(['$', '%', '!', '#', '&']).to_lowercase();
             if let Some(ty) = self.shared_types.get(&lc) {
                 if *ty == QbType::String { return true; }
             }
+            if self.local_string_arrays.contains(&name_bare) { return true; }
         }
         // TYPE field access: Account.Title(x) → look up AccountType.title
         if let Expr::Var(LValue::Field { base, field }) = expr {
@@ -732,6 +742,7 @@ impl Emitter {
             // Track explicit local DIM declarations so emit_lvalue can distinguish
             // e.g. local integer `B` from DIM SHARED string `B$` (same base name).
             self.local_dim_names = collect_local_dim_names(&sub.body);
+            self.local_string_arrays = collect_local_string_arrays(&sub.body);
 
             let mut exclude = globals.clone();
             for p in &sub.params {
@@ -854,6 +865,7 @@ impl Emitter {
 
             // Track explicit local DIM declarations (same reason as emit_subs).
             self.local_dim_names = collect_local_dim_names(&inline_body);
+            self.local_string_arrays = collect_local_string_arrays(&inline_body);
 
             let mut exclude = globals.clone();
             for p in &f.params {
@@ -1146,8 +1158,8 @@ impl Emitter {
                 // get proper temporary bindings hoisted before the call.
                 let rhs = self.lift_expr(expr);
                 match var {
-                    // &mut String param → deref-assign with to_string()
-                    LValue::Scalar { name, ty: QbType::String }
+                    // &mut String param (with $ sigil or AS STRING) → deref-assign with to_string()
+                    LValue::Scalar { name, .. }
                         if self.str_params.contains(&rust_ident_typed(name, &QbType::String)) =>
                     {
                         self.line(&format!("*{lhs} = ({rhs}).to_string();"));
@@ -1158,6 +1170,12 @@ impl Emitter {
                     }
                     // String array element → assign with to_string()
                     LValue::Index { ty: QbType::String, .. } => {
+                        self.line(&format!("{lhs} = ({rhs}).to_string();"));
+                    }
+                    // Local string array accessed without $ sigil (DIM name(...) AS STRING)
+                    LValue::Index { name, .. }
+                        if self.local_string_arrays.contains(&name.to_lowercase()) =>
+                    {
                         self.line(&format!("{lhs} = ({rhs}).to_string();"));
                     }
                     // TYPE field or other LValue: check if string type via context
@@ -2633,6 +2651,14 @@ impl Emitter {
                     })
                     .unwrap_or(true); // no entry in shared_types → assume OK
                 let rn = rust_ident_typed(name, ty);
+                // If this is a string param declared with `AS STRING` (no sigil), the Rust
+                // param was renamed to name_s (&mut String).  Return the bare name so
+                // Stmt::Let can prepend `*` (→ `*name_s = …`); for reads, emit_expr_inner
+                // handles dereferencing separately.
+                let rn_s = rust_ident_typed(name, &QbType::String);
+                if self.str_params.contains(&rn_s) {
+                    return rn_s;
+                }
                 if self.numeric_params.contains(&rn) {
                     // Byref numeric param — parameters shadow any shared var with the same
                     // base name (e.g. SUB DrawPlayer(Player%) shadows DIM SHARED Player(1 TO 2)).
@@ -2661,11 +2687,14 @@ impl Emitter {
                 let subscript: String = indices.iter()
                     .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
                     .collect();
-                // For shared arrays, use the authoritative type from shared_types
-                // (the AST LValue type may be stale, e.g. Single instead of String
-                // for arrays declared `AS STRING` without the $ sigil).
+                // For shared arrays, use the authoritative type from shared_types;
+                // for local string arrays (DIM name(...) AS STRING without $ sigil),
+                // use QbType::String so the correct `_s`-suffixed name is produced.
+                // (The AST LValue type may be stale, e.g. Single instead of String.)
                 let effective_ty = if self.shared_names.contains(&lower) {
                     self.shared_types.get(&lower).cloned().unwrap_or_else(|| ty.clone())
+                } else if self.local_string_arrays.contains(&lower) {
+                    QbType::String
                 } else {
                     ty.clone()
                 };
@@ -3188,8 +3217,35 @@ impl Emitter {
                 continue;
             }
 
+            // ── String param declared AS STRING (no sigil) → pass as &mut String ─
+            // e.g. `nm AS STRING` → Rust param `nm_s: &mut String`; in the body it
+            // has ty=Single from the parser but str_params contains "nm_s".
+            if let Expr::Var(LValue::Scalar { name, .. }) = expr {
+                let rn_s = rust_ident_typed(name, &QbType::String);
+                if self.str_params.contains(&rn_s) {
+                    // Already a &mut String param — pass it onward (Rust auto-reborrows)
+                    result.push(rn_s);
+                    continue;
+                }
+                // Shared scalar declared AS STRING but accessed without $ sigil:
+                // look up shared_types to detect, then hoist to temp (borrow-safe).
+                let lc = name.to_lowercase();
+                if !self.local_dim_names.contains(&lc) {
+                    if let Some(QbType::String) = self.shared_types.get(&lc) {
+                        let gs_name = rust_ident(name);
+                        let gs_field = format!("__gs.{gs_name}");
+                        let tmp = format!("__tmp_gs{}", self.lift_counter);
+                        self.lift_counter += 1;
+                        self.line(&format!("let mut {tmp}: String = {gs_field}.clone();"));
+                        writebacks.push((gs_field, format!("{tmp}.clone()")));
+                        result.push(format!("&mut {tmp}"));
+                        continue;
+                    }
+                }
+            }
+
             // ── String expression (temporary) → materialize as mut local ─────
-            if is_str_expr(expr) {
+            if is_str_expr(expr) || self.is_str_expr_ctx(expr) {
                 let tmp = format!("__tmp_str{}", self.lift_counter);
                 self.lift_counter += 1;
                 let val = self.emit_expr_inner(expr)
@@ -3309,6 +3365,7 @@ impl Emitter {
                 if (self.shared_names.contains(&name_bare) && self.array_names.contains(&name_bare))
                     || self.local_arrays.contains(&lower)
                     || self.array_params.contains(&lower)
+                    || self.local_string_arrays.contains(&name_bare)
                 {
                     return self.emit_expr_inner(expr).unwrap_or_else(|_| "0.0".into());
                 }
@@ -3628,8 +3685,11 @@ impl Emitter {
                     let sname = rust_ident_typed(&p.name, &p.ty);
                     parts.push(format!("{sname}: &mut Vec<String>"));
                 } else {
-                    // Plain numeric array
-                    parts.push(format!("{arr_name}: &mut Vec<f64>"));
+                    // Plain numeric array — check body for actual usage depth
+                    // (an `spr()` param might be accessed as `spr(c, r)` = 2D)
+                    let ndims = array_param_used_dims(arr_name.as_str(), _body);
+                    let ty_str = nested_vec_type("f64", ndims);
+                    parts.push(format!("{arr_name}: &mut {ty_str}"));
                 }
             } else if p.ty == QbType::String {
                 parts.push(format!("{name}: &mut String"));
@@ -3837,6 +3897,15 @@ impl Emitter {
                         .collect();
                     let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
                     return Ok(format!("{lower}{sub}"));
+                }
+                // Local string array without $ sigil (e.g. DIM rankStr(1 TO 10) AS STRING)
+                if self.local_string_arrays.contains(&name_bare) {
+                    let idx: Vec<_> = args.iter()
+                        .map(|e| self.emit_expr_inner(e).unwrap())
+                        .collect();
+                    let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
+                    let rname = rust_ident_typed(name, &QbType::String);
+                    return Ok(format!("{rname}{sub}"));
                 }
 
                 // User-defined FUNCTION — prepend rt/gs args.
@@ -4400,6 +4469,97 @@ fn collect_local_dim_names(stmts: &[Stmt]) -> HashSet<String> {
         for stmt in stmts {
             match stmt {
                 Stmt::Dim(d) if d.dims.is_empty() && !d.shared => {
+                    names.insert(d.name.to_lowercase());
+                }
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, names);
+                    for (_, b) in elseif_branches { visit(b, names); }
+                    if let Some(b) = else_body { visit(b, names); }
+                }
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } => {
+                    visit(body, names);
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, names); }
+                    if let Some(b) = default { visit(b, names); }
+                }
+                Stmt::Block(inner) => visit(inner, names),
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut names);
+    names
+}
+
+/// Scan a SUB body to find the maximum index depth used for a given array param.
+/// Array params use a 1D placeholder in VarDecl regardless of actual usage,
+/// e.g. `spr()` might be accessed as `spr(c, r)` (2D) inside the body.
+fn array_param_used_dims(name: &str, stmts: &[Stmt]) -> usize {
+    let name_lc = name.to_lowercase();
+    let mut max = 1usize;
+    fn visit_stmts(n: &str, stmts: &[Stmt], m: &mut usize) {
+        for s in stmts { visit_stmt(n, s, m); }
+    }
+    fn visit_stmt(n: &str, stmt: &Stmt, m: &mut usize) {
+        match stmt {
+            Stmt::Let { var, expr } => { visit_lval(n, var, m); visit_expr(n, expr, m); }
+            Stmt::If { cond, then_body, elseif_branches, else_body } => {
+                visit_expr(n, cond, m);
+                visit_stmts(n, then_body, m);
+                for (e, b) in elseif_branches { visit_expr(n, e, m); visit_stmts(n, b, m); }
+                if let Some(b) = else_body { visit_stmts(n, b, m); }
+            }
+            Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } => {
+                visit_stmts(n, body, m);
+            }
+            Stmt::Select { cases, default, .. } => {
+                for c in cases { visit_stmts(n, &c.body, m); }
+                if let Some(b) = default { visit_stmts(n, b, m); }
+            }
+            Stmt::Block(inner) => visit_stmts(n, inner, m),
+            Stmt::Call { args, .. } => { for a in args { visit_expr(n, a, m); } }
+            Stmt::Print { args, .. } => {
+                for a in args {
+                    if let crate::parser::PrintArg::Expr(e) = a { visit_expr(n, e, m); }
+                }
+            }
+            _ => {}
+        }
+    }
+    fn visit_lval(n: &str, lv: &LValue, m: &mut usize) {
+        if let LValue::Index { name: ln, indices, .. } = lv {
+            if ln.to_lowercase() == n { *m = (*m).max(indices.len()); }
+        }
+    }
+    fn visit_expr(n: &str, e: &Expr, m: &mut usize) {
+        match e {
+            Expr::Var(lv) => visit_lval(n, lv, m),
+            Expr::BinOp { lhs, rhs, .. } => { visit_expr(n, lhs, m); visit_expr(n, rhs, m); }
+            Expr::UnOp { operand, .. } => visit_expr(n, operand, m),
+            Expr::Call { name, args } => {
+                // Array access like spr(c, r) is often parsed as Expr::Call
+                if name.to_lowercase() == n && !args.is_empty() {
+                    *m = (*m).max(args.len());
+                }
+                for a in args { visit_expr(n, a, m); }
+            }
+            _ => {}
+        }
+    }
+    visit_stmts(&name_lc, stmts, &mut max);
+    max
+}
+
+/// Collect bare-lowercase names of non-shared local DIM'd string arrays.
+/// Used by emit_lvalue to emit `name_s[...]` for arrays declared `DIM name(...) AS STRING`
+/// even when accessed without the `$` sigil (so the parser records type as Single).
+fn collect_local_string_arrays(stmts: &[Stmt]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Dim(d) if !d.dims.is_empty() && !d.shared && d.ty == QbType::String => {
                     names.insert(d.name.to_lowercase());
                 }
                 Stmt::If { then_body, elseif_branches, else_body, .. } => {

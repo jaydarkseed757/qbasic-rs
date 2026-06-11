@@ -1547,15 +1547,13 @@ impl Emitter {
                     (xv, yv)
                 };
                 if str_fill {
-                    // PAINT (x,y), CHR$(n), border — a string TILING PATTERN (used by
-                    // B&W screen modes). Real pattern tiling is not implemented; flood
-                    // in the current foreground color so the program compiles and
-                    // renders a solid region. (Dead code on EGA/VGA color paths.)
-                    eprintln!("warning: PAINT string tiling pattern → solid foreground fill (pattern fill not implemented)");
-                    self.line("// TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color");
+                    // PAINT (x,y), CHR$(n)[+...], border — pattern tiling flood fill.
+                    let tc = self.lift_counter; self.lift_counter += 1;
+                    let fv = self.lift_expr(fill);
+                    self.line(&format!("let __pat{tc}: String = {fv};"));
                     let b = border.as_ref().map(|e| self.lift_expr(e))
                                   .unwrap_or_else(|| "-1.0".into());
-                    self.line(&format!("__rt.paint({px}, {py}, __rt.fg_color as f64, {b});"));
+                    self.line(&format!("__rt.paint_pattern({px}, {py}, __pat{tc}.as_bytes(), {b});"));
                 } else {
                     let f = self.lift_expr(fill);
                     let b = border.as_ref().map(|e| self.lift_expr(e))

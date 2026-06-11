@@ -1,6 +1,7 @@
 //! QBasic runtime library — linked by every transpiled program.
 #![allow(non_snake_case, dead_code, unused_variables)]
 
+use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::io::{BufRead, Write, Seek, SeekFrom};
 use minifb::{Key, KeyRepeat};
@@ -2105,6 +2106,23 @@ impl Runtime {
                          else { (border as i64).rem_euclid(m) as u8 };
         let (fx, fy) = self.logical_to_fb(x, y);
         flood_fill(self, fx as i32, fy as i32, fill_idx, border_idx);
+        self.auto_present();
+    }
+
+    /// QB `PAINT (x,y), CHR$(n)[+...], border` — pattern tiling flood fill.
+    /// Each byte in `pattern` defines one row: bit 7 = leftmost pixel; the
+    /// pattern tiles horizontally every 8 columns and vertically every
+    /// `pattern.len()` rows. Pixels where the bit is 1 receive the current
+    /// foreground/draw color; pixels where the bit is 0 are left unchanged.
+    pub fn paint_pattern(&mut self, x: f64, y: f64, pattern: &[u8], border: f64) {
+        if pattern.is_empty() { return; }
+        let m = self.color_mod();
+        let fg = self.draw_color;
+        let border_idx = if border < 0.0 { fg }
+                         else { (border as i64).rem_euclid(m) as u8 };
+        let (fx, fy) = self.logical_to_fb(x, y);
+        flood_fill_pattern(self, fx as i32, fy as i32, pattern, fg, border_idx);
+        self.auto_present();
     }
 
     /// Non-blocking key poll — flushes fb (which harvests keys into key_queue), then pops one.
@@ -2827,6 +2845,42 @@ fn flood_fill(rt: &mut Runtime, sx: i32, sy: i32, fill: u8, border: u8) {
         try_push(&mut stack, &mut rt.fb, rt.width, rt.height, x, y-1);
         iters += 1;
         if iters % 2000 == 0 { rt.tick(); } // keep window alive during big fills
+    }
+}
+
+fn flood_fill_pattern(rt: &mut Runtime, sx: i32, sy: i32, pattern: &[u8], fg: u8, border: u8) {
+    if sx < 0 || sy < 0 || sx as u32 >= rt.width || sy as u32 >= rt.height { return; }
+    let start_color = rt.fb[(sy as u32 * rt.width + sx as u32) as usize];
+    if start_color == border { return; }
+
+    let plen = pattern.len() as i32;
+    let w = rt.width;
+    let h = rt.height;
+
+    let mut stack = vec![(sx, sy)];
+    let mut visited: HashSet<(i32, i32)> = HashSet::new();
+    visited.insert((sx, sy));
+    let mut iters = 0usize;
+
+    while let Some((x, y)) = stack.pop() {
+        // Paint this pixel based on pattern bit
+        let row_byte = pattern[y.rem_euclid(plen) as usize];
+        let bit_pos  = 7u8.saturating_sub(x.rem_euclid(8) as u8);
+        if (row_byte >> bit_pos) & 1 == 1 {
+            rt.fb[(y as u32 * w + x as u32) as usize] = fg;
+        }
+        // Spread to neighbors that still hold start_color
+        for (nx, ny) in [(x+1,y),(x-1,y),(x,y+1),(x,y-1)] {
+            if nx < 0 || ny < 0 || nx as u32 >= w || ny as u32 >= h { continue; }
+            if visited.contains(&(nx, ny)) { continue; }
+            let nc = rt.fb[(ny as u32 * w + nx as u32) as usize];
+            if nc != border && nc == start_color {
+                visited.insert((nx, ny));
+                stack.push((nx, ny));
+            }
+        }
+        iters += 1;
+        if iters % 2000 == 0 { rt.tick(); }
     }
 }
 

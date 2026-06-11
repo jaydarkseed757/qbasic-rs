@@ -51,6 +51,8 @@ pub struct AnalyzedProgram {
     /// On-disk record layout per TYPE: type_name_lower →
     /// [(field_name_lower, FieldRepr)]. Used for random-access record I/O.
     pub type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
+    /// Array-field dims inside TYPE bodies: type_name_lower → field_name_lower → upper_bound.
+    pub type_field_dims: HashMap<String, HashMap<String, usize>>,
     /// QBC transpiler directives from `REM QBC …` lines (uppercased).
     pub directives:   Vec<String>,
 }
@@ -117,9 +119,10 @@ impl Analyzer {
             data_labels:  std::mem::take(&mut self.data_labels),
             consts:       std::mem::take(&mut self.consts),
             str_consts:   std::mem::take(&mut self.str_consts),
-            type_defs:    program.type_defs,
-            type_layouts: program.type_layouts,
-            directives:   program.directives,
+            type_defs:       program.type_defs,
+            type_layouts:    program.type_layouts,
+            type_field_dims: program.type_field_dims,
+            directives:      program.directives,
         })
     }
 

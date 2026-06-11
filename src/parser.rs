@@ -75,6 +75,10 @@ pub struct Program {
     /// [(field_name_lower, FieldRepr)]. Parallel to `type_defs`; used for
     /// random-access record (GET/PUT #n, rec, var) serialization.
     pub type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
+    /// Array-field dimensions inside TYPE bodies:
+    /// type_name_lower → field_name_lower → upper_bound (inclusive, wasted-slots).
+    /// Only populated for fields declared as `FieldName(N) AS type`.
+    pub type_field_dims: HashMap<String, HashMap<String, usize>>,
     /// QBC transpiler directives from `REM QBC <directive>` lines (uppercased).
     pub directives: Vec<String>,
 }
@@ -266,6 +270,8 @@ pub enum LValue {
     Index  { name: String, #[allow(dead_code)] ty: QbType, indices: Vec<Expr> },
     /// `arr(idx).field` — user-defined TYPE member access
     Field  { base: Box<LValue>, field: String },
+    /// `scalar.arrayField(idx)` — subscript access on an array-typed TYPE field
+    FieldIndex { base: Box<LValue>, field: String, indices: Vec<Expr> },
 }
 
 /// PUT sprite-blit action verb (QBasic `PUT (x,y),array[,verb]`). QB's default
@@ -299,6 +305,7 @@ pub struct Parser {
     pos:        usize,
     type_defs:  HashMap<String, Vec<(String, QbType)>>,
     type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
+    type_field_dims: HashMap<String, HashMap<String, usize>>,
     directives: Vec<String>,
     /// Extra FOR loops closed by a multi-counter `NEXT i, j, …` — each
     /// enclosing parse_for consumes one instead of expecting its own NEXT.
@@ -308,8 +315,8 @@ pub struct Parser {
 impl Parser {
     pub fn new(tokens: Vec<Spanned>) -> Self {
         Self { tokens, pos: 0, type_defs: HashMap::new(),
-               type_layouts: HashMap::new(), directives: Vec::new(),
-               pending_nexts: 0 }
+               type_layouts: HashMap::new(), type_field_dims: HashMap::new(),
+               directives: Vec::new(), pending_nexts: 0 }
     }
 
     fn peek(&self) -> &Token {
@@ -404,9 +411,10 @@ impl Parser {
 
         Ok(Program {
             subs, functions, main_body,
-            type_defs:    self.type_defs.clone(),
-            type_layouts: self.type_layouts.clone(),
-            directives:   std::mem::take(&mut self.directives),
+            type_defs:       self.type_defs.clone(),
+            type_layouts:    self.type_layouts.clone(),
+            type_field_dims: self.type_field_dims.clone(),
+            directives:      std::mem::take(&mut self.directives),
         })
     }
 
@@ -542,10 +550,22 @@ impl Parser {
                         if self.peek() == &Token::Type { self.advance(); } // TYPE
                         break;
                     }
-                    // Parse "FieldName AS TypeName [* n]"
+                    // Parse "FieldName[(N)] AS TypeName [* n]"
                     if let Token::Ident(fname) = self.peek().clone() {
                         self.advance();
                         let fname_lower = fname.to_lowercase();
+                        // Optional array dimension: FieldName(upper) AS type
+                        let mut field_upper: Option<usize> = None;
+                        if self.peek() == &Token::LParen {
+                            self.advance(); // consume (
+                            if let Ok(e) = self.parse_expr() {
+                                field_upper = const_usize(&e);
+                            }
+                            while self.peek() != &Token::RParen && !self.at_eol() {
+                                self.advance();
+                            }
+                            if self.peek() == &Token::RParen { self.advance(); }
+                        }
                         let mut fty = QbType::Single;
                         let mut str_len: Option<usize> = None;
                         if self.peek() == &Token::As {
@@ -573,6 +593,12 @@ impl Parser {
                         } else {
                             // No `AS` → defaults to SINGLE (F32) on disk.
                             layout.push((fname_lower.clone(), FieldRepr::F32));
+                        }
+                        if let Some(upper) = field_upper {
+                            self.type_field_dims
+                                .entry(type_name.clone())
+                                .or_default()
+                                .insert(fname_lower.clone(), upper);
                         }
                         fields.push((fname_lower, fty));
                     }
@@ -1111,12 +1137,26 @@ impl Parser {
             let expr = self.parse_expr()?;
             Ok(Stmt::Let { var: LValue::Scalar { name, ty }, expr })
         } else if self.peek() == &Token::Dot {
-            // name.field = expr  — scalar TYPE field assignment (chained dots ok)
+            // name.field[(idx)] = expr  — scalar TYPE field assignment (chained dots ok)
             let mut lv = LValue::Scalar { name, ty };
             while self.peek() == &Token::Dot {
                 self.advance();
                 let (field, _) = self.parse_ident_with_sigil()?;
                 lv = LValue::Field { base: Box::new(lv), field };
+            }
+            // Check for subscript on array-typed TYPE field: g.Cell(j) = val
+            if self.peek() == &Token::LParen {
+                self.advance();
+                let mut indices = vec![self.parse_expr()?];
+                while self.peek() == &Token::Comma {
+                    self.advance();
+                    indices.push(self.parse_expr()?);
+                }
+                self.expect(&Token::RParen)?;
+                lv = match lv {
+                    LValue::Field { base, field } => LValue::FieldIndex { base, field, indices },
+                    other => other,
+                };
             }
             self.expect(&Token::Eq)?;
             let expr = self.parse_expr()?;
@@ -2317,12 +2357,26 @@ impl Parser {
                     let full = format!("{name}{sigil}");
                     Ok(Expr::Call { name: full, args })
                 } else if self.peek() == &Token::Dot {
-                    // scalar.field — user-defined TYPE member access (chained dots ok)
+                    // scalar.field[(idx)] — user-defined TYPE member access (chained dots ok)
                     let mut lv = LValue::Scalar { name, ty: lv_ty };
                     while self.peek() == &Token::Dot {
                         self.advance();
                         let (field, _) = self.parse_ident_with_sigil()?;
                         lv = LValue::Field { base: Box::new(lv), field };
+                    }
+                    // Check for subscript on array-typed TYPE field: g.Cell(j)
+                    if self.peek() == &Token::LParen {
+                        self.advance();
+                        let mut indices = vec![self.parse_expr()?];
+                        while self.peek() == &Token::Comma {
+                            self.advance();
+                            indices.push(self.parse_expr()?);
+                        }
+                        self.expect(&Token::RParen)?;
+                        lv = match lv {
+                            LValue::Field { base, field } => LValue::FieldIndex { base, field, indices },
+                            other => other,
+                        };
                     }
                     Ok(Expr::Var(lv))
                 } else {

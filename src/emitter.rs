@@ -67,6 +67,8 @@ pub struct Emitter {
     /// Maps lowercase type name → ordered [(field_name_lower, FieldRepr)] — the
     /// on-disk byte layout used for random-access record (GET/PUT #n,rec,var) I/O.
     type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
+    /// Array-field dims from TYPE bodies: type_name_lower → field_name_lower → upper_bound.
+    type_field_dims: HashMap<String, HashMap<String, usize>>,
     /// Maps lowercase array/var name → type name (from `DIM x AS TypeName`)
     var_type_name: HashMap<String, String>,
     /// Names of simple (non-TYPE) array parameters for current function
@@ -162,8 +164,9 @@ impl Emitter {
             in_main:      true,
             str_params:   HashSet::new(),
             typed_fields: HashMap::new(),
-            type_defs:    HashMap::new(),
-            type_layouts: HashMap::new(),
+            type_defs:       HashMap::new(),
+            type_layouts:    HashMap::new(),
+            type_field_dims: HashMap::new(),
             var_type_name: HashMap::new(),
             array_params: HashSet::new(),
             numeric_params: HashSet::new(),
@@ -354,8 +357,9 @@ impl Emitter {
         }
 
         // Store parsed TYPE definitions (field names + types)
-        self.type_defs = prog.type_defs.clone();
-        self.type_layouts = prog.type_layouts.clone();
+        self.type_defs       = prog.type_defs.clone();
+        self.type_layouts    = prog.type_layouts.clone();
+        self.type_field_dims = prog.type_field_dims.clone();
 
         // Build var_type_name: for every DIM/REDIM with AS UserType, record the type name
         collect_var_type_names(prog, &mut self.var_type_name);
@@ -629,7 +633,7 @@ impl Emitter {
                     let type_name_opt = if let QbType::UserType(tn) = &sym.ty {
                         Some(tn.to_lowercase())
                     } else { None };
-                    let field_types: Option<Vec<(String, QbType)>> = type_name_opt
+                    let field_types: Option<Vec<(String, QbType)>> = type_name_opt.clone()
                         .and_then(|tn| self.type_defs.get(tn.as_str()))
                         .cloned();
                     for field in &tfields {
@@ -638,7 +642,15 @@ impl Emitter {
                             .map(|(_, t)| t.clone())
                             .unwrap_or(QbType::Single);
                         let rust_ty = qb_type_to_rust(&elem_ty);
-                        fields.push(format!("{name}__{field}: {rust_ty},"));
+                        // Check if this field is an array inside the TYPE body
+                        let is_array_field = type_name_opt.as_ref()
+                            .and_then(|tn| self.type_field_dims.get(tn))
+                            .map_or(false, |fd| fd.contains_key(field.as_str()));
+                        if is_array_field {
+                            fields.push(format!("{name}__{field}: Vec<{rust_ty}>,"));
+                        } else {
+                            fields.push(format!("{name}__{field}: {rust_ty},"));
+                        }
                     }
                 } else {
                     let ty = qb_type_to_rust(&sym.ty);
@@ -2147,7 +2159,6 @@ impl Emitter {
 
         if decl.dims.is_empty() {
             // Scalar
-            if is_shared { return; } // already in GameState, default-initialized
             if let QbType::UserType(type_name) = &decl.ty {
                 // Scalar TYPE variable — recursively expand to individual field scalars
                 let tn = type_name.to_lowercase();
@@ -2155,11 +2166,34 @@ impl Emitter {
                 if !flat.is_empty() {
                     for (fname, fty) in &flat {
                         let frust = qb_type_to_rust(fty);
-                        self.line(&format!("let mut {name}__{fname}: {frust} = Default::default();"));
+                        // Check if this is an array-typed field inside the TYPE body
+                        let field_upper = self.type_field_dims.get(&tn)
+                            .and_then(|fd| fd.get(fname.as_str()))
+                            .copied();
+                        if is_shared {
+                            // Shared: emit Vec init into GameState (default gives empty Vec)
+                            if let Some(upper) = field_upper {
+                                let default_val = if frust == "String" { "String::new()" } else { "0.0_f64" };
+                                self.line(&format!(
+                                    "__gs.{name}__{fname} = vec![{default_val}; {}];",
+                                    upper + 1
+                                ));
+                            }
+                            // Scalar shared fields are already default-initialized in GameState
+                        } else if let Some(upper) = field_upper {
+                            let default_val = if frust == "String" { "String::new()" } else { "0.0_f64" };
+                            self.line(&format!(
+                                "let mut {name}__{fname}: Vec<{frust}> = vec![{default_val}; {}];",
+                                upper + 1
+                            ));
+                        } else {
+                            self.line(&format!("let mut {name}__{fname}: {frust} = Default::default();"));
+                        }
                     }
                     return;
                 }
             }
+            if is_shared { return; } // plain shared scalar is default-initialized in GameState
             let ty  = qb_type_to_rust(&decl.ty);
             self.line(&format!("let mut {name}: {ty} = Default::default();"));
         } else {
@@ -2747,6 +2781,26 @@ impl Emitter {
                         format!("{}__{field_suffix}", self.emit_lvalue(other))
                     }
                 }
+            }
+            LValue::FieldIndex { base, field, indices } => {
+                // scalar.arrayField(idx) — array field inside a scalar TYPE variable
+                let field_id = rust_ident(field);
+                let base_flat = match base.as_ref() {
+                    LValue::Scalar { name, .. } => {
+                        let name_lc = name.to_lowercase();
+                        let flat = format!("{}__{field_id}", rust_ident(name));
+                        if self.shared_names.contains(&name_lc) {
+                            format!("__gs.{flat}")
+                        } else {
+                            flat
+                        }
+                    }
+                    other => format!("{}__{field_id}", self.emit_lvalue(other)),
+                };
+                let subscript: String = indices.iter()
+                    .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                    .collect();
+                format!("{base_flat}{subscript}")
             }
         }
     }
@@ -4201,7 +4255,8 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
             Expr::Var(LValue::Index { indices, .. }) => {
                 for e in indices { scan_expr(e, result, added, exclude); }
             }
-            Expr::Var(LValue::Field { base, .. }) => {
+            Expr::Var(LValue::Field { base, .. }) |
+            Expr::Var(LValue::FieldIndex { base, .. }) => {
                 scan_expr(&Expr::Var(*base.clone()), result, added, exclude);
             }
             Expr::BinOp { lhs, rhs, .. } => {
@@ -4242,6 +4297,7 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                                 }
                             }
                         }
+                        LValue::FieldIndex { .. } => {}
                         LValue::Index { .. } => {}
                     }
                     scan_expr(expr, result, added, exclude);
@@ -4460,7 +4516,8 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                                     for e in indices { scan_expr(e, result, added, exclude); }
                                     break;
                                 }
-                                LValue::Field { base, .. } => cur = base,
+                                LValue::Field { base, .. } |
+                                LValue::FieldIndex { base, .. } => cur = base,
                                 LValue::Scalar { .. } => break,
                             }
                         }
@@ -4966,6 +5023,10 @@ fn collect_typed_array_fields(prog: &AnalyzedProgram)
                 }
                 visit_lv(base, map, dims);
             }
+            LValue::FieldIndex { base, indices, .. } => {
+                for e in indices { visit_expr(e, map, dims); }
+                visit_lv(base, map, dims);
+            }
             LValue::Index { indices, .. } => {
                 for e in indices { visit_expr(e, map, dims); }
             }
@@ -5355,7 +5416,7 @@ fn collect_array_names_stmt(stmt: &Stmt, out: &mut HashSet<String>) {
         Stmt::GetSprite { arr, .. } | Stmt::PutSprite { arr, .. } => {
             let name = match arr {
                 LValue::Scalar { name, .. } | LValue::Index { name, .. } => name,
-                LValue::Field  { base, .. }  => match base.as_ref() {
+                LValue::Field  { base, .. } | LValue::FieldIndex { base, .. } => match base.as_ref() {
                     LValue::Scalar { name, .. } | LValue::Index { name, .. } => name,
                     _ => return,
                 },

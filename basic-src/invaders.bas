@@ -133,7 +133,7 @@ DIM SHARED ufoX AS INTEGER
 DIM SHARED ufoY AS INTEGER
 DIM SHARED ufoActive AS INTEGER
 DIM SHARED ufoDX AS INTEGER
-DIM SHARED ufoTimer AS INTEGER
+DIM SHARED ufoTimer AS LONG
 DIM SHARED ufoScore AS INTEGER
 
 ' Explosions
@@ -521,13 +521,17 @@ SUB CheckCollisions ()
     DIM iw AS INTEGER, ih AS INTEGER
     DIM pts AS INTEGER
     DIM hitCol AS INTEGER
+    DIM c1 AS INTEGER, c2 AS INTEGER
     DIM stillAlive AS INTEGER, cr AS INTEGER
 
     ' --- Player bullet vs invaders ---
     IF pbulActive THEN
-        ' Bullet can only be in one column - compute it directly
-        hitCol = (pbulX - frmX) \ INVSPACEX + 1
-        IF hitCol >= 1 AND hitCol <= INVCOLS THEN
+        ' Bullet spans at most two columns - test both edges
+        c1 = (pbulX - frmX) \ INVSPACEX + 1
+        c2 = (pbulX + PBULW - 1 - frmX) \ INVSPACEX + 1
+        IF c1 < 1 THEN c1 = 1
+        IF c2 > INVCOLS THEN c2 = INVCOLS
+        FOR hitCol = c1 TO c2
             FOR row = 1 TO INVROWS
                 IF alive(hitCol, row) THEN
                     invX = frmX + (hitCol - 1) * INVSPACEX
@@ -567,7 +571,7 @@ SUB CheckCollisions ()
                     END IF
                 END IF
             NEXT row
-        END IF
+        NEXT hitCol
 
         ' Player bullet vs UFO
         IF ufoActive THEN
@@ -1030,7 +1034,7 @@ SUB InitGame ()
     score = 0
     lives = 3
     level = 1
-    lastHudScore = -1 : lastHudLives = -1 : lastHudLevel = -1
+    CALL InvalidateDraw
     aliveCount = INVCOLS * INVROWS
     frmX = INVSTARTX
     frmY = INVSTARTY
@@ -1060,7 +1064,6 @@ SUB InitGame ()
     shipX = SCRW \ 2 - SHIPW \ 2
     shipY = PLAYBOT - SHIPH - 2
     shipOldX = shipX
-    shipDirty = 1
 
     FOR c = 1 TO INVCOLS
         colAlive(c) = 1
@@ -1107,6 +1110,15 @@ SUB InitLevel ()
 END SUB
 
 ' ================================
+' SUB InvalidateDraw
+' Force full redraw of cached elements after a CLS
+' ================================
+SUB InvalidateDraw ()
+    shipDirty = 1
+    lastHudScore = -1
+END SUB
+
+' ================================
 ' SUB InsertScore(nm,sc,lv)
 ' Insert new score into sorted table
 ' ================================
@@ -1141,7 +1153,8 @@ SUB LoadHiScores ()
     DIM fileN AS INTEGER
     fileN = FREEFILE
     OPEN "HISCORES.DAT" FOR BINARY AS #fileN
-    IF LOF(fileN) = 0 THEN CLOSE #fileN : GOTO DefaultScores
+    ' 10 records x 9 bytes (STRING*3 + LONG + INTEGER) - short file = defaults
+    IF LOF(fileN) < 90 THEN CLOSE #fileN : GOTO DefaultScores
     FOR i = 1 TO 10
         GET #fileN, , scores(i)
     NEXT i
@@ -1210,15 +1223,11 @@ SUB MoveFormation ()
     rightmost = 0 : leftmost = SCRW
     FOR col = 1 TO INVCOLS
         IF colAlive(col) THEN
-            FOR row = 1 TO INVROWS
-                IF alive(col, row) THEN
-                    invX = frmX + (col - 1) * INVSPACEX
-                    IF invX + INVSPACEX > rightmost THEN
-                        rightmost = invX + INVSPACEX
-                    END IF
-                    IF invX < leftmost THEN leftmost = invX
-                END IF
-            NEXT row
+            invX = frmX + (col - 1) * INVSPACEX
+            IF invX + INVSPACEX > rightmost THEN
+                rightmost = invX + INVSPACEX
+            END IF
+            IF invX < leftmost THEN leftmost = invX
         END IF
     NEXT col
 
@@ -1448,6 +1457,7 @@ SUB RunGame ()
                 CALL InitLevel
                 ' Redraw field
                 CLS
+                CALL InvalidateDraw
                 CALL DrawBunkers
                 CALL DrawFormation
                 CALL DrawGame

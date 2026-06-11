@@ -153,7 +153,7 @@ DIM BadMode AS INTEGER                                              ' Store the 
 
 ON ERROR GOTO ScreenError               ' Set up a place to jump to if an error occurs in the program.
 BadMode = FALSE
-ScreenMode = 8
+ScreenMode = 7
 SCREEN ScreenMode                       ' Attempt to go into SCREEN 7 (EGA screen).
 IF BadMode = TRUE THEN                  ' If this attempt failed.
     ScreenMode = 1

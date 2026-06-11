@@ -1730,6 +1730,10 @@ impl Emitter {
                 self.line(&format!("__rt.palette({a}, {c});"));
             }
 
+            Stmt::PaletteReset => {
+                self.line("__rt.palette_reset();");
+            }
+
             Stmt::PutSprite { x, y, arr, action, step } => {
                 // Hoist coords to temps to avoid borrow conflicts when args contain __rt calls
                 let xv = self.emit_expr(x)?;

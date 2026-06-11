@@ -903,6 +903,15 @@ impl Runtime {
         self.palette_rgb[idx] = (r, g, b);
     }
 
+    /// Bare PALETTE (no arguments) — restore the mode's default palette.
+    /// QB programs use this after a PALETTE USING blackout (e.g. qblocks
+    /// hides its sprite-sheet drawing behind an all-black palette, then
+    /// resets).  Present so the restored colors become visible immediately.
+    pub fn palette_reset(&mut self) {
+        self.palette_rgb = if self.screen_mode == 13 { vga256_default() } else { DEFAULT_PALETTE_256 };
+        self.present();
+    }
+
     /// LOCATE [row][,[col][,[cursor]]] — move the text cursor and/or set its
     /// visibility. Any argument may be omitted (`None`); omitted row/col leave
     /// the cursor where it is (QB semantics) rather than moving it to (0,0).

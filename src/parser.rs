@@ -155,6 +155,8 @@ pub enum Stmt {
     Palette { attr: Expr, color64: Expr },
     /// PALETTE USING arr(start) — remap all palette entries from array
     PaletteUsing(Expr),
+    /// Bare PALETTE — reset all entries to the mode default palette
+    PaletteReset,
     /// VIEW (x1,y1)-(x2,y2)[,fill[,border]] — define graphics viewport
     View { x1: Expr, y1: Expr, x2: Expr, y2: Expr, fill: Option<Expr>, border: Option<Expr> },
     /// WINDOW [SCREEN] (x1,y1)-(x2,y2) — define logical coordinate window.
@@ -711,9 +713,9 @@ impl Parser {
                     let arr = self.parse_expr()?;
                     return Ok(Some(Stmt::PaletteUsing(arr)));
                 }
-                // Check if there's actually an argument (bare PALETTE resets)
+                // Bare PALETTE (no args) resets all entries to the mode default.
                 if self.at_eol() {
-                    return Ok(None);
+                    return Ok(Some(Stmt::PaletteReset));
                 }
                 let attr = self.parse_expr()?;
                 if self.peek() == &Token::Comma {

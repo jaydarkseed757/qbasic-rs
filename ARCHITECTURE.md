@@ -30,18 +30,27 @@ qbasic-rust/
 │       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3875 lines)
 │       └── sound.rs            # PLAY MML parser + SOUND/BEEP via rodio  (~300 lines)
 │
-└── basic-src/                  # Test .bas programs
-    ├── gorilla.bas            # Primary target: gorilla-throwing game
-    ├── donkey.bas              # GOTO state machine test: Q-BASIC Donkey game
+└── basic-src/                  # Test .bas programs (39 total)
+    ├── gorilla.bas             # Primary target: gorilla-throwing game
+    ├── torus.bas               # 3-D torus (arrays of TYPE, WINDOW/PMAP, VGA palette)
+    ├── reversi.bas             # Reversi/Othello AI (3-D arrays, WINDOW SCREEN)
+    ├── donkey.bas              # GOTO state machine: Q-BASIC Donkey (CGA SCREEN 1)
     ├── mandel.bas              # Mandelbrot renderer (VIEW/WINDOW/PALETTE USING)
-    ├── money.bas               # Money manager (DATA/READ, SELECT CASE, arrays)
+    ├── money.bas               # Money manager (binary I/O, CP437 box-drawing)
     ├── sortdemo.bas            # Sorting visualizer (SHARED, animation)
+    ├── invaders.bas            # Space Invaders (SCREEN 13 VGA, TYPE records, GOTO-in-SUBs)
+    ├── duck.bas                # Cartoon duck — DRAW + PAINT (SCREEN 9 EGA)
+    ├── etto.bas                # VGA photo display — 256-color DATA pixels (SCREEN 13)
+    ├── kitchen_sink-gw.bas     # GW-BASIC mega test — ON GOTO/GOSUB, DEF FN, RESTORE
+    ├── kitchen_sink-qbasic.bas # QBasic 4.5 mega test — 9 menu items, ON GOTO named labels
+    ├── screen13.bas            # SCREEN 13 MCGA 256-color demo
+    ├── screen13-sprite.bas     # SCREEN 13 GET/PUT 8-bpp sprites
     ├── pi.bas                  # Arbitrary-precision pi via Machin's formula
-    ├── nibbles.bas
-    ├── hello-world.bas
-    ├── fuzzbuzz.bas
-    ├── primes.bas
-    └── q_sort.bas
+    ├── evil.bas                # GW-BASIC POKE/PEEK with physical line continuations
+    └── …                       # nibbles, hangman*, pi-gw, q_sort, fuzzbuzz, primes,
+                                #   step, 256c, palette256_expanded, random-pixel, qblocks,
+                                #   loopyloop, pixel-gw, pokeit, pokemix, qmaze, demo1,
+                                #   hello-world, sound, toccata, gotorama, sortdemo
 ```
 
 ---
@@ -125,7 +134,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
 | **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `DEF SEG` (parsed/ignored) |
-| **Operators** | `AND`, `OR`, `XOR`, `NOT`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
+| **Operators** | `AND`, `OR`, `XOR`, `NOT`, `EQV`, `IMP`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
 
@@ -562,7 +571,8 @@ pub struct Runtime {
     key_queue:       VecDeque<String>,  // harvested QB key strings
 
     // RNG
-    rng:             u32,       // LCG state matching QB's generator
+    rng:             u32,       // QB 24-bit LCG state; power-on seed = 0x50000
+    last_rnd:        f64,       // most recent rnd() result, returned by RND(0)
 
     // VIEW / WINDOW logical coordinate system
     view_x1..view_active, win_x1..win_active,
@@ -601,10 +611,9 @@ framebuffer (any size: 640×400 for text, 320×200 for SCREEN 7, etc.) into
 | SCREEN 9 | 640×350 | 960×600 | ~1.7× |
 | SCREEN 12 | 640×480 | 960×600 | 1.5× / 1.25× |
 
-All modes use a **16-color** EGA palette; `SCREEN 13`'s 256 colors are **not**
-supported (pixels are clamped `% 16`). `present()` rounds logical→framebuffer
-coordinates to the nearest pixel (not truncation) so non-integer
-`WINDOW`/`PMAP` mappings don't drop scanlines — see Graphics primitives.
+`present()` rounds logical→framebuffer coordinates to the nearest pixel (not
+truncation) so non-integer `WINDOW`/`PMAP` mappings don't drop scanlines — see
+Graphics primitives.
 
 Switching `SCREEN` modes resizes `fb` and changes `char_h` but never
 closes or reopens the window.
@@ -764,9 +773,11 @@ Rust:
 
 | QB | Emitted as | Notes |
 |----|------------|-------|
-| `a ^ b` | `a.powf(b)` | Float power. Unary minus binds *looser* than `^` (`-2^2 = -4`), handled in the parser. |
+| `a ^ b` | `a.powf(b)` | Float power. **Left-associative**: `2^3^2 = (2^3)^2 = 64`. Unary minus binds *looser* than `^` (`-2^2 = -4`), handled in the parser. |
 | `a \ b` | `qb_idiv(a, b)` | Integer division: both operands are **CINT-rounded to integers first** (banker's), then divided with truncation toward zero. |
 | `a MOD b` | `qb_mod(a, b)` | Both operands CINT-rounded first, then remainder. Sign follows the **dividend** (same as Rust `%` on integers). |
+
+**Operator precedence** (tightest to loosest): `^` → unary `-` → `*`/`/` → `\` → `MOD` → `+`/`-` → relational (`<`,`>`,`=`,`<>`,`<=`,`>=`) → `NOT` → `AND` → `OR` → `XOR` → `EQV` → `IMP`. The middle tier (`*`/`/` tighter than `\` tighter than `MOD`) is the common source of precedence bugs — `2 * 3 MOD 4` = `(2*3) MOD 4` = 2, not `2 * (3 MOD 4)` = 6.
 
 `qb_idiv`/`qb_mod` exist because QB rounds operands to integers before the
 operation: `2.7 MOD 2` is `CINT(2.7) MOD 2 = 3 MOD 2 = 1`, not `0.7`; and
@@ -789,6 +800,8 @@ All exposed as free functions in the `use qbasic_runtime::*` glob:
 | `x AND y` | `qb_and(x,y)` | Bitwise |
 | `x OR y` | `qb_or(x,y)` | Bitwise |
 | `x XOR y` | `qb_xor(x,y)` | Bitwise |
+| `x EQV y` | `qb_eqv(x,y)` | Bitwise XNOR: `!(a as i64 ^ b as i64)` |
+| `x IMP y` | `qb_imp(x,y)` | Bitwise implication: `!(a as i64) \| (b as i64)` |
 | `SIN/COS/TAN/ATN` | `qb_sin/cos/tan/atn` | Radians; ATN = atan (not atan2) |
 | `TIMER` | `qb_timer()` | Seconds since midnight as f64 |
 | `LEN(s)` | `qb_len(&s)` | Char-based (not byte-based) |
@@ -814,12 +827,17 @@ matching QB's behavior for multi-byte Unicode edge cases.
 
 ### RNG
 
-LCG matching QB's internal generator:
+Authentic QB 24-bit LCG:
 ```rust
-self.rng = self.rng.wrapping_mul(214013).wrapping_add(2531011);
-((self.rng >> 16) & 0x7FFF) as f64 / 32768.0
+self.rng = self.rng.wrapping_mul(16598013).wrapping_add(12820163) & 0xFF_FFFF;
+self.last_rnd = self.rng as f64 / 16777216.0;
 ```
-`RANDOMIZE seed` sets `self.rng = seed.abs() as u32`.
+Power-on seed is `0x50000` → first `RND` is the canonical QB value `0.7055475`.
+`RANDOMIZE seed` mixes the f32 bit pattern of the seed value into `rng`.
+
+`rnd_arg(v)` implements QB's argument semantics: `v < 0` reseeds from the f32
+bit pattern of `v` then advances; `v == 0` returns `last_rnd` (repeats);
+`v > 0` (or bare `RND`) advances normally.
 
 ### Sound
 
@@ -917,6 +935,51 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 ---
 
 ## Milestone Status
+
+### M16 — INVADERS.BAS support: QB4.5 line continuation, AS STRING params, local string arrays ✅
+Full support for `INVADERS.BAS`, a 1730-line QB4.5 Space Invaders port (build-all 38/38).
+
+- **QB4.5 `_` line continuation** (`src/lexer.rs`) — bare `_` at end of a
+  non-line-numbered source line continues onto the next physical line. 18
+  continuations in INVADERS; zero effect on non-QB4.5 programs.
+- **Double-comma `GET/PUT #n, , var`** (`src/parser.rs`) — empty record-position
+  `,,` for sequential binary access; parser returns `None` for the record-number slot.
+- **`AS STRING` typed parameters** (`src/emitter.rs`) — `nm AS STRING` (no sigil)
+  in SUB/FUNCTION params emits `nm_s: &mut String`; `emit_lvalue`, `Stmt::Let`,
+  `is_str_expr_ctx`, `emit_call_args`, and `lift_expr` all extended.
+- **Local string arrays** (`src/emitter.rs`) — `DIM rankStr(1 TO 10) AS STRING`
+  without `$` sigil tracked in `local_string_arrays: HashSet<String>`; used in
+  `emit_lvalue`, `emit_expr_inner`, `lift_expr`, `is_str_expr_ctx`, `Stmt::Let`.
+- **Array param dimensionality** (`src/emitter.rs`) — `array_param_used_dims()`
+  scans the sub body to determine actual index depth used, so a 2D-accessed
+  array declared as 1D in the param list gets `Vec<Vec<f64>>` correctly.
+
+### M15 — QB-fidelity transpiler fixes (code review June 2026) ✅
+Ten correctness fixes from a full src/ + runtime/ review (build-all 39/39,
+28/28 integration, 91 runtime unit tests, 9/9 graphics goldens).
+
+- **`*`/`\`/`MOD` precedence corrected** (`src/parser.rs`) — chain was inverted;
+  `2 * 3 MOD 4` now correctly yields 2 (was 6).
+- **`^` left-associative** — `2^3^2 = (2^3)^2 = 64` (was right-assoc → 512).
+- **Array elements pass BYREF to SUBs** — `CALL Swap(a(i), a(j))` now hoists
+  each element to a temp and writes back after the call; mutations were silently
+  lost before.
+- **`NEXT i, j` multi-counter** — each extra comma-separated name closes one
+  enclosing FOR via `pending_nexts: u32` on the parser.
+- **DATA backslash escaping** — `DATA "C:\temp"` no longer corrupts (backslash
+  was not escaped before `"` in the Rust static string literal).
+- **`EQV`/`IMP` operators** end-to-end — lexer tokens, parser precedence levels
+  looser than XOR, `qb_eqv`/`qb_imp` runtime fns (bitwise on i64).
+- **`UBOUND(a$())` paren-form** — now resolves the `_s` suffix for string arrays
+  (emitted `a.len()` instead of `a_s.len()` → rustc error).
+- **Authentic QB 24-bit LCG** — replaced MSVC `rand()` formula; first RND from
+  power-on seed is now the canonical QB value 0.7055475.
+- **`RND(n)` argument semantics** — parser was discarding the argument; now
+  captured and routed to `rnd_arg()` (0 = repeat, negative = reseed).
+- **`skip_warn` helper** — skipped statements (ON KEY, TIMER ON/OFF, CLEAR,
+  WIDTH, bare LOOP) now emit a stderr warning per the project rule.
+- **New test**: `tests/programs/qb_semantics.bas` covers all 10 fixes;
+  goldens regenerated for gorilla and donkey (RNG-dependent frames).
 
 ### M14 — money.bas full support: binary I/O, CP437 font, INPUT# trim ✅
 Full end-to-end support for `money.bas` (Microsoft 1990 money manager) including
@@ -1101,13 +1164,13 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is 33/34 (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **39/39** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
-palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, loopyloop,
-pixel-gw, evil, pokeit, demo1, pokemix, qmaze; `kitchen_sink-qbasic` is the one
-remaining failure). The integration suite is **27/27**, with 84 runtime unit tests
-and 5 graphics golden tests.
+palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, kitchen_sink-qbasic,
+loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze, duck, etto, invaders,
+toccata, gotorama). The integration suite is **28/28**, with 91 runtime unit tests
+and 9 graphics golden tests.
 
 Remaining work is verification and a few rarely-used features:
 
@@ -1115,15 +1178,15 @@ Remaining work is verification and a few rarely-used features:
    needs interactive + visual + audio verification of a complete game:
    skyline render, banana physics, POINT() collision, explosion sound, scoring,
    wind. The one acceptance test that can't be checked headlessly.
-3. **PAINT tiling patterns** — `PAINT (x,y), CHR$(n), border` (B&W dither fill)
+2. **PAINT tiling patterns** — `PAINT (x,y), CHR$(n), border` (B&W dither fill)
    emits a solid-foreground stub + warning, not real pattern tiling. Dead code
    on reversi's EGA path; no color-mode program needs it.
-4. **Array fields inside a TYPE body** — `Bar(10) AS SINGLE` within a `TYPE`
+3. **Array fields inside a TYPE body** — `Bar(10) AS SINGLE` within a `TYPE`
    block: the parser discards the dimension. Rare; no bundled program uses it.
-5. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
+4. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
    (asterisk fill) print literally. `^^^^` scientific notation and wide-field
    `%` overflow are implemented (see Feature Support Notes).
-6. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
+5. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
    source pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`, via
    `parse_qbc_config` in `emitter.rs`) are baked in at transpile time; the
    headless-driver env vars (`HEADLESS/KEYS/SEED/DUMP/CHECKSUM/FBSTATS/
@@ -1143,19 +1206,27 @@ Remaining work is verification and a few rarely-used features:
 
 ## GORILLAS.BAS Specifics
 
-- **SCREEN 7** — 320×200, 16 EGA colors. `aspect=0.8333` for CIRCLE.
+- **SCREEN 9 first, fallback to SCREEN 1** — gorilla.bas negotiates EGA
+  (640×350) via `ON ERROR GOTO`, falls back to CGA (320×200). The
+  `ON ERROR`/`RESUME` logic is safely stubbed — just hard-selects SCREEN 9.
+  `aspect=0.8333` for CIRCLE corrects non-square EGA pixels.
 - **No GOTO** — entire program is GOSUB/RETURN + structured flow. All
   GOSUB targets emit cleanly as named Rust functions.
 - **Collision via POINT()** — banana flight loop checks
   `IF POINT(BX, BY) <> BACKCOLOR THEN` every step.
-- **PLAY for explosions** — short MML string; wired to rodio (M5 ✅).
+- **PLAY for explosions and victory** — short MML strings (foreground `MF` and
+  background `MB` modes); wired to rodio (M5 ✅).
 - **RANDOMIZE TIMER** — `qb_timer()` returns seconds-since-midnight.
 - **SELECT CASE** — wind direction text display.
 - **CIRCLE + PAINT** — gorilla sprites are overlapping filled circles;
   flood fill boundary color must be exact or sprites bleed.
 - **LINE with BF** — all buildings drawn as `LINE ...,BF` filled rectangles.
+- **GET/PUT sprite system** — gorilla sprites drawn once with vector graphics,
+  captured with `GET`, then blitted with `PUT`. Banana sprites from inline DATA.
 - **Shared game state** — all global vars (positions, scores, colors) in
   `GameState` struct passed as `&mut __gs` through every SUB.
+- **Golden-tested** — headless seed 42, scripted intro + one banana throw
+  (angle 45°, velocity 50), captures mid-flight frame at `presents:80`.
 
 ---
 
@@ -1181,8 +1252,15 @@ see **What's Left** above.
   that over-padded every numeric field by one space is fixed). 20 unit tests
   in `runtime/src/lib.rs::print_using_tests`. Not yet special-cased: `$$`
   floating dollar and `**` asterisk fill (they print literally).
-- **File I/O** — `OPEN/CLOSE/READ#/WRITE#/INPUT#` not implemented.
-- **Error handling** — `ON ERROR GOTO`, `RESUME` parsed but not emitted.
+- **File I/O** — fully supported: sequential (`FOR INPUT/OUTPUT/APPEND`:
+  `OPEN/CLOSE/INPUT#/LINE INPUT#/PRINT#/WRITE#`), random-access (`FOR RANDOM`:
+  `FIELD/GET#/PUT#/LSET/RSET`), and binary TYPE-record serialization. `MKD$`/
+  `CVD` etc. use IEEE 754 LE; INTEGER/LONG/fixed-STRING fields are byte-exact
+  with DOS QBasic 1.1.
+- **Error handling** — `ON ERROR GOTO` + `RESUME`/`RESUME NEXT` fully emitted.
+  Named (non-numeric) handlers are extracted as GOSUB-style Rust functions and
+  dispatched after fallible statements (`OPEN`, `SCREEN`). `ERR` variable maps
+  to `__rt.err_code`; 53 = file not found.
 - **User-defined TYPEs** — fully supported including: arbitrarily deep nested
   TYPEs (e.g. `Outer.Middle.Inner.Val`), 1-D and 2-D arrays of TYPEs (including
   nested), string fields, scalar TYPE variables, scalar TYPE params to SUBs

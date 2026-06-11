@@ -76,15 +76,21 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `screen13.bas` | SCREEN 13 (MCGA 320×200, 256-color VGA DAC palette) demo | ✅ |
 | `screen13-sprite.bas` | SCREEN 13 GET/PUT sprites (8-bpp MCGA chunky layout) | ✅ |
 | `kitchen_sink-gw.bas` | GW-BASIC "mega test" — menu loop, ON GOTO/GOSUB, DEF FN, RESTORE | ✅ |
+| `kitchen_sink-qbasic.bas` | QBasic 4.5 "mega test" — 9 menu items, ON GOTO named labels, 3-D arrays | ✅ |
+| `invaders.bas` | Space Invaders (SCREEN 13 VGA, TYPE records, GOTO-in-SUBs, binary file I/O) | ✅ |
+| `duck.bas` | Cartoon duck — DRAW turtle-graphics + PAINT flood-fill (SCREEN 9 EGA) | ✅ |
+| `etto.bas` | VGA photo display — 256-color custom palette, hex-decoded pixel DATA (SCREEN 13) | ✅ |
+| `toccata.bas` | PLAY MML music demo | ✅ |
+| `gotorama.bas` | GOTO stress test — complex branching patterns | ✅ |
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
 
-Highlights shown above; **31 of 32 bundled programs** in `basic-src/` transpile and
-run (`bash basic-src/build-all.sh` → 31/32; `kitchen_sink-qbasic` is the one
-remaining failure). The full set also adds `nibbles`, `donkey`, `q_sort`,
-`fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`, `qblocks`,
-`loopyloop`, `pixel-gw`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
+All **39 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 39/39). The full set also includes `nibbles`,
+`q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
+`qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, and the
+`pi-gw`/`hangman-gw` GW-BASIC variants.
 
 ---
 
@@ -217,8 +223,10 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
 ## Design notes
 
 - **All numerics are `f64`** — QB SINGLE precision is widened for simplicity
-- **QB-accurate integer math** — `CINT` uses banker's rounding (ties to even); `\` (integer divide) and `MOD` round both operands to integers first, matching QuickBASIC rather than Rust's native operators
+- **QB-accurate integer math** — `CINT` uses banker's rounding (ties to even); `\` (integer divide) and `MOD` round both operands to integers first, then `*`/`/` bind tighter than `\` tighter than `MOD` (QB precedence); `^` is left-associative
 - **QB booleans**: `0.0` = false, `-1.0` = true (bitwise NOT convention)
+- **Bitwise operators**: `AND`, `OR`, `XOR`, `NOT`, `EQV` (≡ bitwise XNOR), `IMP` (≡ `(NOT a) OR b`) — all operate on the integer part of f64 values
+- **Authentic QB RNG** — 24-bit LCG (`x = (x*16598013 + 12820163) AND &HFFFFFF`); first `RND` from power-on seed is the canonical QB value 0.7055475; `RND(0)` repeats the last value, `RND(negative)` reseeds deterministically
 - **Palette-indexed framebuffer** — `POINT(x,y)` returns a palette index, enabling QB-style collision detection
 - **SHARED variables** → `GameState` struct passed as `&mut __gs` to every SUB
 - **Arrays of TYPE** → flattened to one parallel `Vec` per field (`gg(r,c).player` → `gg__player[r][c]`); N-D arrays nest `Vec<Vec<…>>`

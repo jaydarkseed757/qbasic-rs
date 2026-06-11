@@ -185,6 +185,11 @@ pub enum Stmt {
     /// ON expr GOTO/GOSUB label1, label2, …  — computed branch. `expr` (1-based,
     /// rounded) selects the Nth label; 0 or out-of-range falls through.
     OnGoto { expr: Expr, labels: Vec<String>, is_gosub: bool },
+    /// ON KEY(n) GOSUB label  — keyboard event trap.
+    /// `key_num` is the QB key trap number (11-14 = arrow keys; 15+ = user-defined).
+    OnKeyGosub { key_num: f64, target: String },
+    /// ON TIMER(secs) GOSUB label  — fires the handler every `interval` seconds.
+    OnTimerGosub { interval: f64, target: String },
     // ── Error handling ────────────────────────────────────────────────────────
     /// ON ERROR GOTO label  (label="0" disables the handler)
     OnError { label: String },
@@ -632,24 +637,44 @@ impl Parser {
                     while !self.at_eol() { self.advance(); } // consume any trailing tokens
                     return Ok(Some(Stmt::OnError { label }));
                 }
-                // ON KEY(n) GOSUB / ON TIMER(n) GOSUB — QB event traps; no-op.
-                // Peek to see if the identifier is KEY or TIMER followed by '('.
-                let is_event_trap = if let Token::Ident(ref s) = self.peek().clone() {
+                // ON KEY(n) GOSUB label / ON TIMER(n) GOSUB label — keyboard and
+                // timer event traps.  Parse the key/timer number and the target label
+                // so the emitter can extract the GOSUB target as a function and emit
+                // a runtime key-dispatch helper.
+                if let Token::Ident(ref s) = self.peek().clone() {
                     let su = s.to_uppercase();
-                    (su == "KEY" || su == "TIMER") && {
-                        // peek one more: is there a '(' next?
+                    if (su == "KEY" || su == "TIMER") && {
                         let saved = self.pos;
-                        self.advance(); // consume KEY/TIMER
+                        self.advance();
                         let has_paren = self.peek() == &Token::LParen;
-                        self.pos = saved; // restore
+                        self.pos = saved;
                         has_paren
+                    } {
+                        let is_timer = su == "TIMER";
+                        self.advance(); // consume KEY / TIMER
+                        self.expect(&Token::LParen)?;
+                        let num_expr = self.parse_expr()?;
+                        self.expect(&Token::RParen)?;
+                        // must be followed by GOSUB or GOTO
+                        if matches!(self.peek(), Token::Gosub | Token::Goto) {
+                            self.advance();
+                            let target = self.parse_ident()?;
+                            while !self.at_eol() { self.advance(); }
+                            let num_val = match &num_expr {
+                                Expr::IntLit(n)   => *n as f64,
+                                Expr::FloatLit(f) => *f,
+                                _ => 0.0,
+                            };
+                            if is_timer {
+                                return Ok(Some(Stmt::OnTimerGosub { interval: num_val, target }));
+                            } else {
+                                return Ok(Some(Stmt::OnKeyGosub { key_num: num_val, target }));
+                            }
+                        }
+                        // Unrecognised form after KEY/TIMER(n) — skip to EOL
+                        while !self.at_eol() { self.advance(); }
+                        return Ok(None);
                     }
-                } else {
-                    false
-                };
-                if is_event_trap {
-                    self.skip_warn("ON KEY/TIMER event trap");
-                    return Ok(Some(Stmt::Block(vec![])));
                 }
                 // ON <expr> (GOTO|GOSUB) label, label, … — computed branch.
                 let expr = self.parse_expr()?;

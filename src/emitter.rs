@@ -148,6 +148,12 @@ pub struct Emitter {
     /// DIM SHARED string `B$` share the same base name: the local DIM shadows
     /// the shared string for numeric accesses in that scope.
     local_dim_names: HashSet<String>,
+    /// Collected ON KEY(n) GOSUB target bindings from all scopes.
+    /// key_num → target label (lowercase).  Populated during emit; used to emit
+    /// `fn __handle_key_event` before fn main().
+    on_key_gosubs: Vec<(f64, String)>,
+    /// ON TIMER(secs) GOSUB target — interval + target label (lowercase).
+    on_timer_gosub: Option<(f64, String)>,
 }
 
 impl Emitter {
@@ -193,6 +199,8 @@ impl Emitter {
             gamestate_emitted: true,
             local_string_arrays: HashSet::new(),
             local_dim_names: HashSet::new(),
+            on_key_gosubs: Vec::new(),
+            on_timer_gosub: None,
         }
     }
 
@@ -395,8 +403,19 @@ impl Emitter {
         for s in &prog.subs      { self.sub_params.insert(rust_ident(&s.name), s.params.clone()); }
         for f in &prog.functions { self.sub_params.insert(rust_ident(&f.name), f.params.clone()); }
 
+        // Collect ON KEY/TIMER GOSUB targets from all SUB/FUNCTION bodies.
+        // These targets are labels in the main body that must be extracted as
+        // gosub functions even if no explicit GOSUB statement references them.
+        let mut event_gosub_targets: HashSet<String> = HashSet::new();
+        for sub in &prog.subs {
+            collect_event_gosub_targets_from_stmts(&sub.body, &mut event_gosub_targets);
+        }
+        for func in &prog.functions {
+            collect_event_gosub_targets_from_stmts(&func.body, &mut event_gosub_targets);
+        }
+
         // Extract GOSUB-target label blocks from main body
-        let (main_stmts, gosub_fns) = extract_gosub_blocks(&prog.main_body);
+        let (main_stmts, gosub_fns) = extract_gosub_blocks(&prog.main_body, &event_gosub_targets);
 
         // Detect arrays that cross GOSUB function boundaries (declared in one scope,
         // used in another) and promote them to GameState so both scopes can access them.
@@ -489,6 +508,9 @@ impl Emitter {
         }
         // Parse QBC pragma directives.
         self.qbc = parse_qbc_config(&prog.directives);
+
+        // Emit key-event dispatch helper if any ON KEY(n) GOSUB bindings were collected.
+        self.emit_key_event_helper()?;
 
         self.emit_main(&main_stmts, &globals)?;
         Ok(self.out.clone())
@@ -742,7 +764,7 @@ impl Emitter {
 
             // Extract GOSUB blocks from sub body so they can be inlined at call sites.
             // This gives GOSUB targets access to all the sub's local variables.
-            let (inline_body, gosub_blocks) = extract_gosub_blocks(&sub.body);
+            let (inline_body, gosub_blocks) = extract_gosub_blocks(&sub.body, &HashSet::new());
             self.current_sub_gosubs.clear();
             for (label, body) in gosub_blocks {
                 self.current_sub_gosubs.insert(label.to_lowercase(), body);
@@ -867,7 +889,7 @@ impl Emitter {
             self.current_fn_name_lc = Some(fn_rust_name.clone());
 
             // Extract GOSUB blocks from function body for inline emission
-            let (inline_body, gosub_blocks) = extract_gosub_blocks(&f.body);
+            let (inline_body, gosub_blocks) = extract_gosub_blocks(&f.body, &HashSet::new());
             self.current_sub_gosubs.clear();
             for (label, body) in gosub_blocks {
                 self.current_sub_gosubs.insert(label.to_lowercase(), body);
@@ -910,6 +932,85 @@ impl Emitter {
             self.line("}");
             self.blank();
             self.shared_names = saved_shared;
+        }
+        Ok(())
+    }
+
+    // ── Key / Timer event dispatch helpers ───────────────────────────────────
+
+    /// Emit `fn __handle_key_event` and `fn __handle_timer_event` if any
+    /// ON KEY/TIMER GOSUB bindings were collected during emit.
+    fn emit_key_event_helper(&mut self) -> Result<()> {
+        if self.on_key_gosubs.is_empty() && self.on_timer_gosub.is_none() {
+            return Ok(());
+        }
+        // QB predefined key numbers → the two-byte escape string that inkey() returns.
+        // 11 = Up, 12 = Left, 13 = Right, 14 = Down (standard QB arrow-key traps).
+        // 15-24 = user-defined; map them to common defaults where possible.
+        let key_str = |n: f64| -> Option<String> {
+            match n as u32 {
+                11 => Some(r#""\x00H""#.into()),   // Up arrow
+                12 => Some(r#""\x00K""#.into()),   // Left arrow
+                13 => Some(r#""\x00M""#.into()),   // Right arrow
+                14 => Some(r#""\x00P""#.into()),   // Down arrow
+                _  => None,   // user-defined keys need KEY n,expr — not mapped
+            }
+        };
+
+        let needs_gs = self.gamestate_emitted;
+        let gs_param = if needs_gs { ", __gs: &mut GameState" } else { "" };
+        let gs_arg   = if needs_gs { ", __gs" } else { "" };
+
+        if !self.on_key_gosubs.is_empty() {
+            self.line(&format!(
+                "fn __handle_key_event(__k: &str, __rt: &mut Runtime{gs_param}) {{"
+            ));
+            self.indent();
+            // Deduplicate by key string (keep first handler if multiple map same key).
+            let mut arms: Vec<(String, String)> = Vec::new();
+            for (n, tgt) in &self.on_key_gosubs {
+                if let Some(ks) = key_str(*n) {
+                    if !arms.iter().any(|(k, _)| k == &ks) {
+                        arms.push((ks, rust_ident(tgt)));
+                    }
+                }
+            }
+            if arms.is_empty() {
+                self.line("let _ = (__k, __rt);");
+            } else {
+                self.line("match __k {");
+                self.indent();
+                for (ks, fn_name) in &arms {
+                    self.line(&format!("{ks} => {{ {fn_name}(__rt{gs_arg}); }}"));
+                }
+                self.line("_ => {}");
+                self.dedent();
+                self.line("}");
+            }
+            self.dedent();
+            self.line("}");
+        }
+
+        if let Some((interval, tgt)) = &self.on_timer_gosub.clone() {
+            let fn_name = rust_ident(tgt);
+            let secs = interval;
+            // Use a static AtomicU64 to store the last-fired timestamp as f64 bits.
+            // This avoids needing a __last_timer parameter and the associated borrow issues.
+            self.line("static __TIMER_LAST_FIRED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);");
+            self.line(&format!(
+                "fn __handle_timer_event(__rt: &mut Runtime{gs_param}) {{"
+            ));
+            self.indent();
+            self.line("let __last = f64::from_bits(__TIMER_LAST_FIRED.load(std::sync::atomic::Ordering::Relaxed));");
+            self.line("let __now = qb_timer();");
+            self.line(&format!("if __now - __last >= {secs}_f64 {{"));
+            self.indent();
+            self.line("__TIMER_LAST_FIRED.store(__now.to_bits(), std::sync::atomic::Ordering::Relaxed);");
+            self.line(&format!("{fn_name}(__rt{gs_arg});"));
+            self.dedent();
+            self.line("}");
+            self.dedent();
+            self.line("}");
         }
         Ok(())
     }
@@ -1830,6 +1931,17 @@ impl Emitter {
                 // No runtime code needed — the dispatch is emitted inline by
                 // emit_error_dispatch() after each fallible statement.
             }
+            Stmt::OnKeyGosub { key_num, target } => {
+                // Collect this binding; the dispatcher function is emitted after
+                // all subs/functions, just before fn main().
+                let target_lc = target.to_lowercase();
+                if !self.on_key_gosubs.iter().any(|(_, t)| t == &target_lc) {
+                    self.on_key_gosubs.push((*key_num, target_lc));
+                }
+            }
+            Stmt::OnTimerGosub { interval, target } => {
+                self.on_timer_gosub = Some((*interval, target.to_lowercase()));
+            }
             Stmt::Resume { next } => {
                 // Clear the error flag and continue (RESUME NEXT).
                 // True RESUME (retry) would need to re-run the faulting
@@ -2451,11 +2563,31 @@ impl Emitter {
                 self.dedent(); self.line("}");
             }
             DoKind::UntilPost(c) => {
-                self.line(&format!("{loop_prefix}loop {{"));
-                self.indent(); self.emit_stmts(body)?;
-                let c = self.emit_expr(c)?;
-                self.line(&format!("if qb_bool({c}) {{ break; }}"));
-                self.dedent(); self.line("}");
+                // Detect `DO: LOOP UNTIL INKEY$ = ""` drain loop.  When ON KEY(n)/ON TIMER
+                // GOSUB handlers are registered, inject event dispatch so arrow keys
+                // and timers fire inside the drain loop instead of being silently consumed.
+                let has_key = !self.on_key_gosubs.is_empty();
+                let has_timer = self.on_timer_gosub.is_some();
+                if body.is_empty() && is_inkey_eq_empty(c) && (has_key || has_timer) {
+                    let gs_arg = if self.gamestate_emitted { ", __gs" } else { "" };
+                    self.line(&format!("{loop_prefix}loop {{"));
+                    self.indent();
+                    self.line("let __k = __rt.inkey();");
+                    if has_key {
+                        self.line(&format!("if !__k.is_empty() {{ __handle_key_event(&__k, __rt{gs_arg}); }}"));
+                    }
+                    if has_timer {
+                        self.line(&format!("__handle_timer_event(__rt{gs_arg});"));
+                    }
+                    self.line("if __k.is_empty() { break; }");
+                    self.dedent(); self.line("}");
+                } else {
+                    self.line(&format!("{loop_prefix}loop {{"));
+                    self.indent(); self.emit_stmts(body)?;
+                    let c = self.emit_expr(c)?;
+                    self.line(&format!("if qb_bool({c}) {{ break; }}"));
+                    self.dedent(); self.line("}");
+                }
             }
             DoKind::Infinite => {
                 self.line(&format!("{loop_prefix}loop {{"));
@@ -5261,6 +5393,11 @@ fn collect_gosub_targets(stmts: &[Stmt]) -> HashSet<String> {
     for stmt in stmts {
         match stmt {
             Stmt::Gosub(label) => { targets.insert(label.clone()); }
+            // ON KEY/TIMER GOSUB targets are extracted as functions so the runtime
+            // key-event dispatch helper can call them by name.
+            Stmt::OnKeyGosub { target, .. } | Stmt::OnTimerGosub { target, .. } => {
+                targets.insert(target.clone());
+            }
             // ON ERROR GOTO labels are treated as gosub-style targets only when
             // the label is a named (non-numeric) identifier.  Numeric labels live
             // in the state-machine match arms and must NOT be extracted as fns.
@@ -5301,6 +5438,32 @@ fn collect_gosub_targets(stmts: &[Stmt]) -> HashSet<String> {
     targets
 }
 
+/// Scan SUB/FUNCTION bodies for ON KEY(n) GOSUB and ON TIMER(n) GOSUB targets.
+/// These labels live in the main body and must be extracted as gosub functions
+/// even though no explicit GOSUB statement in the main body references them.
+fn collect_event_gosub_targets_from_stmts(stmts: &[Stmt], targets: &mut HashSet<String>) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::OnKeyGosub   { target, .. } |
+            Stmt::OnTimerGosub { target, .. } => { targets.insert(target.clone()); }
+            Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                collect_event_gosub_targets_from_stmts(then_body, targets);
+                for (_, b) in elseif_branches { collect_event_gosub_targets_from_stmts(b, targets); }
+                if let Some(b) = else_body { collect_event_gosub_targets_from_stmts(b, targets); }
+            }
+            Stmt::For    { body, .. } |
+            Stmt::While  { body, .. } |
+            Stmt::Do     { body, .. } => collect_event_gosub_targets_from_stmts(body, targets),
+            Stmt::Select { cases, default, .. } => {
+                for c in cases { collect_event_gosub_targets_from_stmts(&c.body, targets); }
+                if let Some(b) = default { collect_event_gosub_targets_from_stmts(b, targets); }
+            }
+            Stmt::Block(inner) => collect_event_gosub_targets_from_stmts(inner, targets),
+            _ => {}
+        }
+    }
+}
+
 /// Collect all GOTO target labels reachable from `stmts`.
 fn collect_goto_targets(stmts: &[Stmt]) -> HashSet<String> {
     let mut targets = HashSet::new();
@@ -5337,8 +5500,9 @@ fn collect_goto_targets(stmts: &[Stmt]) -> HashSet<String> {
 /// GOSUB targets nor GOTO targets are absorbed into that block — this correctly
 /// handles old-style BASIC where GOSUB routines span multiple numbered lines
 /// and the code falls through from label to label until a RETURN.
-fn extract_gosub_blocks(stmts: &[Stmt]) -> (Vec<Stmt>, Vec<(String, Vec<Stmt>)>) {
-    let gosub_targets = collect_gosub_targets(stmts);
+fn extract_gosub_blocks(stmts: &[Stmt], extra_gosub_targets: &HashSet<String>) -> (Vec<Stmt>, Vec<(String, Vec<Stmt>)>) {
+    let mut gosub_targets = collect_gosub_targets(stmts);
+    gosub_targets.extend(extra_gosub_targets.iter().cloned());
     let goto_targets  = collect_goto_targets(stmts);
 
     let mut main_stmts: Vec<Stmt> = Vec::new();
@@ -5467,6 +5631,19 @@ fn collect_array_names_expr(expr: &Expr, out: &mut HashSet<String>) {
 /// last statements, possibly several consecutive Label stmts) and (b) targeted
 /// by a named GOTO somewhere within `body`.  These represent the QB idiom of
 /// jumping to the end of a DO loop iteration, equivalent to `continue`.
+/// Returns true for `INKEY$ = ""` (the DO: LOOP UNTIL INKEY$ = "" drain pattern).
+fn is_inkey_eq_empty(expr: &Expr) -> bool {
+    match expr {
+        Expr::BinOp { op: BinOp::Eq, lhs, rhs } => {
+            let lhs_is_inkey = matches!(lhs.as_ref(),
+                Expr::Call { name, args } if name.to_lowercase() == "inkey$" && args.is_empty());
+            let rhs_is_empty = matches!(rhs.as_ref(), Expr::StrLit(s) if s.is_empty());
+            lhs_is_inkey && rhs_is_empty
+        }
+        _ => false,
+    }
+}
+
 fn find_bottom_goto_labels(body: &[Stmt]) -> HashSet<String> {
     // Collect all named GOTO targets within the body
     let mut goto_targets: HashSet<String> = HashSet::new();

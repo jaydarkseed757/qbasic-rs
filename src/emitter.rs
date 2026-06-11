@@ -548,7 +548,7 @@ impl Emitter {
     fn emit_data_store(&mut self, data: &[String]) {
         if data.is_empty() { return; }
         let items: Vec<String> = data.iter()
-            .map(|s| format!("\"{}\"", s.replace('"', "\\\"")))
+            .map(|s| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")))
             .collect();
         self.line(&format!("static __DATA: &[&str] = &[{}];", items.join(", ")));
         self.line("static __DATA_PTR: std::sync::atomic::AtomicUsize = \
@@ -3202,6 +3202,59 @@ impl Emitter {
                 }
             }
 
+            // ── Plain array element arr(i) → hoist + write back (QB byref) ──────
+            // QB passes array elements by reference: `CALL Swap(a(i), a(j))` must
+            // mutate the array. Hoist the element to a temp (also avoids E0499
+            // when two elements of the same array are passed) and write back.
+            if let Expr::Call { name, args: iargs } = expr {
+                if !iargs.is_empty() {
+                    let name_bare = name.trim_end_matches(['$', '%', '!', '#', '&']).to_lowercase();
+                    let is_string = name.ends_with('$')
+                        || self.local_string_arrays.contains(&name.to_lowercase())
+                        || matches!(self.shared_types.get(&name_bare), Some(QbType::String));
+                    let typed_name = if is_string {
+                        rust_ident_typed(name, &QbType::String)
+                    } else {
+                        rust_ident(name)
+                    };
+                    let in_shared = self.shared_names.contains(&name_bare)
+                        && self.array_names.contains(&name_bare);
+                    let is_plain_arr = !self.typed_fields.contains_key(rust_ident(name).as_str())
+                        && !self.user_fns.contains(&rust_ident(name))
+                        && (in_shared
+                            || self.local_arrays.contains(&typed_name)
+                            || self.array_params.contains(&rust_ident(name)));
+                    if is_plain_arr {
+                        // Evaluate each index exactly once
+                        let mut subscript = String::new();
+                        for idx in iargs {
+                            let idx_val = self.lift_expr(idx);
+                            let tc = self.lift_counter; self.lift_counter += 1;
+                            self.line(&format!("let __baidx{tc} = ({idx_val}) as usize;"));
+                            subscript.push_str(&format!("[__baidx{tc}]"));
+                        }
+                        let path = if in_shared {
+                            format!("__gs.{typed_name}{subscript}")
+                        } else {
+                            format!("{typed_name}{subscript}")
+                        };
+                        let tc = self.lift_counter; self.lift_counter += 1;
+                        if is_string {
+                            let tmp = format!("__tmp_arrs{tc}");
+                            self.line(&format!("let mut {tmp}: String = {path}.clone();"));
+                            writebacks.push((path, format!("{tmp}.clone()")));
+                            result.push(format!("&mut {tmp}"));
+                        } else {
+                            let tmp = format!("__tmp_arr{tc}");
+                            self.line(&format!("let mut {tmp}: f64 = {path};"));
+                            writebacks.push((path, tmp.clone()));
+                            result.push(format!("&mut {tmp}"));
+                        }
+                        continue;
+                    }
+                }
+            }
+
             // ── String scalar lvalue → pass &mut ─────────────────────────────
             if let Expr::Var(LValue::Scalar { name, ty: QbType::String }) = expr {
                 let lower = rust_ident_typed(name, &QbType::String);
@@ -3483,7 +3536,13 @@ impl Emitter {
                     this.line(&format!("let {tmp} = {call};"));
                     tmp
                 };
-                if name_lc == "rnd"    { return hoist(self, "__rt.rnd()".into()); }
+                if name_lc == "rnd"    {
+                    if let Some(arg0) = args.first() {
+                        let av = self.lift_expr(arg0);
+                        return hoist(self, format!("__rt.rnd_arg({av})"));
+                    }
+                    return hoist(self, "__rt.rnd()".into());
+                }
                 if name_lc == "inkey$" { return hoist(self, "__rt.inkey()".into()); }
                 if name_lc == "peek" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_peek({})", a[0]));
@@ -3499,8 +3558,11 @@ impl Emitter {
                 if name_lc == "ubound" || name_lc == "lbound" {
                     // Resolve array QB name for lower-bound lookup.
                     let arr_qb_lc: String = match args.first() {
-                        Some(Expr::Var(LValue::Scalar { name: n, .. })) => n.to_lowercase(),
-                        Some(Expr::Call { name: n, args: ea }) if ea.is_empty() => n.to_lowercase(),
+                        // array_lower keys are sigil-free — strip before lookup
+                        Some(Expr::Var(LValue::Scalar { name: n, .. }))
+                        | Some(Expr::Call { name: n, args: _ }) => n
+                            .trim_end_matches(['$', '%', '!', '#', '&'])
+                            .to_lowercase(),
                         _ => String::new(),
                     };
                     // Optional second arg: dimension number (1-based QB).
@@ -3519,7 +3581,15 @@ impl Emitter {
                     if let Some(_first) = a.first() {
                         let arr_name_raw = match args.first() {
                             Some(Expr::Var(LValue::Scalar { name: n, ty })) => rust_ident_typed(n, ty),
-                            Some(Expr::Call { name: n, args: ea }) if ea.is_empty() => rust_ident(n),
+                            Some(Expr::Call { name: n, args: ea }) if ea.is_empty() => {
+                                // String arrays carry an _s suffix locally
+                                if n.ends_with('$')
+                                   || self.local_string_arrays.contains(&n.to_lowercase()) {
+                                    rust_ident_typed(n, &QbType::String)
+                                } else {
+                                    rust_ident(n)
+                                }
+                            }
                             _ => return format!("(({}.len() as f64) - 1.0)", a[0]),
                         };
                         let arr_lc = arr_name_raw.trim_end_matches("_s").to_string();
@@ -3617,6 +3687,8 @@ impl Emitter {
                     BinOp::And    => format!("qb_and({l}, {r})"),
                     BinOp::Or     => format!("qb_or({l}, {r})"),
                     BinOp::Xor    => format!("qb_xor({l}, {r})"),
+                    BinOp::Eqv    => format!("qb_eqv({l}, {r})"),
+                    BinOp::Imp    => format!("qb_imp({l}, {r})"),
                 }
             }
             Expr::UnOp { op, operand } => {
@@ -3790,6 +3862,8 @@ impl Emitter {
                     BinOp::And    => format!("qb_and({l}, {r})"),
                     BinOp::Or     => format!("qb_or({l}, {r})"),
                     BinOp::Xor    => format!("qb_xor({l}, {r})"),
+                    BinOp::Eqv    => format!("qb_eqv({l}, {r})"),
+                    BinOp::Imp    => format!("qb_imp({l}, {r})"),
                 }
             }
 
@@ -3806,7 +3880,13 @@ impl Emitter {
                 let lower = rust_ident(name); // sigil-stripped lowercase
 
                 // RND / INKEY$ / INPUT$ / ERR / PMAP need __rt
-                if upper == "RND"    { return Ok("__rt.rnd()".into()); }
+                if upper == "RND" {
+                    if let Some(arg0) = args.first() {
+                        let av = self.emit_expr_inner(arg0)?;
+                        return Ok(format!("__rt.rnd_arg({av})"));
+                    }
+                    return Ok("__rt.rnd()".into());
+                }
                 if upper == "INKEY$" { return Ok("__rt.inkey()".into()); }
                 if upper == "ERR"    { return Ok("__rt.err_code".into()); }
                 if upper == "PMAP" && args.len() == 2 {
@@ -3825,8 +3905,11 @@ impl Emitter {
                 if upper == "UBOUND" || upper == "LBOUND" {
                     // Resolve QB array name for lower-bound lookup.
                     let arr_qb_lc: String = match args.first() {
-                        Some(Expr::Var(LValue::Scalar { name: n, .. })) => n.to_lowercase(),
-                        Some(Expr::Call { name: n, args: ea }) if ea.is_empty() => n.to_lowercase(),
+                        // array_lower keys are sigil-free — strip before lookup
+                        Some(Expr::Var(LValue::Scalar { name: n, .. }))
+                        | Some(Expr::Call { name: n, args: _ }) => n
+                            .trim_end_matches(['$', '%', '!', '#', '&'])
+                            .to_lowercase(),
                         _ => String::new(),
                     };
                     // Optional second arg: dimension number (1-based QB).
@@ -3844,7 +3927,15 @@ impl Emitter {
                     if let Some(arr_expr) = args.first() {
                         let arr_name = match arr_expr {
                             Expr::Var(LValue::Scalar { name, ty }) => rust_ident_typed(name, ty),
-                            Expr::Call { name, args: ea } if ea.is_empty() => rust_ident(name),
+                            Expr::Call { name, args: ea } if ea.is_empty() => {
+                                // String arrays carry an _s suffix locally
+                                if name.ends_with('$')
+                                   || self.local_string_arrays.contains(&name.to_lowercase()) {
+                                    rust_ident_typed(name, &QbType::String)
+                                } else {
+                                    rust_ident(name)
+                                }
+                            }
                             _ => {
                                 let v = self.emit_expr_inner(arr_expr)?;
                                 return Ok(format!("(({v}.len() as f64) - 1.0)"));

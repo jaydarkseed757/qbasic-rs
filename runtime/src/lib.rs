@@ -438,6 +438,8 @@ pub struct Runtime {
     key_queue: std::collections::VecDeque<String>,
     // RNG (LCG matching QB's generator)
     rng: u32,
+    /// Last value returned by rnd() — QB's RND(0) repeats it.
+    last_rnd: f64,
     // VIEW / WINDOW logical coordinate system
     view_x1: f64, view_y1: f64, view_x2: f64, view_y2: f64,
     view_active: bool,
@@ -621,7 +623,8 @@ impl Runtime {
             win_w:              DEFAULT_WIN_W,
             win_h:              DEFAULT_WIN_H,
             key_queue:    std::collections::VecDeque::new(),
-            rng:          0,
+            rng:          0x50000, // QB power-on seed: first RND = .7055475
+            last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
             win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false, win_screen: false,
             gfx_x: 0.0, gfx_y: 0.0,
@@ -698,7 +701,8 @@ impl Runtime {
             win_w,
             win_h,
             key_queue:    std::collections::VecDeque::new(),
-            rng:          0,
+            rng:          0x50000, // QB power-on seed: first RND = .7055475
+            last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
             win_x1:  0.0, win_y1:  0.0, win_x2:  0.0, win_y2:  0.0, win_active:  false, win_screen: false,
             gfx_x: 0.0, gfx_y: 0.0,
@@ -1324,12 +1328,36 @@ impl Runtime {
         // QBC_SEED locks the RNG so a `RANDOMIZE TIMER` can't perturb a
         // deterministic headless render (golden tests).
         if self.seed_locked { return; }
-        self.rng = seed.abs() as u32;
+        // QB mixes the seed into bits 8-23 of the 24-bit state, preserving
+        // the low byte (we fold the f32 bit pattern like QB folds the FP
+        // accumulator's middle words).
+        let b = (seed as f32).to_bits();
+        let m = ((b >> 16) ^ (b & 0xFFFF)) & 0xFFFF;
+        self.rng = (self.rng & 0xFF) | (m << 8);
     }
 
+    /// QBasic's 24-bit LCG: x = (x*16598013 + 12820163) AND &HFFFFFF,
+    /// RND = x / 2^24. Same sequence as DOS QBasic 1.1 for the same seed.
     pub fn rnd(&mut self) -> f64 {
-        self.rng = self.rng.wrapping_mul(214013).wrapping_add(2531011);
-        ((self.rng >> 16) & 0x7FFF) as f64 / 32768.0
+        self.rng = self.rng.wrapping_mul(16598013).wrapping_add(12820163) & 0xFF_FFFF;
+        self.last_rnd = self.rng as f64 / 16777216.0;
+        self.last_rnd
+    }
+
+    /// RND with an argument: negative reseeds, 0 repeats the last value,
+    /// positive returns the next value (QB semantics).
+    pub fn rnd_arg(&mut self, v: f64) -> f64 {
+        if v < 0.0 {
+            if !self.seed_locked {
+                let b = (v as f32).to_bits();
+                self.rng = (b ^ (b >> 8)) & 0xFF_FFFF;
+            }
+            self.rnd()
+        } else if v == 0.0 {
+            self.last_rnd
+        } else {
+            self.rnd()
+        }
     }
 
     // ── Graphics ──────────────────────────────────────────────────────────────
@@ -2810,6 +2838,8 @@ fn flood_fill(rt: &mut Runtime, sx: i32, sy: i32, fill: u8, border: u8) {
 
 #[inline] pub fn qb_and(a: f64, b: f64) -> f64 { ((a as i64) & (b as i64)) as f64 }
 #[inline] pub fn qb_or(a: f64, b: f64)  -> f64 { ((a as i64) | (b as i64)) as f64 }
+#[inline] pub fn qb_eqv(a: f64, b: f64) -> f64 { (!((a as i64) ^ (b as i64))) as f64 }
+#[inline] pub fn qb_imp(a: f64, b: f64) -> f64 { ((!(a as i64)) | (b as i64)) as f64 }
 
 // ── Math functions ────────────────────────────────────────────────────────────
 
@@ -3225,6 +3255,58 @@ pub fn qb_width(_cols: f64, _rows: f64) {}
 
 /// LPRINT — print to printer (stub: print to stdout)
 pub fn qb_lprint(s: &str) { println!("{s}"); }
+
+#[cfg(test)]
+mod rng_and_logic_tests {
+    use super::*;
+
+    #[test]
+    fn qb_lcg_first_value_is_the_famous_7055475() {
+        // DOS QBasic 1.1: first RND without RANDOMIZE = .7055475
+        let mut rt = Runtime::headless();
+        let v = rt.rnd();
+        assert!((v - 0.7055475).abs() < 1e-6, "got {v}");
+    }
+
+    #[test]
+    fn rnd_zero_repeats_last_value() {
+        let mut rt = Runtime::headless();
+        let a = rt.rnd();
+        assert_eq!(rt.rnd_arg(0.0), a);
+        assert_eq!(rt.rnd_arg(0.0), a);
+        let b = rt.rnd();
+        assert_ne!(a, b);
+        assert_eq!(rt.rnd_arg(0.0), b);
+    }
+
+    #[test]
+    fn rnd_negative_reseeds_deterministically() {
+        let mut rt = Runtime::headless();
+        let a = rt.rnd_arg(-3.5);
+        let _ = rt.rnd();
+        let b = rt.rnd_arg(-3.5);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn rnd_positive_advances() {
+        let mut rt = Runtime::headless();
+        let a = rt.rnd_arg(1.0);
+        let b = rt.rnd_arg(1.0);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn eqv_imp_truth_table() {
+        // QB EQV = bitwise NOT(a XOR b); IMP = (NOT a) OR b
+        assert_eq!(qb_eqv(5.0, 3.0), -7.0);
+        assert_eq!(qb_eqv(-1.0, -1.0), -1.0);
+        assert_eq!(qb_eqv(0.0, -1.0), 0.0);
+        assert_eq!(qb_imp(5.0, 3.0), -5.0);
+        assert_eq!(qb_imp(0.0, 5.0), -1.0);
+        assert_eq!(qb_imp(-1.0, 0.0), 0.0);
+    }
+}
 
 #[cfg(test)]
 mod print_using_tests {

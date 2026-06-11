@@ -277,7 +277,7 @@ pub enum PutAction { Pset, Preset, And, Or, Xor }
 pub enum BinOp {
     Add, Sub, Mul, Div, IntDiv, Pow, Mod,
     Eq, Ne, Lt, Le, Gt, Ge,
-    And, Or, Xor,
+    And, Or, Xor, Eqv, Imp,
 }
 
 #[derive(Debug, Clone)]
@@ -300,12 +300,16 @@ pub struct Parser {
     type_defs:  HashMap<String, Vec<(String, QbType)>>,
     type_layouts: HashMap<String, Vec<(String, FieldRepr)>>,
     directives: Vec<String>,
+    /// Extra FOR loops closed by a multi-counter `NEXT i, j, …` — each
+    /// enclosing parse_for consumes one instead of expecting its own NEXT.
+    pending_nexts: u32,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Spanned>) -> Self {
         Self { tokens, pos: 0, type_defs: HashMap::new(),
-               type_layouts: HashMap::new(), directives: Vec::new() }
+               type_layouts: HashMap::new(), directives: Vec::new(),
+               pending_nexts: 0 }
     }
 
     fn peek(&self) -> &Token {
@@ -320,6 +324,14 @@ impl Parser {
         let t = &self.tokens[self.pos].token;
         if self.pos + 1 < self.tokens.len() { self.pos += 1; }
         t
+    }
+
+    /// Consume to EOL for a statement we don't model, warning on stderr
+    /// (project rule: never silently drop an unimplemented statement).
+    fn skip_warn(&mut self, what: &str) {
+        eprintln!("warning: line {}: {} not modelled — statement skipped",
+                  self.line(), what);
+        while !self.at_eol() { self.advance(); }
     }
 
     fn expect(&mut self, expected: &Token) -> Result<()> {
@@ -610,7 +622,7 @@ impl Parser {
                     false
                 };
                 if is_event_trap {
-                    while !self.at_eol() { self.advance(); }
+                    self.skip_warn("ON KEY/TIMER event trap");
                     return Ok(Some(Stmt::Block(vec![])));
                 }
                 // ON <expr> (GOTO|GOSUB) label, label, … — computed branch.
@@ -669,17 +681,17 @@ impl Parser {
                 Ok(Stmt::Poke { addr, val })
             }
             Token::Width => {
-                while !self.at_eol() { self.advance(); }
+                self.skip_warn("WIDTH");
                 return Ok(None);
             }
             // KEY ON/OFF — IBM PC keyboard function-key display control; skip
             Token::Ident(ref s) if s.eq_ignore_ascii_case("KEY") => {
-                while !self.at_eol() { self.advance(); }
+                self.skip_warn("KEY ON/OFF");
                 return Ok(None);
             }
             // CLEAR [, [expr] [, expr]] — QB memory/stack init; no-op for us (skip)
             Token::Ident(ref s) if s.eq_ignore_ascii_case("CLEAR") => {
-                while !self.at_eol() { self.advance(); }
+                self.skip_warn("CLEAR");
                 return Ok(None);
             }
             // File I/O statements
@@ -1079,13 +1091,13 @@ impl Parser {
                 if name.to_uppercase() == "KEY"
                     && matches!(self.peek(), Token::On | Token::Stop)
                 {
-                    while !self.at_eol() { self.advance(); }
+                    self.skip_warn("KEY(n) ON/STOP");
                     return Ok(Stmt::Block(vec![]));
                 }
                 if name.to_uppercase() == "KEY" {
                     if let Token::Ident(ref s) = self.peek().clone() {
                         if s.to_uppercase() == "OFF" {
-                            while !self.at_eol() { self.advance(); }
+                            self.skip_warn("KEY(n)/TIMER OFF");
                             return Ok(Stmt::Block(vec![]));
                         }
                     }
@@ -1123,13 +1135,13 @@ impl Parser {
                 if name.to_uppercase() == "TIMER"
                     && matches!(self.peek(), Token::On | Token::Stop)
                 {
-                    while !self.at_eol() { self.advance(); }
+                    self.skip_warn("TIMER ON/STOP");
                     return Ok(Stmt::Block(vec![]));
                 }
                 if name.to_uppercase() == "TIMER" {
                     if let Token::Ident(s) = self.peek().clone() {
                         if s.to_uppercase() == "OFF" {
-                            while !self.at_eol() { self.advance(); }
+                            self.skip_warn("KEY(n)/TIMER OFF");
                             return Ok(Stmt::Block(vec![]));
                         }
                     }
@@ -1295,11 +1307,25 @@ impl Parser {
         } else { None };
         self.skip_newlines();
         let body = self.parse_block_until(|t| matches!(t, Token::Next))?;
-        self.expect(&Token::Next)?;
-        // optional variable name after NEXT
-        if matches!(self.peek(), Token::Ident(_) | Token::IdentInt(_) |
-                    Token::IdentSng(_) | Token::IdentDbl(_) | Token::IdentStr(_)) {
-            self.advance();
+        if self.pending_nexts > 0 {
+            // An inner `NEXT i, j, …` already closed this loop.
+            self.pending_nexts -= 1;
+        } else {
+            self.expect(&Token::Next)?;
+            // optional counter name(s): `NEXT i` or `NEXT j, i` — each extra
+            // comma-separated name closes one enclosing FOR as well
+            if matches!(self.peek(), Token::Ident(_) | Token::IdentInt(_) |
+                        Token::IdentSng(_) | Token::IdentDbl(_) | Token::IdentStr(_)) {
+                self.advance();
+                while self.peek() == &Token::Comma {
+                    self.advance();
+                    if matches!(self.peek(), Token::Ident(_) | Token::IdentInt(_) |
+                                Token::IdentSng(_) | Token::IdentDbl(_) | Token::IdentStr(_)) {
+                        self.advance();
+                    }
+                    self.pending_nexts += 1;
+                }
+            }
         }
         Ok(Stmt::For { var, from, to, step, body })
     }
@@ -2015,8 +2041,30 @@ impl Parser {
 
     // ── Expression parser (recursive descent, QB precedence) ─────────────────
 
+    // QB operator precedence, loosest to tightest:
+    //   IMP, EQV, XOR, OR, AND, NOT, relational, + -, MOD, \, * /, unary -, ^
     fn parse_expr(&mut self) -> Result<Expr> {
-        self.parse_xor()
+        self.parse_imp()
+    }
+
+    fn parse_imp(&mut self) -> Result<Expr> {
+        let mut lhs = self.parse_eqv()?;
+        while self.peek() == &Token::Imp {
+            self.advance();
+            let rhs = self.parse_eqv()?;
+            lhs = Expr::BinOp { op: BinOp::Imp, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_eqv(&mut self) -> Result<Expr> {
+        let mut lhs = self.parse_xor()?;
+        while self.peek() == &Token::Eqv {
+            self.advance();
+            let rhs = self.parse_xor()?;
+            lhs = Expr::BinOp { op: BinOp::Eqv, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
     }
 
     fn parse_xor(&mut self) -> Result<Expr> {
@@ -2079,7 +2127,7 @@ impl Parser {
     }
 
     fn parse_add(&mut self) -> Result<Expr> {
-        let mut lhs = self.parse_mul()?;
+        let mut lhs = self.parse_mod()?;
         loop {
             let op = match self.peek() {
                 Token::Plus  => BinOp::Add,
@@ -2087,14 +2135,34 @@ impl Parser {
                 _            => break,
             };
             self.advance();
-            let rhs = self.parse_mul()?;
+            let rhs = self.parse_mod()?;
             lhs = Expr::BinOp { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
         }
         Ok(lhs)
     }
 
-    fn parse_mul(&mut self) -> Result<Expr> {
+    fn parse_mod(&mut self) -> Result<Expr> {
         let mut lhs = self.parse_intdiv()?;
+        while self.peek() == &Token::Mod {
+            self.advance();
+            let rhs = self.parse_intdiv()?;
+            lhs = Expr::BinOp { op: BinOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_intdiv(&mut self) -> Result<Expr> {
+        let mut lhs = self.parse_mul()?;
+        while self.peek() == &Token::Backslash {
+            self.advance();
+            let rhs = self.parse_mul()?;
+            lhs = Expr::BinOp { op: BinOp::IntDiv, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    fn parse_mul(&mut self) -> Result<Expr> {
+        let mut lhs = self.parse_negate()?;
         loop {
             let op = match self.peek() {
                 Token::Star  => BinOp::Mul,
@@ -2102,28 +2170,8 @@ impl Parser {
                 _            => break,
             };
             self.advance();
-            let rhs = self.parse_intdiv()?;
-            lhs = Expr::BinOp { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
-        }
-        Ok(lhs)
-    }
-
-    fn parse_intdiv(&mut self) -> Result<Expr> {
-        let mut lhs = self.parse_mod()?;
-        while self.peek() == &Token::Backslash {
-            self.advance();
-            let rhs = self.parse_mod()?;
-            lhs = Expr::BinOp { op: BinOp::IntDiv, lhs: Box::new(lhs), rhs: Box::new(rhs) };
-        }
-        Ok(lhs)
-    }
-
-    fn parse_mod(&mut self) -> Result<Expr> {
-        let mut lhs = self.parse_negate()?;
-        while self.peek() == &Token::Mod {
-            self.advance();
             let rhs = self.parse_negate()?;
-            lhs = Expr::BinOp { op: BinOp::Mod, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+            lhs = Expr::BinOp { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
         }
         Ok(lhs)
     }
@@ -2142,13 +2190,28 @@ impl Parser {
     }
 
     fn parse_pow(&mut self) -> Result<Expr> {
-        let base = self.parse_primary()?;
-        if self.peek() == &Token::Caret {
+        // QB ^ is LEFT-associative: 2^3^2 = (2^3)^2 = 64
+        let mut lhs = self.parse_primary()?;
+        while self.peek() == &Token::Caret {
             self.advance();
-            let exp = self.parse_negate()?; // right-associative
-            Ok(Expr::BinOp { op: BinOp::Pow, lhs: Box::new(base), rhs: Box::new(exp) })
+            let rhs = self.parse_pow_operand()?;
+            lhs = Expr::BinOp { op: BinOp::Pow, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+        Ok(lhs)
+    }
+
+    /// Exponent operand: a unary sign binds to the exponent only (2 ^ -3),
+    /// without re-entering parse_pow (which would make ^ right-associative).
+    fn parse_pow_operand(&mut self) -> Result<Expr> {
+        if self.peek() == &Token::Minus {
+            self.advance();
+            let operand = self.parse_pow_operand()?;
+            Ok(Expr::UnOp { op: UnOp::Neg, operand: Box::new(operand) })
+        } else if self.peek() == &Token::Plus {
+            self.advance();
+            self.parse_pow_operand()
         } else {
-            Ok(base)
+            self.parse_primary()
         }
     }
 
@@ -2217,14 +2280,15 @@ impl Parser {
                     return Ok(Expr::Point { x: Box::new(x), y: Box::new(y) });
                 }
 
-                // RND — optional dummy arg
+                // RND — optional arg: RND(0) repeats, RND(neg) reseeds (QB)
                 if upper == "RND" {
+                    let mut args = Vec::new();
                     if self.peek() == &Token::LParen {
                         self.advance();
-                        if self.peek() != &Token::RParen { self.parse_expr()?; }
+                        if self.peek() != &Token::RParen { args.push(self.parse_expr()?); }
                         self.expect(&Token::RParen)?;
                     }
-                    return Ok(Expr::Call { name: "RND".into(), args: vec![] });
+                    return Ok(Expr::Call { name: "RND".into(), args });
                 }
 
                 if self.peek() == &Token::LParen {
@@ -2365,6 +2429,8 @@ impl Parser {
     {
         let mut stmts = Vec::new();
         loop {
+            // A multi-counter NEXT closed an enclosing FOR — unwind to it.
+            if self.pending_nexts > 0 { break; }
             self.skip_newlines();
             // END followed by a block-closing keyword is always a terminator,
             // regardless of the predicate — prevents standalone END (program stop)

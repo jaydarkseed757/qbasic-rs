@@ -68,7 +68,7 @@ pub enum Token {
     DefStr,        // DEFSTR
 
     // Boolean / logical keywords
-    And, Or, Not, Xor,
+    And, Or, Not, Xor, Eqv, Imp,
     Mod,
 
     // SELECT CASE helpers
@@ -229,6 +229,8 @@ fn keyword(word: &str) -> Option<Token> {
         "WHILE"     => Token::While,
         "WINDOW"    => Token::Window,
         "XOR"       => Token::Xor,
+        "EQV"       => Token::Eqv,
+        "IMP"       => Token::Imp,
         _ => return None,
     })
 }

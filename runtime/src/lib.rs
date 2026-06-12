@@ -966,13 +966,12 @@ impl Runtime {
     // ── Graphics-mode text rendering ──────────────────────────────────────────
 
     /// Render a single character glyph at (cursor_col, cursor_row) in the framebuffer.
-    /// The glyph bitmap is 8×8; in modes with char_h > 8 (e.g. mode 9 = 14px) the
-    /// remaining rows below the glyph are filled with the background color so the full
-    /// character cell is cleared on each write.
+    /// The glyph bitmap is 8×8; in modes with char_h > 8 (e.g. mode 9 = 14px or
+    /// mode 0 = 16px) the 8 source rows are distributed across char_h scan lines
+    /// using Bresenham-style integer scaling so the glyph fills the full cell height.
+    /// char_h=8 → 1 scan/row (identity); char_h=14 → [1,2,2,2,1,2,2,2] scans;
+    /// char_h=16 → 2 scans/row (double-scan, matching CGA/EGA hardware text modes).
     fn draw_char_fb(&mut self, ch: char) {
-        // QB source files use Latin-1 encoding (byte N stored as U+00N0),
-        // so the code-point value directly gives the CP437 glyph index.
-        // Clamp to 255 for safety; proper Unicode above U+00FF falls back to '?'.
         let cp = ch as u32;
         let idx = if cp < 256 { cp as usize } else { b'?' as usize };
         let glyph = FONT_8X8[idx];
@@ -980,27 +979,32 @@ impl Runtime {
         let py = ((self.cursor_row as u32).saturating_sub(1)) * self.char_h;
         let fg = self.fg_color;
         let bg = self.bg_color;
-        // Draw 8-row bitmap glyph
-        for row in 0..8u32 {
-            let bits = glyph[row as usize];
-            for col in 0..self.char_w {
-                let set = col < 8 && (bits >> (7 - col)) & 1 == 1;
-                let x = px + col;
-                let y = py + row;
-                if x < self.width && y < self.height {
-                    self.fb[(y * self.width + x) as usize] = if set { fg } else { bg };
+        let ch = self.char_h;
+        // Distribute 8 glyph rows across char_h scan lines via integer Bresenham.
+        let mut scan_y = py;
+        for grow in 0..8u32 {
+            let scan_y_end = py + (grow + 1) * ch / 8;
+            let bits = glyph[grow as usize];
+            while scan_y < scan_y_end {
+                for col in 0..self.char_w {
+                    let set = col < 8 && (bits >> (7 - col)) & 1 == 1;
+                    let x = px + col;
+                    if x < self.width && scan_y < self.height {
+                        self.fb[(scan_y * self.width + x) as usize] = if set { fg } else { bg };
+                    }
                 }
+                scan_y += 1;
             }
         }
-        // Fill descender rows (rows 8..char_h-1) with background
-        for row in 8..self.char_h {
+        // Fill any rounding remainder with background.
+        while scan_y < py + ch {
             for col in 0..self.char_w {
                 let x = px + col;
-                let y = py + row;
-                if x < self.width && y < self.height {
-                    self.fb[(y * self.width + x) as usize] = bg;
+                if x < self.width && scan_y < self.height {
+                    self.fb[(scan_y * self.width + x) as usize] = bg;
                 }
             }
+            scan_y += 1;
         }
     }
 

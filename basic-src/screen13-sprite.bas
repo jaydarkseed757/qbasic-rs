@@ -1,33 +1,94 @@
 ' =========================================
 ' SCREEN 13 GET/PUT SPRITE DEMO
-' Captures a 256-color sprite with GET and blits
-' it around with PUT (PSET and XOR verbs).
+' Exercises 256-color GET/PUT:
+'   - round-trip fidelity (colors 0-255)
+'   - odd-width sprite (7px wide)
+'   - all PUT verbs: PSET, XOR, AND, OR, PRESET
+'   - clipping at all four screen edges
 ' =========================================
 
 SCREEN 13
 CLS
 
-' Build a recognizable 24x16 sprite using many of the 256 colors.
+' ── Sprite A: 24x16, color sweep 1..254 (even-width, many colors) ─────────────
 FOR y = 0 TO 15
     FOR x = 0 TO 23
-        PSET (x + 20, y + 20), ((x * 11 + y * 23) MOD 254) + 1
+        PSET (x + 2, y + 2), ((x * 11 + y * 23) MOD 254) + 1
+    NEXT x
+NEXT y
+DIM sprA(200) AS INTEGER
+GET (2, 2)-(25, 17), sprA
+CLS
+
+' ── Sprite B: 7x5, colors 0/127/128/200/255 (odd-width, sign-edge colors) ──────
+PSET (2, 2), 0
+PSET (3, 2), 127
+PSET (4, 2), 128
+PSET (5, 2), 200
+PSET (6, 2), 255
+PSET (2, 3), 254
+PSET (3, 3), 1
+PSET (4, 3), 129
+PSET (5, 3), 201
+PSET (6, 3), 253
+PSET (2, 4), 2
+PSET (3, 4), 126
+PSET (4, 4), 130
+PSET (5, 4), 202
+PSET (6, 4), 252
+PSET (2, 5), 3
+PSET (3, 5), 125
+PSET (4, 5), 131
+PSET (5, 5), 203
+PSET (6, 5), 251
+PSET (2, 6), 4
+PSET (3, 6), 124
+PSET (4, 6), 132
+PSET (5, 6), 204
+PSET (6, 6), 250
+DIM sprB(30) AS INTEGER
+GET (2, 2)-(8, 6), sprB
+CLS
+
+' ── Lay down a solid background stripe so AND/OR/XOR effects are visible ───────
+FOR y = 0 TO 199
+    FOR x = 0 TO 31
+        PSET (x + 200, y), (x * 8 + y) MOD 256
     NEXT x
 NEXT y
 
-' Capture it. 24x16 = 384 bytes -> 2 header + 192 data = 194 INTEGERs.
-DIM spr(200) AS INTEGER
-GET (20, 20)-(43, 35), spr
+' ── PSET: simple overwrite — sprA at (10,10) and (100,80) ─────────────────────
+PUT (10, 10), sprA, PSET
+PUT (100, 80), sprA, PSET
 
-' Blit copies across the screen with PSET (overwrite).
-PUT (100, 50), spr, PSET
-PUT (160, 80), spr, PSET
-PUT (60, 120), spr, PSET
+' ── XOR self-inverse: two PUTs at same spot restore background ────────────────
+FOR y = 50 TO 65
+    FOR x = 50 TO 73
+        PSET (x, y), (x * 3 + y * 7) MOD 256
+    NEXT x
+NEXT y
+PUT (50, 50), sprA, XOR
+PUT (50, 50), sprA, XOR   ' background fully restored
 
-' XOR draw then XOR erase at the same spot: the second PUT must restore
-' whatever was underneath (XOR is its own inverse).
-PUT (220, 120), spr, XOR
-PUT (220, 120), spr, XOR
+' ── PRESET: complement each pixel against background ─────────────────────────
+PUT (10, 100), sprA, PRESET
 
-LOCATE 24, 1: PRINT "SCREEN 13 sprite GET/PUT";
+' ── AND: mask into textured background ───────────────────────────────────────
+PUT (200, 10), sprA, AND
+
+' ── OR: overlay onto textured background ─────────────────────────────────────
+PUT (200, 90), sprA, OR
+
+' ── Odd-width sprite B at several positions ───────────────────────────────────
+PUT (150, 10), sprB, PSET
+PUT (150, 20), sprB, PSET
+PUT (170, 10), sprB, XOR
+PUT (170, 10), sprB, XOR   ' XOR self-inverse on odd-width
+
+' ── Clipping: partially off each edge ────────────────────────────────────────
+PUT (-4,  10), sprA, PSET   ' clip left
+PUT (302,  10), sprA, PSET  ' clip right  (320 - 24 + 6 = off by 6px)
+PUT ( 10,  -4), sprA, PSET  ' clip top
+PUT ( 10, 188), sprA, PSET  ' clip bottom (200 - 16 + 4 = off by 4px)
 
 END

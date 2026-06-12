@@ -4248,4 +4248,114 @@ mod mode13_sprite_tests {
         assert_eq!(rt.point(100.0, 0.0), 245.0); // 255 - 10
         assert_eq!(rt.point(101.0, 0.0), 55.0);  // 255 - 200
     }
+
+    // Odd-width sprite (5×3): 15 bytes, no alignment padding issues.
+    #[test]
+    fn mode13_odd_width_sprite_round_trips() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        let colors: &[(f64, f64, f64)] = &[
+            (0.0, 0.0, 0.0), (1.0, 0.0, 127.0), (2.0, 0.0, 128.0),
+            (3.0, 0.0, 200.0), (4.0, 0.0, 255.0),
+            (0.0, 1.0, 254.0), (1.0, 1.0, 1.0), (2.0, 1.0, 129.0),
+            (3.0, 1.0, 201.0), (4.0, 1.0, 253.0),
+            (0.0, 2.0, 2.0), (1.0, 2.0, 126.0), (2.0, 2.0, 130.0),
+            (3.0, 2.0, 202.0), (4.0, 2.0, 252.0),
+        ];
+        for &(x, y, c) in colors { rt.pset(x, y, c); }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 4.0, 2.0, &mut spr);
+        assert_eq!(spr[0], 40.0); // width=5, 5*8=40 bits
+        assert_eq!(spr[1], 3.0);  // height=3
+        // expected elements: 2 + ceil(15/2) = 2 + 8 = 10
+        assert_eq!(spr.len(), 10);
+
+        rt.put_sprite(&spr, 50.0, 50.0, PutAction::Pset);
+        for &(x, y, c) in colors {
+            let got = rt.point(50.0 + x, 50.0 + y);
+            assert_eq!(got, c, "odd-width pixel ({x},{y}) mismatch: expected {c}, got {got}");
+        }
+    }
+
+    // Colors 0, 128, 255 round-trip: these hit sign-extension boundaries in
+    // the i16 packing used by get_sprite_mode13.
+    #[test]
+    fn mode13_boundary_colors_round_trip() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        // 4×1 sprite: colors 0, 128, 255, 200
+        for (x, &c) in [0.0f64, 128.0, 255.0, 200.0].iter().enumerate() {
+            rt.pset(x as f64, 0.0, c);
+        }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 3.0, 0.0, &mut spr);
+        rt.put_sprite(&spr, 100.0, 100.0, PutAction::Pset);
+        for (x, &c) in [0.0f64, 128.0, 255.0, 200.0].iter().enumerate() {
+            let got = rt.point(100.0 + x as f64, 100.0);
+            assert_eq!(got, c, "boundary color pixel {x} mismatch: expected {c}, got {got}");
+        }
+    }
+
+    // AND verb: result = fb & sprite. With a solid fb = 255 and sprite colors,
+    // the AND leaves the sprite color (255 & c = c).
+    #[test]
+    fn mode13_put_and_verb() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        // Background = 0xFF = 255 everywhere in target region
+        for y in 0..4 { for x in 0..4 { rt.pset((20+x) as f64, (20+y) as f64, 255.0); } }
+        // Sprite = gradient
+        for y in 0..4 { for x in 0..4 { rt.pset(x as f64, y as f64, (x*10+y*3) as f64); } }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 3.0, 3.0, &mut spr);
+        rt.put_sprite(&spr, 20.0, 20.0, PutAction::And);
+        for y in 0..4u32 { for x in 0..4u32 {
+            let expected = x*10 + y*3; // 255 & sprite = sprite
+            assert_eq!(rt.point((20+x) as f64, (20+y) as f64), expected as f64,
+                       "AND pixel ({x},{y})");
+        }}
+    }
+
+    // OR verb: result = fb | sprite. With fb = 0, OR gives the sprite color.
+    #[test]
+    fn mode13_put_or_verb() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        // Target region already black (default), sprite = some colors
+        for y in 0..4 { for x in 0..4 { rt.pset(x as f64, y as f64, (x*17+y*5) as f64); } }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 3.0, 3.0, &mut spr);
+        rt.put_sprite(&spr, 30.0, 30.0, PutAction::Or);
+        for y in 0..4u32 { for x in 0..4u32 {
+            let expected = x*17 + y*5; // 0 | sprite = sprite
+            assert_eq!(rt.point((30+x) as f64, (30+y) as f64), expected as f64,
+                       "OR pixel ({x},{y})");
+        }}
+    }
+
+    // Clipping: a sprite PUT partially off each screen edge must not panic and
+    // must write only the visible pixels.
+    #[test]
+    fn mode13_put_clips_at_edges() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0); // 320×200
+        for y in 0..4 { for x in 0..4 { rt.pset(x as f64, y as f64, 99.0); } }
+        let mut spr: Vec<f64> = Vec::new();
+        rt.get_sprite(0.0, 0.0, 3.0, 3.0, &mut spr);
+        // Clip off left edge (-2,0): cols 2..3 should be written, cols 0..1 off-screen
+        rt.put_sprite(&spr, -2.0, 50.0, PutAction::Pset);
+        assert_eq!(rt.point(0.0, 50.0), 99.0, "clip-left visible");
+        assert_eq!(rt.point(1.0, 50.0), 99.0, "clip-left visible");
+        // Clip off right edge (318,0): cols 0..1 visible, cols 2..3 off-screen
+        rt.put_sprite(&spr, 318.0, 60.0, PutAction::Pset);
+        assert_eq!(rt.point(318.0, 60.0), 99.0, "clip-right visible");
+        assert_eq!(rt.point(319.0, 60.0), 99.0, "clip-right visible");
+        // Clip off top edge (0,-2): rows 2..3 visible
+        rt.put_sprite(&spr, 100.0, -2.0, PutAction::Pset);
+        assert_eq!(rt.point(100.0, 0.0), 99.0, "clip-top visible");
+        // Clip off bottom edge (0,198): rows 0..1 visible
+        rt.put_sprite(&spr, 100.0, 198.0, PutAction::Pset);
+        assert_eq!(rt.point(100.0, 198.0), 99.0, "clip-bottom visible");
+        assert_eq!(rt.point(100.0, 199.0), 99.0, "clip-bottom visible");
+    }
 }

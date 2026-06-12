@@ -57,6 +57,7 @@ TESTS=(
     # (bare SLEEP is a no-op → Drop dumps); the ms cap is just a safety net.
     "256c|1||ms:3000"
     "screen13|1||ms:3000"
+    "screen13-sprite|1||ms:3000"
     "palette256_expanded|1||ms:3000"
     # reversi: static board, no palette cycling — fully deterministic.
     "reversi|1|Q|ms:8000"

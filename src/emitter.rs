@@ -1666,7 +1666,7 @@ impl Emitter {
                     self.line(&format!("let __pat{tc}: String = {fv};"));
                     let b = border.as_ref().map(|e| self.lift_expr(e))
                                   .unwrap_or_else(|| "-1.0".into());
-                    self.line(&format!("__rt.paint_pattern({px}, {py}, __pat{tc}.as_bytes(), {b});"));
+                    self.line(&format!("__rt.paint_pattern({px}, {py}, &__pat{tc}, {b});"));
                 } else {
                     let f = self.lift_expr(fill);
                     let b = border.as_ref().map(|e| self.lift_expr(e))

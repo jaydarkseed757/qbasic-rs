@@ -1,0 +1,8 @@
+T1: 7 
+T2 unpainted: 0 
+T2 painted: 7 
+T3 painted: 14 
+T3 skipped: 0 
+T3 border: 2 
+T4 solid row: 9 
+T4 empty row: 0 

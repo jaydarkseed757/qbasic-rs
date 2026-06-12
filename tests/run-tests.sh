@@ -95,8 +95,10 @@ for bas in "$PROG_DIR"/*.bas; do
     fi
     vlog "  compile:   ok  ($bin)"
 
-    # 3. Run (5s timeout)
-    if ! timeout 5 "$bin" > "$actual" 2>/dev/null; then
+    # 3. Run (5s timeout); QBC_HEADLESS=1 prevents a display window from opening,
+    #    which would cause print_gfx to render text into the framebuffer and
+    #    corrupt pixel values read back by POINT() in tests like paint_pattern.
+    if ! timeout 5 env QBC_HEADLESS=1 "$bin" > "$actual" 2>/dev/null; then
         echo "FAIL: $name  [runtime error or timeout]"
         ((fail++)) || true
         errors+=("$name: runtime error/timeout")

@@ -2127,14 +2127,18 @@ impl Runtime {
     /// pattern tiles horizontally every 8 columns and vertically every
     /// `pattern.len()` rows. Pixels where the bit is 1 receive the current
     /// foreground/draw color; pixels where the bit is 0 are left unchanged.
-    pub fn paint_pattern(&mut self, x: f64, y: f64, pattern: &[u8], border: f64) {
+    pub fn paint_pattern(&mut self, x: f64, y: f64, pattern: &str, border: f64) {
         if pattern.is_empty() { return; }
+        // QB strings are Latin-1: each char's code-point IS the raw byte value.
+        // Using .as_bytes() would give UTF-8 (two bytes for chars > U+007F), so
+        // we do an explicit Latin-1 extraction here.
+        let bytes: Vec<u8> = pattern.chars().map(|c| c as u8).collect();
         let m = self.color_mod();
         let fg = self.draw_color;
         let border_idx = if border < 0.0 { fg }
                          else { (border as i64).rem_euclid(m) as u8 };
         let (fx, fy) = self.logical_to_fb(x, y);
-        flood_fill_pattern(self, fx as i32, fy as i32, pattern, fg, border_idx);
+        flood_fill_pattern(self, fx as i32, fy as i32, &bytes, fg, border_idx);
         self.auto_present();
     }
 

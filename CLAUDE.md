@@ -31,7 +31,7 @@ qbasic-rust/
 │       └── sound.rs            # PLAY / SOUND / BEEP via rodio (~300 lines)
 │
 ├── basic-src/                  # Real DOS QBasic programs used for manual testing
-│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (39 programs total)
+│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (40 programs total)
 │
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
@@ -62,12 +62,12 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **39/39** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **40/40** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
-256c, palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, kitchen_sink-qbasic,
-loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze, duck, etto, INVADERS,
-toccata, gotorama). Test suites:
+256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
+duck, etto, INVADERS, toccata, gotorama). Test suites:
 - **28/28** integration (`tests/run-tests.sh`, stdout-based)
 - **91** runtime unit tests (`cargo test --workspace`)
 - **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer

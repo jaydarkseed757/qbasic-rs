@@ -7,19 +7,19 @@ use qbasic_runtime::*;
 static __DATA: &[&str] = &["327686", "-252645316", "60", "196618", "-1057030081", "49344", "196618", "-1056980800", "63", "327686", "1010580720", "240", "458758", "202116096", "471604224", "943208448", "943208448", "943208448", "471604224", "202116096", "0", "262153", "-2134835200", "-2134802239", "-2130771968", "-2130738945", "8323072", "8323199", "4063232", "4063294", "262153", "4063232", "4063294", "8323072", "8323199", "-2130771968", "-2130738945", "-2134835200", "-2134802239", "458758", "-1061109760", "-522133504", "1886416896", "1886416896", "1886416896", "-522133504", "-1061109760", "0"];
 static __DATA_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-const speedconst: f64 = 500_f64;
-const qb_true: f64 = -1_f64;
-const qb_false: f64 = 0_f64;
-const hitself: f64 = 1_f64;
-const backattr: f64 = 0_f64;
-const objectcolor: f64 = 1_f64;
-const windowcolor: f64 = 14_f64;
-const sunattr: f64 = 3_f64;
-const sunhappy: f64 = 0_f64;
-const sunshock: f64 = -1_f64;
-const rightup: f64 = 1_f64;
-const leftup: f64 = 2_f64;
-const armsdown: f64 = 3_f64;
+const speedconst: f64 = 500.0f64;
+const qb_true: f64 = -1.0f64;
+const qb_false: f64 = 0.0f64;
+const hitself: f64 = 1.0f64;
+const backattr: f64 = 0.0f64;
+const objectcolor: f64 = 1.0f64;
+const windowcolor: f64 = 14.0f64;
+const sunattr: f64 = 3.0f64;
+const sunhappy: f64 = 0.0f64;
+const sunshock: f64 = -1.0f64;
+const rightup: f64 = 1.0f64;
+const leftup: f64 = 2.0f64;
+const armsdown: f64 = 3.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -50,27 +50,27 @@ struct GameState {
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, text_s: &mut String) {
-    let mut col: f64 = 0.0_f64;
+    let mut col: f64 = 0.0;
 
-    col = qb_idiv(__gs.maxcol, 2_f64);
-    __rt.locate(Some((*row)), Some((col - ((qb_len(&(text_s)) / 2_f64) + 0.5_f64))), None);
+    col = qb_idiv(__gs.maxcol, 2.0f64);
+    __rt.locate(Some((*row)), Some((col - ((qb_len(&(text_s)) / 2.0f64) + 0.5f64))), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
 fn doexplosion(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, y: &mut f64) {
-    let mut radius: f64 = 0.0_f64;
-    let mut inc: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
+    let mut radius: f64 = 0.0;
+    let mut inc: f64 = 0.0;
+    let mut c: f64 = 0.0;
+    let mut i: f64 = 0.0;
 
     __rt.play(&"MBO0L32EFGEFDC");
-    radius = (__gs.scrheight / 50_f64);
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        inc = 0.5_f64;
+    radius = (__gs.scrheight / 50.0f64);
+    if __gs.mode == 9.0f64 {
+        inc = 0.5f64;
     } else {
-        inc = 0.41_f64;
+        inc = 0.41f64;
     }
-    c = 0_f64;
+    c = 0.0f64;
     let __for_to_c: f64 = radius;
     let __for_step_c: f64 = inc;
     while (__for_step_c > 0.0 && c <= __for_to_c) || (__for_step_c < 0.0 && c >= __for_to_c) {
@@ -78,92 +78,91 @@ fn doexplosion(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, y: &mut f6
         c += __for_step_c;
     }
     c = radius;
-    let __for_to_c: f64 = 0_f64;
-    let __for_step_c: f64 = ((-1_f64) * inc);
+    let __for_to_c: f64 = 0.0f64;
+    let __for_step_c: f64 = ((-1.0f64) * inc);
     while (__for_step_c > 0.0 && c <= __for_to_c) || (__for_step_c < 0.0 && c >= __for_to_c) {
         __rt.circle((*x), (*y), c, backattr);
-        i = 1_f64;
-        let __for_to_i: f64 = 100_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 1.0f64;
+        let __for_to_i: f64 = 100.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             i += __for_step_i;
         }
-        let mut __tmp_num0: f64 = 0.005_f64;
+        let mut __tmp_num0: f64 = 0.005f64;
         rest(__rt, __gs, &mut __tmp_num0);
         c += __for_step_c;
     }
 }
 
 fn dosun(__rt: &mut Runtime, __gs: &mut GameState, mouth: &mut f64) {
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
 
-    x = qb_idiv(__gs.scrwidth, 2_f64);
-    let __tmp1 = scl(__rt, __gs, 25_f64);
-    y = __tmp1;
-    let __tmp2 = scl(__rt, __gs, 22_f64);
-    let __tmp3 = scl(__rt, __gs, 18_f64);
-    let __tmp4 = scl(__rt, __gs, 22_f64);
-    let __tmp5 = scl(__rt, __gs, 18_f64);
+    x = qb_idiv(__gs.scrwidth, 2.0f64);
+    y = scl(__rt, __gs, 25.0f64);
+    let __tmp2 = scl(__rt, __gs, 22.0f64);
+    let __tmp3 = scl(__rt, __gs, 18.0f64);
+    let __tmp4 = scl(__rt, __gs, 22.0f64);
+    let __tmp5 = scl(__rt, __gs, 18.0f64);
     __rt.line_box_fill((x - __tmp4),(y - __tmp5),(x + __tmp2),(y + __tmp3),backattr);
-    let __tmp6 = scl(__rt, __gs, 12_f64);
+    let __tmp6 = scl(__rt, __gs, 12.0f64);
     __rt.circle(x, y, __tmp6, sunattr);
     __rt.paint(x, y, sunattr, sunattr);
-    let __tmp7 = scl(__rt, __gs, 20_f64);
-    let __tmp8 = scl(__rt, __gs, 20_f64);
+    let __tmp7 = scl(__rt, __gs, 20.0f64);
+    let __tmp8 = scl(__rt, __gs, 20.0f64);
     __rt.line((x - __tmp8),y,(x + __tmp7),y,sunattr);
-    let __tmp9 = scl(__rt, __gs, 15_f64);
-    let __tmp10 = scl(__rt, __gs, 15_f64);
+    let __tmp9 = scl(__rt, __gs, 15.0f64);
+    let __tmp10 = scl(__rt, __gs, 15.0f64);
     __rt.line(x,(y - __tmp10),x,(y + __tmp9),sunattr);
-    let __tmp11 = scl(__rt, __gs, 15_f64);
-    let __tmp12 = scl(__rt, __gs, 10_f64);
-    let __tmp13 = scl(__rt, __gs, 15_f64);
-    let __tmp14 = scl(__rt, __gs, 10_f64);
+    let __tmp11 = scl(__rt, __gs, 15.0f64);
+    let __tmp12 = scl(__rt, __gs, 10.0f64);
+    let __tmp13 = scl(__rt, __gs, 15.0f64);
+    let __tmp14 = scl(__rt, __gs, 10.0f64);
     __rt.line((x - __tmp13),(y - __tmp14),(x + __tmp11),(y + __tmp12),sunattr);
-    let __tmp15 = scl(__rt, __gs, 15_f64);
-    let __tmp16 = scl(__rt, __gs, 10_f64);
-    let __tmp17 = scl(__rt, __gs, 15_f64);
-    let __tmp18 = scl(__rt, __gs, 10_f64);
+    let __tmp15 = scl(__rt, __gs, 15.0f64);
+    let __tmp16 = scl(__rt, __gs, 10.0f64);
+    let __tmp17 = scl(__rt, __gs, 15.0f64);
+    let __tmp18 = scl(__rt, __gs, 10.0f64);
     __rt.line((x - __tmp17),(y + __tmp18),(x + __tmp15),(y - __tmp16),sunattr);
-    let __tmp19 = scl(__rt, __gs, 8_f64);
-    let __tmp20 = scl(__rt, __gs, 13_f64);
-    let __tmp21 = scl(__rt, __gs, 8_f64);
-    let __tmp22 = scl(__rt, __gs, 13_f64);
+    let __tmp19 = scl(__rt, __gs, 8.0f64);
+    let __tmp20 = scl(__rt, __gs, 13.0f64);
+    let __tmp21 = scl(__rt, __gs, 8.0f64);
+    let __tmp22 = scl(__rt, __gs, 13.0f64);
     __rt.line((x - __tmp21),(y - __tmp22),(x + __tmp19),(y + __tmp20),sunattr);
-    let __tmp23 = scl(__rt, __gs, 8_f64);
-    let __tmp24 = scl(__rt, __gs, 13_f64);
-    let __tmp25 = scl(__rt, __gs, 8_f64);
-    let __tmp26 = scl(__rt, __gs, 13_f64);
+    let __tmp23 = scl(__rt, __gs, 8.0f64);
+    let __tmp24 = scl(__rt, __gs, 13.0f64);
+    let __tmp25 = scl(__rt, __gs, 8.0f64);
+    let __tmp26 = scl(__rt, __gs, 13.0f64);
     __rt.line((x - __tmp25),(y + __tmp26),(x + __tmp23),(y - __tmp24),sunattr);
-    let __tmp27 = scl(__rt, __gs, 18_f64);
-    let __tmp28 = scl(__rt, __gs, 5_f64);
-    let __tmp29 = scl(__rt, __gs, 18_f64);
-    let __tmp30 = scl(__rt, __gs, 5_f64);
+    let __tmp27 = scl(__rt, __gs, 18.0f64);
+    let __tmp28 = scl(__rt, __gs, 5.0f64);
+    let __tmp29 = scl(__rt, __gs, 18.0f64);
+    let __tmp30 = scl(__rt, __gs, 5.0f64);
     __rt.line((x - __tmp29),(y - __tmp30),(x + __tmp27),(y + __tmp28),sunattr);
-    let __tmp31 = scl(__rt, __gs, 18_f64);
-    let __tmp32 = scl(__rt, __gs, 5_f64);
-    let __tmp33 = scl(__rt, __gs, 18_f64);
-    let __tmp34 = scl(__rt, __gs, 5_f64);
+    let __tmp31 = scl(__rt, __gs, 18.0f64);
+    let __tmp32 = scl(__rt, __gs, 5.0f64);
+    let __tmp33 = scl(__rt, __gs, 18.0f64);
+    let __tmp34 = scl(__rt, __gs, 5.0f64);
     __rt.line((x - __tmp33),(y + __tmp34),(x + __tmp31),(y - __tmp32),sunattr);
     if qb_bool((*mouth)) {
-        let __tmp35 = scl(__rt, __gs, 5_f64);
-        let __tmp36 = scl(__rt, __gs, 2.9_f64);
-        __rt.circle(x, (y + __tmp35), __tmp36, 0_f64);
-        let __tmp37 = scl(__rt, __gs, 5_f64);
-        __rt.paint(x, (y + __tmp37), 0_f64, 0_f64);
+        let __tmp35 = scl(__rt, __gs, 5.0f64);
+        let __tmp36 = scl(__rt, __gs, 2.9f64);
+        __rt.circle(x, (y + __tmp35), __tmp36, 0.0f64);
+        let __tmp37 = scl(__rt, __gs, 5.0f64);
+        __rt.paint(x, (y + __tmp37), 0.0f64, 0.0f64);
     } else {
-        let __tmp38 = scl(__rt, __gs, 8_f64);
-        __rt.circle(x, y, __tmp38, 0_f64);
+        let __tmp38 = scl(__rt, __gs, 8.0f64);
+        __rt.circle(x, y, __tmp38, 0.0f64);
     }
-    __rt.circle((x - 3_f64), (y - 2_f64), 1_f64, 0_f64);
-    __rt.circle((x + 3_f64), (y - 2_f64), 1_f64, 0_f64);
-    __rt.pset((x - 3_f64), (y - 2_f64), 0_f64);
-    __rt.pset((x + 3_f64), (y - 2_f64), 0_f64);
+    __rt.circle((x - 3.0f64), (y - 2.0f64), 1.0f64, 0.0f64);
+    __rt.circle((x + 3.0f64), (y - 2.0f64), 1.0f64, 0.0f64);
+    __rt.pset((x - 3.0f64), (y - 2.0f64), 0.0f64);
+    __rt.pset((x + 3.0f64), (y - 2.0f64), 0.0f64);
 }
 
 fn drawban(__rt: &mut Runtime, __gs: &mut GameState, xc: &mut f64, yc: &mut f64, r: &mut f64, bc: &mut f64) {
     let __sel = (*r);
-    if __sel == 0_f64 {
+    if __sel == 0.0f64 {
         if qb_bool((*bc)) {
             let __spx39 = (*xc);
             let __spy39 = (*yc);
@@ -173,7 +172,7 @@ fn drawban(__rt: &mut Runtime, __gs: &mut GameState, xc: &mut f64, yc: &mut f64,
             let __spy40 = (*yc);
             __rt.put_sprite(&__gs.lban, __spx40, __spy40, qbasic_runtime::PutAction::Xor);
         }
-    } else if __sel == 1_f64 {
+    } else if __sel == 1.0f64 {
         if qb_bool((*bc)) {
             let __spx41 = (*xc);
             let __spy41 = (*yc);
@@ -183,7 +182,7 @@ fn drawban(__rt: &mut Runtime, __gs: &mut GameState, xc: &mut f64, yc: &mut f64,
             let __spy42 = (*yc);
             __rt.put_sprite(&__gs.uban, __spx42, __spy42, qbasic_runtime::PutAction::Xor);
         }
-    } else if __sel == 2_f64 {
+    } else if __sel == 2.0f64 {
         if qb_bool((*bc)) {
             let __spx43 = (*xc);
             let __spy43 = (*yc);
@@ -193,7 +192,7 @@ fn drawban(__rt: &mut Runtime, __gs: &mut GameState, xc: &mut f64, yc: &mut f64,
             let __spy44 = (*yc);
             __rt.put_sprite(&__gs.dban, __spx44, __spy44, qbasic_runtime::PutAction::Xor);
         }
-    } else if __sel == 3_f64 {
+    } else if __sel == 3.0f64 {
         if qb_bool((*bc)) {
             let __spx45 = (*xc);
             let __spy45 = (*yc);
@@ -207,120 +206,120 @@ fn drawban(__rt: &mut Runtime, __gs: &mut GameState, xc: &mut f64, yc: &mut f64,
 }
 
 fn drawgorilla(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, y: &mut f64, arms: &mut f64) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
     let mut i: f64 = Default::default();
-    let __tmp47 = scl(__rt, __gs, 2.9_f64);
-    let __tmp48 = scl(__rt, __gs, 6_f64);
-    let __tmp49 = scl(__rt, __gs, 4_f64);
+    let __tmp47 = scl(__rt, __gs, 2.9f64);
+    let __tmp48 = scl(__rt, __gs, 6.0f64);
+    let __tmp49 = scl(__rt, __gs, 4.0f64);
     __rt.line_box_fill(((*x) - __tmp49),(*y),((*x) + __tmp47),((*y) + __tmp48),objectcolor);
-    let __tmp50 = scl(__rt, __gs, 4_f64);
-    let __tmp51 = scl(__rt, __gs, 4_f64);
-    let __tmp52 = scl(__rt, __gs, 5_f64);
-    let __tmp53 = scl(__rt, __gs, 2_f64);
+    let __tmp50 = scl(__rt, __gs, 4.0f64);
+    let __tmp51 = scl(__rt, __gs, 4.0f64);
+    let __tmp52 = scl(__rt, __gs, 5.0f64);
+    let __tmp53 = scl(__rt, __gs, 2.0f64);
     __rt.line_box_fill(((*x) - __tmp52),((*y) + __tmp53),((*x) + __tmp50),((*y) + __tmp51),objectcolor);
-    let __tmp54 = scl(__rt, __gs, 2_f64);
-    let __tmp55 = scl(__rt, __gs, 2_f64);
-    let __tmp56 = scl(__rt, __gs, 3_f64);
-    let __tmp57 = scl(__rt, __gs, 2_f64);
-    __rt.line(((*x) - __tmp56),((*y) + __tmp57),((*x) + __tmp54),((*y) + __tmp55),0_f64);
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        i = (-2_f64);
-        let __for_to_i: f64 = (-1_f64);
-        let __for_step_i: f64 = 1.0_f64;
+    let __tmp54 = scl(__rt, __gs, 2.0f64);
+    let __tmp55 = scl(__rt, __gs, 2.0f64);
+    let __tmp56 = scl(__rt, __gs, 3.0f64);
+    let __tmp57 = scl(__rt, __gs, 2.0f64);
+    __rt.line(((*x) - __tmp56),((*y) + __tmp57),((*x) + __tmp54),((*y) + __tmp55),0.0f64);
+    if __gs.mode == 9.0f64 {
+        i = (-2.0f64);
+        let __for_to_i: f64 = (-1.0f64);
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __rt.pset(((*x) + i), ((*y) + 4_f64), 0_f64);
-            __rt.pset((((*x) + i) + 3_f64), ((*y) + 4_f64), 0_f64);
+            __rt.pset(((*x) + i), ((*y) + 4.0f64), 0.0f64);
+            __rt.pset((((*x) + i) + 3.0f64), ((*y) + 4.0f64), 0.0f64);
             i += __for_step_i;
         }
     }
-    let __tmp58 = scl(__rt, __gs, 2_f64);
-    let __tmp59 = scl(__rt, __gs, 7_f64);
-    let __tmp60 = scl(__rt, __gs, 3_f64);
-    let __tmp61 = scl(__rt, __gs, 7_f64);
+    let __tmp58 = scl(__rt, __gs, 2.0f64);
+    let __tmp59 = scl(__rt, __gs, 7.0f64);
+    let __tmp60 = scl(__rt, __gs, 3.0f64);
+    let __tmp61 = scl(__rt, __gs, 7.0f64);
     __rt.line(((*x) - __tmp60),((*y) + __tmp61),((*x) + __tmp58),((*y) + __tmp59),objectcolor);
-    let __tmp62 = scl(__rt, __gs, 6.9_f64);
-    let __tmp63 = scl(__rt, __gs, 14_f64);
-    let __tmp64 = scl(__rt, __gs, 8_f64);
-    let __tmp65 = scl(__rt, __gs, 8_f64);
+    let __tmp62 = scl(__rt, __gs, 6.9f64);
+    let __tmp63 = scl(__rt, __gs, 14.0f64);
+    let __tmp64 = scl(__rt, __gs, 8.0f64);
+    let __tmp65 = scl(__rt, __gs, 8.0f64);
     __rt.line_box_fill(((*x) - __tmp64),((*y) + __tmp65),((*x) + __tmp62),((*y) + __tmp63),objectcolor);
-    let __tmp66 = scl(__rt, __gs, 4.9_f64);
-    let __tmp67 = scl(__rt, __gs, 20_f64);
-    let __tmp68 = scl(__rt, __gs, 6_f64);
-    let __tmp69 = scl(__rt, __gs, 15_f64);
+    let __tmp66 = scl(__rt, __gs, 4.9f64);
+    let __tmp67 = scl(__rt, __gs, 20.0f64);
+    let __tmp68 = scl(__rt, __gs, 6.0f64);
+    let __tmp69 = scl(__rt, __gs, 15.0f64);
     __rt.line_box_fill(((*x) - __tmp68),((*y) + __tmp69),((*x) + __tmp66),((*y) + __tmp67),objectcolor);
-    i = 0_f64;
-    let __for_to_i: f64 = 4_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 0.0f64;
+    let __for_to_i: f64 = 4.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         let __tmp70 = scl(__rt, __gs, i);
-        let __tmp71 = scl(__rt, __gs, 25_f64);
-        let __tmp72 = scl(__rt, __gs, 10_f64);
+        let __tmp71 = scl(__rt, __gs, 25.0f64);
+        let __tmp72 = scl(__rt, __gs, 10.0f64);
         __rt.circle(((*x) + __tmp70), ((*y) + __tmp71), __tmp72, objectcolor);
-        let __tmp73 = scl(__rt, __gs, (-6_f64));
-        let __tmp74 = scl(__rt, __gs, (i - 0.1_f64));
-        let __tmp75 = scl(__rt, __gs, 25_f64);
-        let __tmp76 = scl(__rt, __gs, 10_f64);
+        let __tmp73 = scl(__rt, __gs, (-6.0f64));
+        let __tmp74 = scl(__rt, __gs, (i - 0.1f64));
+        let __tmp75 = scl(__rt, __gs, 25.0f64);
+        let __tmp76 = scl(__rt, __gs, 10.0f64);
         __rt.circle((((*x) + __tmp73) + __tmp74), ((*y) + __tmp75), __tmp76, objectcolor);
         i += __for_step_i;
     }
-    let __tmp77 = scl(__rt, __gs, 4.9_f64);
-    let __tmp78 = scl(__rt, __gs, 10_f64);
-    let __tmp79 = scl(__rt, __gs, 4.9_f64);
-    __rt.circle(((*x) - __tmp77), ((*y) + __tmp78), __tmp79, 0_f64);
-    let __tmp80 = scl(__rt, __gs, 4.9_f64);
-    let __tmp81 = scl(__rt, __gs, 10_f64);
-    let __tmp82 = scl(__rt, __gs, 4.9_f64);
-    __rt.circle(((*x) + __tmp80), ((*y) + __tmp81), __tmp82, 0_f64);
-    i = (-5_f64);
-    let __for_to_i: f64 = (-1_f64);
-    let __for_step_i: f64 = 1.0_f64;
+    let __tmp77 = scl(__rt, __gs, 4.9f64);
+    let __tmp78 = scl(__rt, __gs, 10.0f64);
+    let __tmp79 = scl(__rt, __gs, 4.9f64);
+    __rt.circle(((*x) - __tmp77), ((*y) + __tmp78), __tmp79, 0.0f64);
+    let __tmp80 = scl(__rt, __gs, 4.9f64);
+    let __tmp81 = scl(__rt, __gs, 10.0f64);
+    let __tmp82 = scl(__rt, __gs, 4.9f64);
+    __rt.circle(((*x) + __tmp80), ((*y) + __tmp81), __tmp82, 0.0f64);
+    i = (-5.0f64);
+    let __for_to_i: f64 = (-1.0f64);
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         let __sel = (*arms);
-        if __sel == 1_f64 {
-            let __tmp83 = scl(__rt, __gs, (i - 0.1_f64));
-            let __tmp84 = scl(__rt, __gs, 14_f64);
-            let __tmp85 = scl(__rt, __gs, 9_f64);
+        if __sel == 1.0f64 {
+            let __tmp83 = scl(__rt, __gs, (i - 0.1f64));
+            let __tmp84 = scl(__rt, __gs, 14.0f64);
+            let __tmp85 = scl(__rt, __gs, 9.0f64);
             __rt.circle(((*x) + __tmp83), ((*y) + __tmp84), __tmp85, objectcolor);
-            let __tmp86 = scl(__rt, __gs, 4.9_f64);
+            let __tmp86 = scl(__rt, __gs, 4.9f64);
             let __tmp87 = scl(__rt, __gs, i);
-            let __tmp88 = scl(__rt, __gs, 4_f64);
-            let __tmp89 = scl(__rt, __gs, 9_f64);
+            let __tmp88 = scl(__rt, __gs, 4.0f64);
+            let __tmp89 = scl(__rt, __gs, 9.0f64);
             __rt.circle((((*x) + __tmp86) + __tmp87), ((*y) + __tmp88), __tmp89, objectcolor);
-            let __sgx1_90 = ((*x) - scl(__rt, __gs, 15_f64));
-            let __sgy1_90 = ((*y) - scl(__rt, __gs, 1_f64));
-            let __sgx2_90 = ((*x) + scl(__rt, __gs, 14_f64));
-            let __sgy2_90 = ((*y) + scl(__rt, __gs, 28_f64));
+            let __sgx1_90 = ((*x) - scl(__rt, __gs, 15.0f64));
+            let __sgy1_90 = ((*y) - scl(__rt, __gs, 1.0f64));
+            let __sgx2_90 = ((*x) + scl(__rt, __gs, 14.0f64));
+            let __sgy2_90 = ((*y) + scl(__rt, __gs, 28.0f64));
             __rt.get_sprite(__sgx1_90, __sgy1_90, __sgx2_90, __sgy2_90, &mut __gs.gorr);
-        } else if __sel == 2_f64 {
-            let __tmp91 = scl(__rt, __gs, (i - 0.1_f64));
-            let __tmp92 = scl(__rt, __gs, 4_f64);
-            let __tmp93 = scl(__rt, __gs, 9_f64);
+        } else if __sel == 2.0f64 {
+            let __tmp91 = scl(__rt, __gs, (i - 0.1f64));
+            let __tmp92 = scl(__rt, __gs, 4.0f64);
+            let __tmp93 = scl(__rt, __gs, 9.0f64);
             __rt.circle(((*x) + __tmp91), ((*y) + __tmp92), __tmp93, objectcolor);
-            let __tmp94 = scl(__rt, __gs, 4.9_f64);
+            let __tmp94 = scl(__rt, __gs, 4.9f64);
             let __tmp95 = scl(__rt, __gs, i);
-            let __tmp96 = scl(__rt, __gs, 14_f64);
-            let __tmp97 = scl(__rt, __gs, 9_f64);
+            let __tmp96 = scl(__rt, __gs, 14.0f64);
+            let __tmp97 = scl(__rt, __gs, 9.0f64);
             __rt.circle((((*x) + __tmp94) + __tmp95), ((*y) + __tmp96), __tmp97, objectcolor);
-            let __sgx1_98 = ((*x) - scl(__rt, __gs, 15_f64));
-            let __sgy1_98 = ((*y) - scl(__rt, __gs, 1_f64));
-            let __sgx2_98 = ((*x) + scl(__rt, __gs, 14_f64));
-            let __sgy2_98 = ((*y) + scl(__rt, __gs, 28_f64));
+            let __sgx1_98 = ((*x) - scl(__rt, __gs, 15.0f64));
+            let __sgy1_98 = ((*y) - scl(__rt, __gs, 1.0f64));
+            let __sgx2_98 = ((*x) + scl(__rt, __gs, 14.0f64));
+            let __sgy2_98 = ((*y) + scl(__rt, __gs, 28.0f64));
             __rt.get_sprite(__sgx1_98, __sgy1_98, __sgx2_98, __sgy2_98, &mut __gs.gorl);
-        } else if __sel == 3_f64 {
-            let __tmp99 = scl(__rt, __gs, (i - 0.1_f64));
-            let __tmp100 = scl(__rt, __gs, 14_f64);
-            let __tmp101 = scl(__rt, __gs, 9_f64);
+        } else if __sel == 3.0f64 {
+            let __tmp99 = scl(__rt, __gs, (i - 0.1f64));
+            let __tmp100 = scl(__rt, __gs, 14.0f64);
+            let __tmp101 = scl(__rt, __gs, 9.0f64);
             __rt.circle(((*x) + __tmp99), ((*y) + __tmp100), __tmp101, objectcolor);
-            let __tmp102 = scl(__rt, __gs, 4.9_f64);
+            let __tmp102 = scl(__rt, __gs, 4.9f64);
             let __tmp103 = scl(__rt, __gs, i);
-            let __tmp104 = scl(__rt, __gs, 14_f64);
-            let __tmp105 = scl(__rt, __gs, 9_f64);
+            let __tmp104 = scl(__rt, __gs, 14.0f64);
+            let __tmp105 = scl(__rt, __gs, 9.0f64);
             __rt.circle((((*x) + __tmp102) + __tmp103), ((*y) + __tmp104), __tmp105, objectcolor);
-            let __sgx1_106 = ((*x) - scl(__rt, __gs, 15_f64));
-            let __sgy1_106 = ((*y) - scl(__rt, __gs, 1_f64));
-            let __sgx2_106 = ((*x) + scl(__rt, __gs, 14_f64));
-            let __sgy2_106 = ((*y) + scl(__rt, __gs, 28_f64));
+            let __sgx1_106 = ((*x) - scl(__rt, __gs, 15.0f64));
+            let __sgy1_106 = ((*y) - scl(__rt, __gs, 1.0f64));
+            let __sgx2_106 = ((*x) + scl(__rt, __gs, 14.0f64));
+            let __sgy2_106 = ((*y) + scl(__rt, __gs, 28.0f64));
             __rt.get_sprite(__sgx1_106, __sgy1_106, __sgx2_106, __sgy2_106, &mut __gs.gord);
         }
         i += __for_step_i;
@@ -331,172 +330,172 @@ fn getinputs(__rt: &mut Runtime, __gs: &mut GameState, player1_s: &mut String, p
     let mut game_s: String = String::new();
     let mut grav_s: String = String::new();
 
-    __rt.color(7_f64, Some(0_f64));
+    __rt.color(7.0f64, Some(0.0f64));
     __rt.cls(0u8);
-    __rt.locate(Some(8_f64), Some(15_f64), None);
+    __rt.locate(Some(8.0f64), Some(15.0f64), None);
     __rt.print_str("Name of Player 1 (Default = 'Player 1'): ? ");
     *player1_s = __rt.input_line();
-    if qb_bool(qb_from_bool((player1_s).as_str() == "")) {
+    if (player1_s).as_str() == "" {
         *player1_s = ("Player 1").to_string();
     } else {
-        *player1_s = (qb_left(&(player1_s), 10_f64)).to_string();
+        *player1_s = (qb_left(&(player1_s), 10.0f64)).to_string();
     }
-    __rt.locate(Some(10_f64), Some(15_f64), None);
+    __rt.locate(Some(10.0f64), Some(15.0f64), None);
     __rt.print_str("Name of Player 2 (Default = 'Player 2'): ? ");
     *player2_s = __rt.input_line();
-    if qb_bool(qb_from_bool((player2_s).as_str() == "")) {
+    if (player2_s).as_str() == "" {
         *player2_s = ("Player 2").to_string();
     } else {
-        *player2_s = (qb_left(&(player2_s), 10_f64)).to_string();
+        *player2_s = (qb_left(&(player2_s), 10.0f64)).to_string();
     }
     loop {
-        __rt.locate(Some(12_f64), Some(56_f64), None);
-        __rt.print(&[qb_str(&(qb_space(25_f64)))]);
-        __rt.locate(Some(12_f64), Some(13_f64), None);
+        __rt.locate(Some(12.0f64), Some(56.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(25.0f64)))]);
+        __rt.locate(Some(12.0f64), Some(13.0f64), None);
         __rt.print_str("Play to how many total points (Default = 3)? ");
         game_s = __rt.input_line();
-        (*numgames) = qb_val(&(qb_left(&(game_s), 2_f64)));
-        if qb_bool(qb_or(qb_and(qb_from_bool((*numgames) > 0_f64), qb_from_bool(qb_len(&(game_s)) < 3_f64)), qb_from_bool(qb_len(&(game_s)) == 0_f64))) { break; }
+        (*numgames) = qb_val(&(qb_left(&(game_s), 2.0f64)));
+        if qb_bool(qb_or(qb_and(qb_from_bool((*numgames) > 0.0f64), qb_from_bool(qb_len(&(game_s)) < 3.0f64)), qb_from_bool(qb_len(&(game_s)) == 0.0f64))) { break; }
     }
-    if qb_bool(qb_from_bool((*numgames) == 0_f64)) {
-        (*numgames) = 3_f64;
+    if (*numgames) == 0.0f64 {
+        (*numgames) = 3.0f64;
     }
     loop {
-        __rt.locate(Some(14_f64), Some(53_f64), None);
-        __rt.print(&[qb_str(&(qb_space(28_f64)))]);
-        __rt.locate(Some(14_f64), Some(17_f64), None);
+        __rt.locate(Some(14.0f64), Some(53.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(28.0f64)))]);
+        __rt.locate(Some(14.0f64), Some(17.0f64), None);
         __rt.print_str("Gravity in Meters/Sec (Earth = 9.8)? ");
         grav_s = __rt.input_line();
         __gs.gravity = qb_val(&(grav_s));
-        if qb_bool(qb_or(qb_from_bool(__gs.gravity > 0_f64), qb_from_bool(qb_len(&(grav_s)) == 0_f64))) { break; }
+        if qb_bool(qb_or(qb_from_bool(__gs.gravity > 0.0f64), qb_from_bool(qb_len(&(grav_s)) == 0.0f64))) { break; }
     }
-    if qb_bool(qb_from_bool(__gs.gravity == 0_f64)) {
-        __gs.gravity = 9.8_f64;
+    if __gs.gravity == 0.0f64 {
+        __gs.gravity = 9.8f64;
     }
 }
 
 fn gorillaintro(__rt: &mut Runtime, __gs: &mut GameState, player1_s: &mut String, player2_s: &mut String) {
     let mut char_s: String = String::new();
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
     let mut p_s: String = String::new();
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
-    __rt.locate(Some(16_f64), Some(34_f64), None);
+    __rt.locate(Some(16.0f64), Some(34.0f64), None);
     __rt.println(&[qb_str(&("--------------"))]);
-    __rt.locate(Some(18_f64), Some(34_f64), None);
+    __rt.locate(Some(18.0f64), Some(34.0f64), None);
     __rt.println(&[qb_str(&("V = View Intro"))]);
-    __rt.locate(Some(19_f64), Some(34_f64), None);
+    __rt.locate(Some(19.0f64), Some(34.0f64), None);
     __rt.println(&[qb_str(&("P = Play Game"))]);
-    __rt.locate(Some(21_f64), Some(35_f64), None);
+    __rt.locate(Some(21.0f64), Some(35.0f64), None);
     __rt.println(&[qb_str(&("Your Choice?"))]);
-    while qb_bool(qb_from_bool((char_s).as_str() == "")) {
+    while (char_s).as_str() == "" {
         let __tmp107 = __rt.inkey();
         char_s = (__tmp107).to_string();
     }
-    if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
-        x = 125_f64;
-        y = 100_f64;
+    if __gs.mode == 1.0f64 {
+        x = 125.0f64;
+        y = 100.0f64;
     } else {
-        x = 278_f64;
-        y = 175_f64;
+        x = 278.0f64;
+        y = 175.0f64;
     }
     __rt.screen(__gs.mode);
     setscreen(__rt, __gs);
-    if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
-        let mut __tmp_num108: f64 = 5_f64;
+    if __gs.mode == 1.0f64 {
+        let mut __tmp_num108: f64 = 5.0f64;
         let mut __tmp_str109 = ("Please wait while gorillas are drawn.").to_string();
         center(__rt, __gs, &mut __tmp_num108, &mut __tmp_str109);
     }
-    __rt.view_print(Some(9_f64), Some(24_f64));
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
+    __rt.view_print(Some(9.0f64), Some(24.0f64));
+    if __gs.mode == 9.0f64 {
         __rt.palette(objectcolor, __gs.backcolor);
     }
     drawgorilla(__rt, __gs, &mut x, &mut y, &mut armsdown);
-    __rt.cls((2_f64) as u8);
+    __rt.cls((2.0f64) as u8);
     drawgorilla(__rt, __gs, &mut x, &mut y, &mut leftup);
-    __rt.cls((2_f64) as u8);
+    __rt.cls((2.0f64) as u8);
     drawgorilla(__rt, __gs, &mut x, &mut y, &mut rightup);
-    __rt.cls((2_f64) as u8);
-    __rt.view_print(Some(1_f64), Some(25_f64));
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        __rt.palette(objectcolor, 46_f64);
+    __rt.cls((2.0f64) as u8);
+    __rt.view_print(Some(1.0f64), Some(25.0f64));
+    if __gs.mode == 9.0f64 {
+        __rt.palette(objectcolor, 46.0f64);
     }
-    if qb_bool(qb_from_bool((qb_ucase(&(char_s))).as_str() == "V")) {
-        let mut __tmp_num110: f64 = 2_f64;
+    if (qb_ucase(&(char_s))).as_str() == "V" {
+        let mut __tmp_num110: f64 = 2.0f64;
         let mut __tmp_str111 = ("Q B A S I C   G O R I L L A S").to_string();
         center(__rt, __gs, &mut __tmp_num110, &mut __tmp_str111);
-        let mut __tmp_num112: f64 = 5_f64;
+        let mut __tmp_num112: f64 = 5.0f64;
         let mut __tmp_str113 = ("             STARRING:               ").to_string();
         center(__rt, __gs, &mut __tmp_num112, &mut __tmp_str113);
         p_s = (format!("{}{}" ,format!("{}{}" ,player1_s," AND "),player2_s)).to_string();
-        let mut __tmp_num114: f64 = 7_f64;
+        let mut __tmp_num114: f64 = 7.0f64;
         center(__rt, __gs, &mut __tmp_num114, &mut p_s);
-        let __spx115 = (x - 13_f64);
+        let __spx115 = (x - 13.0f64);
         let __spy115 = y;
         __rt.put_sprite(&__gs.gord, __spx115, __spy115, qbasic_runtime::PutAction::Pset);
-        let __spx116 = (x + 47_f64);
+        let __spx116 = (x + 47.0f64);
         let __spy116 = y;
         __rt.put_sprite(&__gs.gord, __spx116, __spy116, qbasic_runtime::PutAction::Pset);
-        let mut __tmp_num117: f64 = 1_f64;
+        let mut __tmp_num117: f64 = 1.0f64;
         rest(__rt, __gs, &mut __tmp_num117);
-        let __spx118 = (x - 13_f64);
+        let __spx118 = (x - 13.0f64);
         let __spy118 = y;
         __rt.put_sprite(&__gs.gorl, __spx118, __spy118, qbasic_runtime::PutAction::Pset);
-        let __spx119 = (x + 47_f64);
+        let __spx119 = (x + 47.0f64);
         let __spy119 = y;
         __rt.put_sprite(&__gs.gorr, __spx119, __spy119, qbasic_runtime::PutAction::Pset);
         __rt.play(&"t120o1l16b9n0baan0bn0bn0baaan0b9n0baan0b");
-        let mut __tmp_num120: f64 = 0.3_f64;
+        let mut __tmp_num120: f64 = 0.3f64;
         rest(__rt, __gs, &mut __tmp_num120);
-        let __spx121 = (x - 13_f64);
+        let __spx121 = (x - 13.0f64);
         let __spy121 = y;
         __rt.put_sprite(&__gs.gorr, __spx121, __spy121, qbasic_runtime::PutAction::Pset);
-        let __spx122 = (x + 47_f64);
+        let __spx122 = (x + 47.0f64);
         let __spy122 = y;
         __rt.put_sprite(&__gs.gorl, __spx122, __spy122, qbasic_runtime::PutAction::Pset);
         __rt.play(&"o2l16e-9n0e-d-d-n0e-n0e-n0e-d-d-d-n0e-9n0e-d-d-n0e-");
-        let mut __tmp_num123: f64 = 0.3_f64;
+        let mut __tmp_num123: f64 = 0.3f64;
         rest(__rt, __gs, &mut __tmp_num123);
-        let __spx124 = (x - 13_f64);
+        let __spx124 = (x - 13.0f64);
         let __spy124 = y;
         __rt.put_sprite(&__gs.gorl, __spx124, __spy124, qbasic_runtime::PutAction::Pset);
-        let __spx125 = (x + 47_f64);
+        let __spx125 = (x + 47.0f64);
         let __spy125 = y;
         __rt.put_sprite(&__gs.gorr, __spx125, __spy125, qbasic_runtime::PutAction::Pset);
         __rt.play(&"o2l16g-9n0g-een0g-n0g-n0g-eeen0g-9n0g-een0g-");
-        let mut __tmp_num126: f64 = 0.3_f64;
+        let mut __tmp_num126: f64 = 0.3f64;
         rest(__rt, __gs, &mut __tmp_num126);
-        let __spx127 = (x - 13_f64);
+        let __spx127 = (x - 13.0f64);
         let __spy127 = y;
         __rt.put_sprite(&__gs.gorr, __spx127, __spy127, qbasic_runtime::PutAction::Pset);
-        let __spx128 = (x + 47_f64);
+        let __spx128 = (x + 47.0f64);
         let __spy128 = y;
         __rt.put_sprite(&__gs.gorl, __spx128, __spy128, qbasic_runtime::PutAction::Pset);
         __rt.play(&"o2l16b9n0baan0g-n0g-n0g-eeen0o1b9n0baan0b");
-        let mut __tmp_num129: f64 = 0.3_f64;
+        let mut __tmp_num129: f64 = 0.3f64;
         rest(__rt, __gs, &mut __tmp_num129);
-        i = 1_f64;
-        let __for_to_i: f64 = 4_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 1.0f64;
+        let __for_to_i: f64 = 4.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let __spx130 = (x - 13_f64);
+            let __spx130 = (x - 13.0f64);
             let __spy130 = y;
             __rt.put_sprite(&__gs.gorl, __spx130, __spy130, qbasic_runtime::PutAction::Pset);
-            let __spx131 = (x + 47_f64);
+            let __spx131 = (x + 47.0f64);
             let __spy131 = y;
             __rt.put_sprite(&__gs.gorr, __spx131, __spy131, qbasic_runtime::PutAction::Pset);
             __rt.play(&"T160O0L32EFGEFDC");
-            let mut __tmp_num132: f64 = 0.1_f64;
+            let mut __tmp_num132: f64 = 0.1f64;
             rest(__rt, __gs, &mut __tmp_num132);
-            let __spx133 = (x - 13_f64);
+            let __spx133 = (x - 13.0f64);
             let __spy133 = y;
             __rt.put_sprite(&__gs.gorr, __spx133, __spy133, qbasic_runtime::PutAction::Pset);
-            let __spx134 = (x + 47_f64);
+            let __spx134 = (x + 47.0f64);
             let __spy134 = y;
             __rt.put_sprite(&__gs.gorl, __spx134, __spy134, qbasic_runtime::PutAction::Pset);
             __rt.play(&"T160O0L32EFGEFDC");
-            let mut __tmp_num135: f64 = 0.1_f64;
+            let mut __tmp_num135: f64 = 0.1f64;
             rest(__rt, __gs, &mut __tmp_num135);
             i += __for_step_i;
         }
@@ -504,153 +503,152 @@ fn gorillaintro(__rt: &mut Runtime, __gs: &mut GameState, player1_s: &mut String
 }
 
 fn intro(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.screen(0_f64);
-    __gs.maxcol = 80_f64;
-    __rt.color(15_f64, Some(0_f64));
+    __rt.screen(0.0f64);
+    __gs.maxcol = 80.0f64;
+    __rt.color(15.0f64, Some(0.0f64));
     __rt.cls(0u8);
-    let mut __tmp_num136: f64 = 4_f64;
+    let mut __tmp_num136: f64 = 4.0f64;
     let mut __tmp_str137 = ("Q B a s i c    G O R I L L A S").to_string();
     center(__rt, __gs, &mut __tmp_num136, &mut __tmp_str137);
-    __rt.color(7_f64, None);
-    let mut __tmp_num138: f64 = 6_f64;
+    __rt.color(7.0f64, None);
+    let mut __tmp_num138: f64 = 6.0f64;
     let mut __tmp_str139 = ("Copyright (C) Microsoft Corporation 1990").to_string();
     center(__rt, __gs, &mut __tmp_num138, &mut __tmp_str139);
-    let mut __tmp_num140: f64 = 8_f64;
+    let mut __tmp_num140: f64 = 8.0f64;
     let mut __tmp_str141 = ("Your mission is to hit your opponent with the exploding").to_string();
     center(__rt, __gs, &mut __tmp_num140, &mut __tmp_str141);
-    let mut __tmp_num142: f64 = 9_f64;
+    let mut __tmp_num142: f64 = 9.0f64;
     let mut __tmp_str143 = ("banana by varying the angle and power of your throw, taking").to_string();
     center(__rt, __gs, &mut __tmp_num142, &mut __tmp_str143);
-    let mut __tmp_num144: f64 = 10_f64;
+    let mut __tmp_num144: f64 = 10.0f64;
     let mut __tmp_str145 = ("into account wind speed, gravity, and the city skyline.").to_string();
     center(__rt, __gs, &mut __tmp_num144, &mut __tmp_str145);
-    let mut __tmp_num146: f64 = 11_f64;
+    let mut __tmp_num146: f64 = 11.0f64;
     let mut __tmp_str147 = ("The wind speed is shown by a directional arrow at the bottom").to_string();
     center(__rt, __gs, &mut __tmp_num146, &mut __tmp_str147);
-    let mut __tmp_num148: f64 = 12_f64;
+    let mut __tmp_num148: f64 = 12.0f64;
     let mut __tmp_str149 = ("of the playing field, its length relative to its strength.").to_string();
     center(__rt, __gs, &mut __tmp_num148, &mut __tmp_str149);
-    let mut __tmp_num150: f64 = 24_f64;
+    let mut __tmp_num150: f64 = 24.0f64;
     let mut __tmp_str151 = ("Press any key to continue").to_string();
     center(__rt, __gs, &mut __tmp_num150, &mut __tmp_str151);
     __rt.play(&"MBT160O1L8CDEDCDL4ECC");
     sparklepause(__rt, __gs);
-    if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
-        __gs.maxcol = 40_f64;
+    if __gs.mode == 1.0f64 {
+        __gs.maxcol = 40.0f64;
     }
 }
 
 fn makecityscape(__rt: &mut Runtime, __gs: &mut GameState, bcoor__xcoor: &mut Vec<f64>, bcoor__ycoor: &mut Vec<f64>) {
-    let mut x: f64 = 0.0_f64;
-    let mut slope: f64 = 0.0_f64;
-    let mut newht: f64 = 0.0_f64;
-    let mut bottomline: f64 = 0.0_f64;
-    let mut htinc: f64 = 0.0_f64;
-    let mut defbwidth: f64 = 0.0_f64;
-    let mut randomheight: f64 = 0.0_f64;
-    let mut wwidth: f64 = 0.0_f64;
-    let mut wheight: f64 = 0.0_f64;
-    let mut wdifv: f64 = 0.0_f64;
-    let mut wdifh: f64 = 0.0_f64;
-    let mut curbuilding: f64 = 0.0_f64;
-    let mut bwidth: f64 = 0.0_f64;
-    let mut bheight: f64 = 0.0_f64;
-    let mut maxheight: f64 = 0.0_f64;
-    let mut buildingcolor: f64 = 0.0_f64;
-    let mut background: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut wincolr: f64 = 0.0_f64;
-    let mut windline: f64 = 0.0_f64;
-    let mut arrowdir: f64 = 0.0_f64;
+    let mut x: f64 = 0.0;
+    let mut slope: f64 = 0.0;
+    let mut newht: f64 = 0.0;
+    let mut bottomline: f64 = 0.0;
+    let mut htinc: f64 = 0.0;
+    let mut defbwidth: f64 = 0.0;
+    let mut randomheight: f64 = 0.0;
+    let mut wwidth: f64 = 0.0;
+    let mut wheight: f64 = 0.0;
+    let mut wdifv: f64 = 0.0;
+    let mut wdifh: f64 = 0.0;
+    let mut curbuilding: f64 = 0.0;
+    let mut bwidth: f64 = 0.0;
+    let mut bheight: f64 = 0.0;
+    let maxheight: f64 = 0.0;
+    let mut buildingcolor: f64 = 0.0;
+    let background: f64 = 0.0;
+    let mut c: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut wincolr: f64 = 0.0;
+    let mut windline: f64 = 0.0;
+    let mut arrowdir: f64 = 0.0;
 
-    x = 2_f64;
-    let __tmp152 = fnran(__rt, __gs, 6_f64);
-    slope = __tmp152;
+    x = 2.0f64;
+    slope = fnran(__rt, __gs, 6.0f64);
     let __sel = slope;
-    if __sel == 1_f64 {
-        newht = 15_f64;
-    } else if __sel == 2_f64 {
-        newht = 130_f64;
-    } else if (__sel >= 3_f64 && __sel <= 5_f64) {
-        newht = 15_f64;
-    } else if __sel == 6_f64 {
-        newht = 130_f64;
+    if __sel == 1.0f64 {
+        newht = 15.0f64;
+    } else if __sel == 2.0f64 {
+        newht = 130.0f64;
+    } else if (__sel >= 3.0f64 && __sel <= 5.0f64) {
+        newht = 15.0f64;
+    } else if __sel == 6.0f64 {
+        newht = 130.0f64;
     }
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        bottomline = 335_f64;
-        htinc = 10_f64;
-        defbwidth = 37_f64;
-        randomheight = 120_f64;
-        wwidth = 3_f64;
-        wheight = 6_f64;
-        wdifv = 15_f64;
-        wdifh = 10_f64;
+    if __gs.mode == 9.0f64 {
+        bottomline = 335.0f64;
+        htinc = 10.0f64;
+        defbwidth = 37.0f64;
+        randomheight = 120.0f64;
+        wwidth = 3.0f64;
+        wheight = 6.0f64;
+        wdifv = 15.0f64;
+        wdifh = 10.0f64;
     } else {
-        bottomline = 190_f64;
-        htinc = 6_f64;
-        newht = (newht * qb_idiv(20_f64, 35_f64));
-        defbwidth = 18_f64;
-        randomheight = 54_f64;
-        wwidth = 1_f64;
-        wheight = 2_f64;
-        wdifv = 5_f64;
-        wdifh = 4_f64;
+        bottomline = 190.0f64;
+        htinc = 6.0f64;
+        newht = qb_idiv((newht * 20.0f64), 35.0f64);
+        defbwidth = 18.0f64;
+        randomheight = 54.0f64;
+        wwidth = 1.0f64;
+        wheight = 2.0f64;
+        wdifv = 5.0f64;
+        wdifh = 4.0f64;
     }
-    curbuilding = 1_f64;
+    curbuilding = 1.0f64;
     loop {
         let __sel = slope;
-        if __sel == 1_f64 {
+        if __sel == 1.0f64 {
             newht = (newht + htinc);
-        } else if __sel == 2_f64 {
+        } else if __sel == 2.0f64 {
             newht = (newht - htinc);
-        } else if (__sel >= 3_f64 && __sel <= 5_f64) {
-            if qb_bool(qb_from_bool(x > qb_idiv(__gs.scrwidth, 2_f64))) {
-                newht = (newht - (2_f64 * htinc));
+        } else if (__sel >= 3.0f64 && __sel <= 5.0f64) {
+            if x > qb_idiv(__gs.scrwidth, 2.0f64) {
+                newht = (newht - (2.0f64 * htinc));
             } else {
-                newht = (newht + (2_f64 * htinc));
+                newht = (newht + (2.0f64 * htinc));
             }
-        } else if __sel == 4_f64 {
-            if qb_bool(qb_from_bool(x > qb_idiv(__gs.scrwidth, 2_f64))) {
-                newht = (newht + (2_f64 * htinc));
+        } else if __sel == 4.0f64 {
+            if x > qb_idiv(__gs.scrwidth, 2.0f64) {
+                newht = (newht + (2.0f64 * htinc));
             } else {
-                newht = (newht - (2_f64 * htinc));
+                newht = (newht - (2.0f64 * htinc));
             }
         }
         let __tmp153 = fnran(__rt, __gs, defbwidth);
         bwidth = (__tmp153 + defbwidth);
-        if qb_bool(qb_from_bool((x + bwidth) > __gs.scrwidth)) {
-            bwidth = ((__gs.scrwidth - x) - 2_f64);
+        if (x + bwidth) > __gs.scrwidth {
+            bwidth = ((__gs.scrwidth - x) - 2.0f64);
         }
         let __tmp154 = fnran(__rt, __gs, randomheight);
         bheight = (__tmp154 + newht);
-        if qb_bool(qb_from_bool(bheight < htinc)) {
+        if bheight < htinc {
             bheight = htinc;
         }
-        if qb_bool(qb_from_bool((bottomline - bheight) <= (maxheight + __gs.gheight))) {
-            bheight = ((maxheight + __gs.gheight) - 5_f64);
+        if (bottomline - bheight) <= (maxheight + __gs.gheight) {
+            bheight = ((maxheight + __gs.gheight) - 5.0f64);
         }
         bcoor__xcoor[(curbuilding) as usize] = x;
         bcoor__ycoor[(curbuilding) as usize] = (bottomline - bheight);
-        if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-            let __tmp155 = fnran(__rt, __gs, 3_f64);
-            buildingcolor = (__tmp155 + 4_f64);
+        if __gs.mode == 9.0f64 {
+            let __tmp155 = fnran(__rt, __gs, 3.0f64);
+            buildingcolor = (__tmp155 + 4.0f64);
         } else {
-            buildingcolor = 2_f64;
+            buildingcolor = 2.0f64;
         }
-        __rt.line_box((x - 1_f64),(bottomline + 1_f64),((x + bwidth) + 1_f64),((bottomline - bheight) - 1_f64),background);
+        __rt.line_box((x - 1.0f64),(bottomline + 1.0f64),((x + bwidth) + 1.0f64),((bottomline - bheight) - 1.0f64),background);
         __rt.line_box_fill(x,bottomline,(x + bwidth),(bottomline - bheight),buildingcolor);
-        c = (x + 3_f64);
+        c = (x + 3.0f64);
         loop {
-            i = (bheight - 3_f64);
-            let __for_to_i: f64 = 7_f64;
+            i = (bheight - 3.0f64);
+            let __for_to_i: f64 = 7.0f64;
             let __for_step_i: f64 = (-wdifv);
             while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-                if qb_bool(qb_from_bool(__gs.mode != 9_f64)) {
-                    let __tmp156 = fnran(__rt, __gs, 2_f64);
-                    wincolr = ((__tmp156 - 2_f64) * (-3_f64));
-                } else if qb_bool(qb_from_bool(fnran(__rt, __gs, 4_f64) == 1_f64)) {
-                    wincolr = 8_f64;
+                if __gs.mode != 9.0f64 {
+                    let __tmp156 = fnran(__rt, __gs, 2.0f64);
+                    wincolr = ((__tmp156 - 2.0f64) * (-3.0f64));
+                } else if fnran(__rt, __gs, 4.0f64) == 1.0f64 {
+                    wincolr = 8.0f64;
                 } else {
                     wincolr = windowcolor;
                 }
@@ -658,68 +656,68 @@ fn makecityscape(__rt: &mut Runtime, __gs: &mut GameState, bcoor__xcoor: &mut Ve
                 i += __for_step_i;
             }
             c = (c + wdifh);
-            if qb_bool(qb_from_bool(c >= ((x + bwidth) - 3_f64))) { break; }
+            if c >= ((x + bwidth) - 3.0f64) { break; }
         }
-        x = ((x + bwidth) + 2_f64);
-        curbuilding = (curbuilding + 1_f64);
-        if qb_bool(qb_from_bool(x > (__gs.scrwidth - htinc))) { break; }
+        x = ((x + bwidth) + 2.0f64);
+        curbuilding = (curbuilding + 1.0f64);
+        if x > (__gs.scrwidth - htinc) { break; }
     }
-    __gs.lastbuilding = (curbuilding - 1_f64);
-    let __tmp157 = fnran(__rt, __gs, 10_f64);
-    __gs.wind = (__tmp157 - 5_f64);
-    if qb_bool(qb_from_bool(fnran(__rt, __gs, 3_f64) == 1_f64)) {
-        if qb_bool(qb_from_bool(__gs.wind > 0_f64)) {
-            let __tmp158 = fnran(__rt, __gs, 10_f64);
+    __gs.lastbuilding = (curbuilding - 1.0f64);
+    let __tmp157 = fnran(__rt, __gs, 10.0f64);
+    __gs.wind = (__tmp157 - 5.0f64);
+    if fnran(__rt, __gs, 3.0f64) == 1.0f64 {
+        if __gs.wind > 0.0f64 {
+            let __tmp158 = fnran(__rt, __gs, 10.0f64);
             __gs.wind = (__gs.wind + __tmp158);
         } else {
-            let __tmp159 = fnran(__rt, __gs, 10_f64);
+            let __tmp159 = fnran(__rt, __gs, 10.0f64);
             __gs.wind = (__gs.wind - __tmp159);
         }
     }
-    if qb_bool(qb_from_bool(__gs.wind != 0_f64)) {
-        windline = ((__gs.wind * 3_f64) * qb_idiv(__gs.scrwidth, 320_f64));
-        __rt.line(qb_idiv(__gs.scrwidth, 2_f64),(__gs.scrheight - 5_f64),(qb_idiv(__gs.scrwidth, 2_f64) + windline),(__gs.scrheight - 5_f64),__gs.explosioncolor);
-        if qb_bool(qb_from_bool(__gs.wind > 0_f64)) {
-            arrowdir = (-2_f64);
+    if __gs.wind != 0.0f64 {
+        windline = ((__gs.wind * 3.0f64) * qb_idiv(__gs.scrwidth, 320.0f64));
+        __rt.line(qb_idiv(__gs.scrwidth, 2.0f64),(__gs.scrheight - 5.0f64),(qb_idiv(__gs.scrwidth, 2.0f64) + windline),(__gs.scrheight - 5.0f64),__gs.explosioncolor);
+        if __gs.wind > 0.0f64 {
+            arrowdir = (-2.0f64);
         } else {
-            arrowdir = 2_f64;
+            arrowdir = 2.0f64;
         }
-        __rt.line(((__gs.scrwidth / 2_f64) + windline),(__gs.scrheight - 5_f64),(((__gs.scrwidth / 2_f64) + windline) + arrowdir),((__gs.scrheight - 5_f64) - 2_f64),__gs.explosioncolor);
-        __rt.line(((__gs.scrwidth / 2_f64) + windline),(__gs.scrheight - 5_f64),(((__gs.scrwidth / 2_f64) + windline) + arrowdir),((__gs.scrheight - 5_f64) + 2_f64),__gs.explosioncolor);
+        __rt.line(((__gs.scrwidth / 2.0f64) + windline),(__gs.scrheight - 5.0f64),(((__gs.scrwidth / 2.0f64) + windline) + arrowdir),((__gs.scrheight - 5.0f64) - 2.0f64),__gs.explosioncolor);
+        __rt.line(((__gs.scrwidth / 2.0f64) + windline),(__gs.scrheight - 5.0f64),(((__gs.scrwidth / 2.0f64) + windline) + arrowdir),((__gs.scrheight - 5.0f64) + 2.0f64),__gs.explosioncolor);
     }
 }
 
 fn placegorillas(__rt: &mut Runtime, __gs: &mut GameState, bcoor__xcoor: &mut Vec<f64>, bcoor__ycoor: &mut Vec<f64>) {
-    let mut xadj: f64 = 0.0_f64;
-    let mut yadj: f64 = 0.0_f64;
-    let mut sclx: f64 = 0.0_f64;
-    let mut scly: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut bnum: f64 = 0.0_f64;
-    let mut bwidth: f64 = 0.0_f64;
+    let mut xadj: f64 = 0.0;
+    let mut yadj: f64 = 0.0;
+    let mut sclx: f64 = 0.0;
+    let mut scly: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut bnum: f64 = 0.0;
+    let mut bwidth: f64 = 0.0;
 
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        xadj = 14_f64;
-        yadj = 30_f64;
+    if __gs.mode == 9.0f64 {
+        xadj = 14.0f64;
+        yadj = 30.0f64;
     } else {
-        xadj = 7_f64;
-        yadj = 16_f64;
+        xadj = 7.0f64;
+        yadj = 16.0f64;
     }
-    sclx = (__gs.scrwidth / 320_f64);
-    scly = (__gs.scrheight / 200_f64);
-    i = 1_f64;
-    let __for_to_i: f64 = 2_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    sclx = (__gs.scrwidth / 320.0f64);
+    scly = (__gs.scrheight / 200.0f64);
+    i = 1.0f64;
+    let __for_to_i: f64 = 2.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        if qb_bool(qb_from_bool(i == 1_f64)) {
-            let __tmp160 = fnran(__rt, __gs, 2_f64);
-            bnum = (__tmp160 + 1_f64);
+        if i == 1.0f64 {
+            let __tmp160 = fnran(__rt, __gs, 2.0f64);
+            bnum = (__tmp160 + 1.0f64);
         } else {
-            let __tmp161 = fnran(__rt, __gs, 2_f64);
+            let __tmp161 = fnran(__rt, __gs, 2.0f64);
             bnum = (__gs.lastbuilding - __tmp161);
         }
-        bwidth = (bcoor__xcoor[((bnum + 1_f64)) as usize] - bcoor__xcoor[(bnum) as usize]);
-        __gs.gorillax[(i) as usize] = ((bcoor__xcoor[(bnum) as usize] + (bwidth / 2_f64)) - xadj);
+        bwidth = (bcoor__xcoor[((bnum + 1.0f64)) as usize] - bcoor__xcoor[(bnum) as usize]);
+        __gs.gorillax[(i) as usize] = ((bcoor__xcoor[(bnum) as usize] + (bwidth / 2.0f64)) - xadj);
         __gs.gorillay[(i) as usize] = (bcoor__ycoor[(bnum) as usize] - yadj);
         let __spx162 = __gs.gorillax[(i) as usize];
         let __spy162 = __gs.gorillay[(i) as usize];
@@ -729,19 +727,19 @@ fn placegorillas(__rt: &mut Runtime, __gs: &mut GameState, bcoor__xcoor: &mut Ve
 }
 
 fn playgame(__rt: &mut Runtime, __gs: &mut GameState, player1_s: &mut String, player2_s: &mut String, numgames: &mut f64) {
-    let mut j: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut hit: f64 = 0.0_f64;
-    let mut tosser: f64 = 0.0_f64;
-    let mut tossee: f64 = 0.0_f64;
+    let mut j: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut hit: f64 = 0.0;
+    let mut tosser: f64 = 0.0;
+    let mut tossee: f64 = 0.0;
 
-    let mut bcoor__xcoor: Vec<f64> = vec![0.0_f64; (30_f64+1.0) as usize];
-    let mut bcoor__ycoor: Vec<f64> = vec![0.0_f64; (30_f64+1.0) as usize];
-    let mut totalwins: Vec<f64> = vec![Default::default(); (2_f64+1.0) as usize];
-    j = 1_f64;
-    i = 1_f64;
+    let mut bcoor__xcoor: Vec<f64> = vec![0.0; (30.0f64+1.0) as usize];
+    let mut bcoor__ycoor: Vec<f64> = vec![0.0; (30.0f64+1.0) as usize];
+    let mut totalwins: Vec<f64> = vec![Default::default(); (2.0f64+1.0) as usize];
+    j = 1.0f64;
+    i = 1.0f64;
     let __for_to_i: f64 = (*numgames);
-    let __for_step_i: f64 = 1.0_f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __rt.cls(0u8);
         __rt.randomize(qb_timer());
@@ -749,122 +747,120 @@ fn playgame(__rt: &mut Runtime, __gs: &mut GameState, player1_s: &mut String, pl
         placegorillas(__rt, __gs, &mut bcoor__xcoor, &mut bcoor__ycoor);
         dosun(__rt, __gs, &mut sunhappy);
         hit = qb_false;
-        while qb_bool(qb_from_bool(hit == qb_false)) {
-            j = (1_f64 - j);
-            __rt.locate(Some(1_f64), Some(1_f64), None);
+        while hit == qb_false {
+            j = (1.0f64 - j);
+            __rt.locate(Some(1.0f64), Some(1.0f64), None);
             __rt.println(&[qb_str(&(player1_s))]);
-            __rt.locate(Some(1_f64), Some(((__gs.maxcol - 1_f64) - qb_len(&(player2_s)))), None);
+            __rt.locate(Some(1.0f64), Some(((__gs.maxcol - 1.0f64) - qb_len(&(player2_s)))), None);
             __rt.println(&[qb_str(&(player2_s))]);
-            let mut __tmp_num163: f64 = 23_f64;
-            let mut __tmp_str164 = (format!("{}{}" ,format!("{}{}" ,qb_ltrim(&(qb_str_fn(totalwins[(1_f64) as usize]))),">Score<"),qb_ltrim(&(qb_str_fn(totalwins[(2_f64) as usize]))))).to_string();
+            let mut __tmp_num163: f64 = 23.0f64;
+            let mut __tmp_str164 = (format!("{}{}" ,format!("{}{}" ,qb_ltrim(&(qb_str_fn(totalwins[(1.0f64) as usize]))),">Score<"),qb_ltrim(&(qb_str_fn(totalwins[(2.0f64) as usize]))))).to_string();
             center(__rt, __gs, &mut __tmp_num163, &mut __tmp_str164);
-            tosser = (j + 1_f64);
-            tossee = (3_f64 - j);
+            tosser = (j + 1.0f64);
+            tossee = (3.0f64 - j);
             let __fa165 = __gs.gorillax[(tosser) as usize];
             let __fa166 = __gs.gorillay[(tosser) as usize];
-            let __tmp167 = doshot(__rt, __gs, tosser, __fa165, __fa166);
-            hit = __tmp167;
+            hit = doshot(__rt, __gs, tosser, __fa165, __fa166);
             if qb_bool(__gs.sunhit) {
                 dosun(__rt, __gs, &mut sunhappy);
             }
-            if qb_bool(qb_from_bool(hit == qb_true)) {
+            if hit == qb_true {
                 updatescores(__rt, __gs, &mut totalwins, &mut tosser, &mut hit);
             }
         }
-        __rt.sleep(1_f64);
+        __rt.sleep(1.0f64);
         i += __for_step_i;
     }
-    __rt.screen(0_f64);
-    __rt.color(7_f64, Some(0_f64));
-    __gs.maxcol = 80_f64;
+    __rt.screen(0.0f64);
+    __rt.color(7.0f64, Some(0.0f64));
+    __gs.maxcol = 80.0f64;
     __rt.cls(0u8);
-    let mut __tmp_num168: f64 = 8_f64;
+    let mut __tmp_num168: f64 = 8.0f64;
     let mut __tmp_str169 = ("GAME OVER!").to_string();
     center(__rt, __gs, &mut __tmp_num168, &mut __tmp_str169);
-    let mut __tmp_num170: f64 = 10_f64;
+    let mut __tmp_num170: f64 = 10.0f64;
     let mut __tmp_str171 = ("Score:").to_string();
     center(__rt, __gs, &mut __tmp_num170, &mut __tmp_str171);
-    __rt.locate(Some(11_f64), Some(30_f64), None);
-    let __tmp172 = __rt.tab(50_f64);
-    __rt.println(&[qb_str(&(player1_s)), __tmp172, qb_print_num(totalwins[(1_f64) as usize])]);
-    __rt.locate(Some(12_f64), Some(30_f64), None);
-    let __tmp173 = __rt.tab(50_f64);
-    __rt.println(&[qb_str(&(player2_s)), __tmp173, qb_print_num(totalwins[(2_f64) as usize])]);
-    let mut __tmp_num174: f64 = 24_f64;
+    __rt.locate(Some(11.0f64), Some(30.0f64), None);
+    let __tmp172 = __rt.tab(50.0f64);
+    __rt.println(&[qb_str(&(player1_s)), __tmp172, qb_print_num(totalwins[(1.0f64) as usize])]);
+    __rt.locate(Some(12.0f64), Some(30.0f64), None);
+    let __tmp173 = __rt.tab(50.0f64);
+    __rt.println(&[qb_str(&(player2_s)), __tmp173, qb_print_num(totalwins[(2.0f64) as usize])]);
+    let mut __tmp_num174: f64 = 24.0f64;
     let mut __tmp_str175 = ("Press any key to continue").to_string();
     center(__rt, __gs, &mut __tmp_num174, &mut __tmp_str175);
     sparklepause(__rt, __gs);
-    __rt.color(7_f64, Some(0_f64));
+    __rt.color(7.0f64, Some(0.0f64));
     __rt.cls(0u8);
 }
 
 fn rest(__rt: &mut Runtime, __gs: &mut GameState, t: &mut f64) {
-    let mut s: f64 = 0.0_f64;
-    let mut dummy_s: String = String::new();
-    let mut dummy: f64 = 0.0_f64;
+    let mut s: f64 = 0.0;
+    let dummy_s: String = String::new();
+    let mut dummy: f64 = 0.0;
 
     let mut s: f64 = Default::default();
     let mut dummy: String = Default::default();
     s = qb_timer();
     loop {
-        let __tmp176 = __rt.inkey();
-        dummy = __tmp176;
-        if qb_bool(qb_from_bool((qb_timer() - s) >= (*t))) { break; }
+        dummy = __rt.inkey();
+        if (qb_timer() - s) >= (*t) { break; }
     }
 }
 
 fn setscreen(__rt: &mut Runtime, __gs: &mut GameState) {
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        __gs.explosioncolor = 2_f64;
-        __gs.backcolor = 1_f64;
-        __rt.palette(0_f64, 1_f64);
-        __rt.palette(1_f64, 46_f64);
-        __rt.palette(2_f64, 44_f64);
-        __rt.palette(3_f64, 54_f64);
-        __rt.palette(5_f64, 7_f64);
-        __rt.palette(6_f64, 4_f64);
-        __rt.palette(7_f64, 3_f64);
-        __rt.palette(9_f64, 63_f64);
+    if __gs.mode == 9.0f64 {
+        __gs.explosioncolor = 2.0f64;
+        __gs.backcolor = 1.0f64;
+        __rt.palette(0.0f64, 1.0f64);
+        __rt.palette(1.0f64, 46.0f64);
+        __rt.palette(2.0f64, 44.0f64);
+        __rt.palette(3.0f64, 54.0f64);
+        __rt.palette(5.0f64, 7.0f64);
+        __rt.palette(6.0f64, 4.0f64);
+        __rt.palette(7.0f64, 3.0f64);
+        __rt.palette(9.0f64, 63.0f64);
     } else {
-        __gs.explosioncolor = 2_f64;
-        __gs.backcolor = 0_f64;
-        __rt.color(__gs.backcolor, Some(2_f64));
+        __gs.explosioncolor = 2.0f64;
+        __gs.backcolor = 0.0f64;
+        __rt.color(__gs.backcolor, Some(2.0f64));
     }
 }
 
 fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
-    let mut a: f64 = 0.0_f64;
-    let mut b: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
+    let mut b: f64 = 0.0;
+    let mut c: f64 = 0.0;
 
-    __rt.color(4_f64, Some(0_f64));
+    __rt.color(4.0f64, Some(0.0f64));
     a_s = ("*    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    ").to_string();
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    while (__rt.inkey()).as_str() != "" {
     }
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
-        a = 1_f64;
-        let __for_to_a: f64 = 5_f64;
-        let __for_step_a: f64 = 1.0_f64;
+    while (__rt.inkey()).as_str() == "" {
+        a = 1.0f64;
+        let __for_to_a: f64 = 5.0f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-            __rt.locate(Some(1_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80_f64))))]);
-            __rt.locate(Some(22_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6_f64 - a), Some(80_f64))))]);
-            b = 2_f64;
-            let __for_to_b: f64 = 21_f64;
-            let __for_step_b: f64 = 1.0_f64;
+            __rt.locate(Some(1.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80.0f64))))]);
+            __rt.locate(Some(22.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6.0f64 - a), Some(80.0f64))))]);
+            b = 2.0f64;
+            let __for_to_b: f64 = 21.0f64;
+            let __for_step_b: f64 = 1.0;
             while (__for_step_b > 0.0 && b <= __for_to_b) || (__for_step_b < 0.0 && b >= __for_to_b) {
-                c = qb_mod((a + b), 5_f64);
-                if qb_bool(qb_from_bool(c == 1_f64)) {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                c = qb_mod((a + b), 5.0f64);
+                if c == 1.0f64 {
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
                 } else {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
                 }
                 b += __for_step_b;
@@ -875,31 +871,31 @@ fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn updatescores(__rt: &mut Runtime, __gs: &mut GameState, record: &mut Vec<f64>, playernum: &mut f64, results: &mut f64) {
-    if qb_bool(qb_from_bool((*results) == hitself)) {
-        record[(qb_abs(((*playernum) - 3_f64))) as usize] = (record[(qb_abs(((*playernum) - 3_f64))) as usize] + 1_f64);
+    if (*results) == hitself {
+        record[(qb_abs(((*playernum) - 3.0f64))) as usize] = (record[(qb_abs(((*playernum) - 3.0f64))) as usize] + 1.0f64);
     } else {
-        record[((*playernum)) as usize] = (record[((*playernum)) as usize] + 1_f64);
+        record[((*playernum)) as usize] = (record[((*playernum)) as usize] + 1.0f64);
     }
 }
 
 fn victorydance(__rt: &mut Runtime, __gs: &mut GameState, player: &mut f64) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
-    i = 1_f64;
-    let __for_to_i: f64 = 4_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 4.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         let __spx177 = __gs.gorillax[((*player)) as usize];
         let __spy177 = __gs.gorillay[((*player)) as usize];
         __rt.put_sprite(&__gs.gorl, __spx177, __spy177, qbasic_runtime::PutAction::Pset);
         __rt.play(&"MFO0L32EFGEFDC");
-        let mut __tmp_num178: f64 = 0.2_f64;
+        let mut __tmp_num178: f64 = 0.2f64;
         rest(__rt, __gs, &mut __tmp_num178);
         let __spx179 = __gs.gorillax[((*player)) as usize];
         let __spy179 = __gs.gorillay[((*player)) as usize];
         __rt.put_sprite(&__gs.gorr, __spx179, __spy179, qbasic_runtime::PutAction::Pset);
         __rt.play(&"MFO0L32EFGEFDC");
-        let mut __tmp_num180: f64 = 0.2_f64;
+        let mut __tmp_num180: f64 = 0.2f64;
         rest(__rt, __gs, &mut __tmp_num180);
         i += __for_step_i;
     }
@@ -913,51 +909,48 @@ fn calcdelay(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
 
 fn doshot(__rt: &mut Runtime, __gs: &mut GameState, mut playernum: f64, mut x: f64, mut y: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut locatecol: f64 = 0.0_f64;
-    let mut angle: f64 = 0.0_f64;
-    let mut velocity: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut playerhit: f64 = 0.0_f64;
+    let mut locatecol: f64 = 0.0;
+    let mut angle: f64 = 0.0;
+    let mut velocity: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut playerhit: f64 = 0.0;
 
-    if qb_bool(qb_from_bool(playernum == 1_f64)) {
-        locatecol = 1_f64;
+    if playernum == 1.0f64 {
+        locatecol = 1.0f64;
     } else {
-        if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-            locatecol = 66_f64;
+        if __gs.mode == 9.0f64 {
+            locatecol = 66.0f64;
         } else {
-            locatecol = 26_f64;
+            locatecol = 26.0f64;
         }
     }
-    __rt.locate(Some(2_f64), Some(locatecol), None);
+    __rt.locate(Some(2.0f64), Some(locatecol), None);
     __rt.print(&[qb_str(&("Angle:"))]);
-    let __tmp181 = getnum(__rt, __gs, 2_f64, (locatecol + 7_f64));
-    angle = __tmp181;
-    __rt.locate(Some(3_f64), Some(locatecol), None);
+    angle = getnum(__rt, __gs, 2.0f64, (locatecol + 7.0f64));
+    __rt.locate(Some(3.0f64), Some(locatecol), None);
     __rt.print(&[qb_str(&("Velocity:"))]);
-    let __tmp182 = getnum(__rt, __gs, 3_f64, (locatecol + 10_f64));
-    velocity = __tmp182;
-    if qb_bool(qb_from_bool(playernum == 2_f64)) {
-        angle = (180_f64 - angle);
+    velocity = getnum(__rt, __gs, 3.0f64, (locatecol + 10.0f64));
+    if playernum == 2.0f64 {
+        angle = (180.0f64 - angle);
     }
-    i = 1_f64;
-    let __for_to_i: f64 = 4_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 4.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.locate(Some(i), Some(1_f64), None);
-        __rt.print(&[qb_str(&(qb_space(qb_idiv(30_f64, qb_idiv(80_f64, __gs.maxcol)))))]);
-        __rt.locate(Some(i), Some(qb_idiv(50_f64, qb_idiv(80_f64, __gs.maxcol))), None);
-        __rt.print(&[qb_str(&(qb_space(qb_idiv(30_f64, qb_idiv(80_f64, __gs.maxcol)))))]);
+        __rt.locate(Some(i), Some(1.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(qb_idiv(30.0f64, qb_idiv(80.0f64, __gs.maxcol)))))]);
+        __rt.locate(Some(i), Some(qb_idiv(50.0f64, qb_idiv(80.0f64, __gs.maxcol))), None);
+        __rt.print(&[qb_str(&(qb_space(qb_idiv(30.0f64, qb_idiv(80.0f64, __gs.maxcol)))))]);
         i += __for_step_i;
     }
     __gs.sunhit = qb_false;
-    let __tmp183 = plotshot(__rt, __gs, x, y, angle, velocity, playernum);
-    playerhit = __tmp183;
-    if qb_bool(qb_from_bool(playerhit == 0_f64)) {
+    playerhit = plotshot(__rt, __gs, x, y, angle, velocity, playernum);
+    if playerhit == 0.0f64 {
         __fn_ret = qb_false;
     } else {
         __fn_ret = qb_true;
-        if qb_bool(qb_from_bool(playerhit == playernum)) {
-            playernum = (3_f64 - playernum);
+        if playerhit == playernum {
+            playernum = (3.0f64 - playernum);
         }
         victorydance(__rt, __gs, &mut playernum);
     }
@@ -966,52 +959,50 @@ fn doshot(__rt: &mut Runtime, __gs: &mut GameState, mut playernum: f64, mut x: f
 
 fn explodegorilla(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64, mut y: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut yadj: f64 = 0.0_f64;
-    let mut xadj: f64 = 0.0_f64;
-    let mut sclx: f64 = 0.0_f64;
-    let mut scly: f64 = 0.0_f64;
-    let mut playerhit: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut count: f64 = 0.0_f64;
+    let mut yadj: f64 = 0.0;
+    let mut xadj: f64 = 0.0;
+    let mut sclx: f64 = 0.0;
+    let mut scly: f64 = 0.0;
+    let mut playerhit: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut count: f64 = 0.0;
 
-    let __tmp184 = scl(__rt, __gs, 12_f64);
-    yadj = __tmp184;
-    let __tmp185 = scl(__rt, __gs, 5_f64);
-    xadj = __tmp185;
-    sclx = (__gs.scrwidth / 320_f64);
-    scly = (__gs.scrheight / 200_f64);
-    if qb_bool(qb_from_bool(x < (__gs.scrwidth / 2_f64))) {
-        playerhit = 1_f64;
+    yadj = scl(__rt, __gs, 12.0f64);
+    xadj = scl(__rt, __gs, 5.0f64);
+    sclx = (__gs.scrwidth / 320.0f64);
+    scly = (__gs.scrheight / 200.0f64);
+    if x < (__gs.scrwidth / 2.0f64) {
+        playerhit = 1.0f64;
     } else {
-        playerhit = 2_f64;
+        playerhit = 2.0f64;
     }
     __rt.play(&"MBO0L16EFGEFDC");
-    i = 1_f64;
-    let __for_to_i: f64 = (8_f64 * sclx);
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = (8.0f64 * sclx);
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5_f64 * sclx)) + xadj), ((__gs.gorillay[(playerhit) as usize] + (7_f64 * scly)) + yadj), i, __gs.explosioncolor);
-        __rt.line((__gs.gorillax[(playerhit) as usize] + (7_f64 * sclx)),((__gs.gorillay[(playerhit) as usize] + (9_f64 * scly)) - i),__gs.gorillax[(playerhit) as usize],((__gs.gorillay[(playerhit) as usize] + (9_f64 * scly)) - i),__gs.explosioncolor);
+        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5f64 * sclx)) + xadj), ((__gs.gorillay[(playerhit) as usize] + (7.0f64 * scly)) + yadj), i, __gs.explosioncolor);
+        __rt.line((__gs.gorillax[(playerhit) as usize] + (7.0f64 * sclx)),((__gs.gorillay[(playerhit) as usize] + (9.0f64 * scly)) - i),__gs.gorillax[(playerhit) as usize],((__gs.gorillay[(playerhit) as usize] + (9.0f64 * scly)) - i),__gs.explosioncolor);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = (16_f64 * sclx);
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = (16.0f64 * sclx);
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        if qb_bool(qb_from_bool(i < (8_f64 * sclx))) {
-            __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5_f64 * sclx)) + xadj), ((__gs.gorillay[(playerhit) as usize] + (7_f64 * scly)) + yadj), (((8_f64 * sclx) + 1_f64) - i), backattr);
+        if i < (8.0f64 * sclx) {
+            __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5f64 * sclx)) + xadj), ((__gs.gorillay[(playerhit) as usize] + (7.0f64 * scly)) + yadj), (((8.0f64 * sclx) + 1.0f64) - i), backattr);
         }
-        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5_f64 * sclx)) + xadj), (__gs.gorillay[(playerhit) as usize] + yadj), i, (qb_mod(i, 2_f64) + 1_f64));
+        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5f64 * sclx)) + xadj), (__gs.gorillay[(playerhit) as usize] + yadj), i, (qb_mod(i, 2.0f64) + 1.0f64));
         i += __for_step_i;
     }
-    i = (24_f64 * sclx);
-    let __for_to_i: f64 = 1_f64;
-    let __for_step_i: f64 = (-1_f64);
+    i = (24.0f64 * sclx);
+    let __for_to_i: f64 = 1.0f64;
+    let __for_step_i: f64 = (-1.0f64);
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5_f64 * sclx)) + xadj), (__gs.gorillay[(playerhit) as usize] + yadj), i, backattr);
-        count = 1_f64;
-        let __for_to_count: f64 = 200_f64;
-        let __for_step_count: f64 = 1.0_f64;
+        __rt.circle(((__gs.gorillax[(playerhit) as usize] + (3.5f64 * sclx)) + xadj), (__gs.gorillay[(playerhit) as usize] + yadj), i, backattr);
+        count = 1.0f64;
+        let __for_to_count: f64 = 200.0f64;
+        let __for_step_count: f64 = 1.0;
         while (__for_step_count > 0.0 && count <= __for_to_count) || (__for_step_count < 0.0 && count >= __for_to_count) {
             count += __for_step_count;
         }
@@ -1024,37 +1015,37 @@ fn explodegorilla(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64, mut y: f
 fn getnum(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
     let mut result_s: String = String::new();
-    let mut done: f64 = 0.0_f64;
+    let mut done: f64 = 0.0;
     let mut kbd_s: String = String::new();
 
     result_s = ("").to_string();
     done = qb_false;
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    while (__rt.inkey()).as_str() != "" {
     }
     while qb_bool(qb_not(done)) {
         __rt.locate(Some(row), Some(col), None);
-        __rt.print(&[qb_str(&(result_s)), qb_str(&(qb_chr(95_f64))), qb_str(&("    "))]);
+        __rt.print(&[qb_str(&(result_s)), qb_str(&(qb_chr(95.0f64))), qb_str(&("    "))]);
         let __tmp186 = __rt.inkey();
         kbd_s = (__tmp186).to_string();
         let __sel = kbd_s.clone();
         if (__sel >= "0".to_string() && __sel <= "9".to_string()) {
             result_s = (format!("{}{}" ,result_s,kbd_s)).to_string();
         } else if __sel == ".".to_string() {
-            if qb_bool(qb_from_bool(qb_instr(1.0, &(result_s), ".") == 0_f64)) {
+            if qb_instr(1.0, &(result_s), ".") == 0.0f64 {
                 result_s = (format!("{}{}" ,result_s,kbd_s)).to_string();
             }
-        } else if __sel == qb_chr(13_f64).to_string() {
-            if qb_bool(qb_from_bool(qb_val(&(result_s)) > 360_f64)) {
+        } else if __sel == qb_chr(13.0f64).to_string() {
+            if qb_val(&(result_s)) > 360.0f64 {
                 result_s = ("").to_string();
             } else {
                 done = qb_true;
             }
-        } else if __sel == qb_chr(8_f64).to_string() {
-            if qb_bool(qb_from_bool(qb_len(&(result_s)) > 0_f64)) {
-                result_s = (qb_left(&(result_s), (qb_len(&(result_s)) - 1_f64))).to_string();
+        } else if __sel == qb_chr(8.0f64).to_string() {
+            if qb_len(&(result_s)) > 0.0f64 {
+                result_s = (qb_left(&(result_s), (qb_len(&(result_s)) - 1.0f64))).to_string();
             }
         } else {
-            if qb_bool(qb_from_bool(qb_len(&(kbd_s)) > 0_f64)) {
+            if qb_len(&(kbd_s)) > 0.0f64 {
                 __rt.beep();
             }
         }
@@ -1067,37 +1058,37 @@ fn getnum(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64) 
 
 fn plotshot(__rt: &mut Runtime, __gs: &mut GameState, mut startx: f64, mut starty: f64, mut angle: f64, mut velocity: f64, mut playernum: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut radius: f64 = 0.0_f64;
-    let mut initxvel: f64 = 0.0_f64;
-    let mut inityvel: f64 = 0.0_f64;
-    let mut oldx: f64 = 0.0_f64;
-    let mut oldy: f64 = 0.0_f64;
-    let mut adjust: f64 = 0.0_f64;
-    let mut xedge: f64 = 0.0_f64;
-    let mut impact: f64 = 0.0_f64;
-    let mut shotinsun: f64 = 0.0_f64;
-    let mut onscreen: f64 = 0.0_f64;
-    let mut playerhit: f64 = 0.0_f64;
-    let mut neederase: f64 = 0.0_f64;
-    let mut startxpos: f64 = 0.0_f64;
-    let mut startypos: f64 = 0.0_f64;
-    let mut direction: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut pointval: f64 = 0.0_f64;
-    let mut oldrot: f64 = 0.0_f64;
-    let mut t: f64 = 0.0_f64;
-    let mut looky: f64 = 0.0_f64;
-    let mut lookx: f64 = 0.0_f64;
-    let mut rot: f64 = 0.0_f64;
+    let mut radius: f64 = 0.0;
+    let mut initxvel: f64 = 0.0;
+    let mut inityvel: f64 = 0.0;
+    let mut oldx: f64 = 0.0;
+    let mut oldy: f64 = 0.0;
+    let mut adjust: f64 = 0.0;
+    let mut xedge: f64 = 0.0;
+    let mut impact: f64 = 0.0;
+    let mut shotinsun: f64 = 0.0;
+    let mut onscreen: f64 = 0.0;
+    let mut playerhit: f64 = 0.0;
+    let mut neederase: f64 = 0.0;
+    let mut startxpos: f64 = 0.0;
+    let mut startypos: f64 = 0.0;
+    let mut direction: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut pointval: f64 = 0.0;
+    let mut oldrot: f64 = 0.0;
+    let mut t: f64 = 0.0;
+    let mut looky: f64 = 0.0;
+    let mut lookx: f64 = 0.0;
+    let mut rot: f64 = 0.0;
 
-    angle = ((angle / 180_f64) * __gs.pi);
-    radius = qb_mod(__gs.mode, 7_f64);
+    angle = ((angle / 180.0f64) * __gs.pi);
+    radius = qb_mod(__gs.mode, 7.0f64);
     initxvel = (qb_cos(angle) * velocity);
     inityvel = (qb_sin(angle) * velocity);
     oldx = startx;
     oldy = starty;
-    if qb_bool(qb_from_bool(playernum == 1_f64)) {
+    if playernum == 1.0f64 {
         let __spx187 = startx;
         let __spy187 = starty;
         __rt.put_sprite(&__gs.gorl, __spx187, __spy187, qbasic_runtime::PutAction::Pset);
@@ -1107,59 +1098,54 @@ fn plotshot(__rt: &mut Runtime, __gs: &mut GameState, mut startx: f64, mut start
         __rt.put_sprite(&__gs.gorr, __spx188, __spy188, qbasic_runtime::PutAction::Pset);
     }
     __rt.play(&"MBo0L32A-L64CL16BL64A+");
-    let mut __tmp_num189: f64 = 0.1_f64;
+    let mut __tmp_num189: f64 = 0.1f64;
     rest(__rt, __gs, &mut __tmp_num189);
     let __spx190 = startx;
     let __spy190 = starty;
     __rt.put_sprite(&__gs.gord, __spx190, __spy190, qbasic_runtime::PutAction::Pset);
-    let __tmp191 = scl(__rt, __gs, 4_f64);
-    adjust = __tmp191;
-    let __tmp192 = scl(__rt, __gs, 9_f64);
-    xedge = (__tmp192 * (2_f64 - playernum));
+    adjust = scl(__rt, __gs, 4.0f64);
+    let __tmp192 = scl(__rt, __gs, 9.0f64);
+    xedge = (__tmp192 * (2.0f64 - playernum));
     impact = qb_false;
     shotinsun = qb_false;
     onscreen = qb_true;
-    playerhit = 0_f64;
+    playerhit = 0.0f64;
     neederase = qb_false;
     startxpos = startx;
-    startypos = ((starty - adjust) - 3_f64);
-    if qb_bool(qb_from_bool(playernum == 2_f64)) {
-        let __tmp193 = scl(__rt, __gs, 25_f64);
+    startypos = ((starty - adjust) - 3.0f64);
+    if playernum == 2.0f64 {
+        let __tmp193 = scl(__rt, __gs, 25.0f64);
         startxpos = (startxpos + __tmp193);
-        let __tmp194 = scl(__rt, __gs, 4_f64);
-        direction = __tmp194;
+        direction = scl(__rt, __gs, 4.0f64);
     } else {
-        let __tmp195 = scl(__rt, __gs, (-4_f64));
-        direction = __tmp195;
+        direction = scl(__rt, __gs, (-4.0f64));
     }
-    if qb_bool(qb_from_bool(velocity < 2_f64)) {
+    if velocity < 2.0f64 {
         x = startx;
         y = starty;
         pointval = objectcolor;
     }
     while qb_bool(qb_and(qb_not(impact), onscreen)) {
-        let mut __tmp_num196: f64 = 0.02_f64;
+        let mut __tmp_num196: f64 = 0.02f64;
         rest(__rt, __gs, &mut __tmp_num196);
         if qb_bool(neederase) {
             neederase = qb_false;
             drawban(__rt, __gs, &mut oldx, &mut oldy, &mut oldrot, &mut qb_false);
         }
-        x = ((startxpos + (initxvel * t)) + ((0.5_f64 * (__gs.wind / 5_f64)) * t.powf(2_f64)));
-        y = (startypos + ((((-1_f64) * (inityvel * t)) + ((0.5_f64 * __gs.gravity) * t.powf(2_f64))) * (__gs.scrheight / 350_f64)));
-        if qb_bool(qb_or(qb_or(qb_from_bool(x >= (__gs.scrwidth - scl(__rt, __gs, 10_f64))), qb_from_bool(x <= 3_f64)), qb_from_bool(y >= (__gs.scrheight - 3_f64)))) {
+        x = ((startxpos + (initxvel * t)) + ((0.5f64 * (__gs.wind / 5.0f64)) * t.powf(2.0f64)));
+        y = (startypos + ((((-1.0f64) * (inityvel * t)) + ((0.5f64 * __gs.gravity) * t.powf(2.0f64))) * (__gs.scrheight / 350.0f64)));
+        if qb_bool(qb_or(qb_or(qb_from_bool(x >= (__gs.scrwidth - scl(__rt, __gs, 10.0f64))), qb_from_bool(x <= 3.0f64)), qb_from_bool(y >= (__gs.scrheight - 3.0f64)))) {
             onscreen = qb_false;
         }
-        if qb_bool(qb_and(onscreen, qb_from_bool(y > 0_f64))) {
-            looky = 0_f64;
-            let __tmp197 = scl(__rt, __gs, (8_f64 * (2_f64 - playernum)));
-            lookx = __tmp197;
+        if qb_bool(qb_and(onscreen, qb_from_bool(y > 0.0f64))) {
+            looky = 0.0f64;
+            lookx = scl(__rt, __gs, (8.0f64 * (2.0f64 - playernum)));
             loop {
-                let __tmp198 = __rt.point((x + lookx), (y + looky));
-                pointval = __tmp198;
-                if qb_bool(qb_from_bool(pointval == 0_f64)) {
+                pointval = __rt.point((x + lookx), (y + looky));
+                if pointval == 0.0f64 {
                     impact = qb_false;
-                    if qb_bool(qb_from_bool(shotinsun == qb_true)) {
-                        if qb_bool(qb_or(qb_from_bool(qb_abs((qb_idiv(__gs.scrwidth, 2_f64) - x)) > scl(__rt, __gs, 20_f64)), qb_from_bool(y > __gs.sunht))) {
+                    if shotinsun == qb_true {
+                        if qb_bool(qb_or(qb_from_bool(qb_abs((qb_idiv(__gs.scrwidth, 2.0f64) - x)) > scl(__rt, __gs, 20.0f64)), qb_from_bool(y > __gs.sunht))) {
                             shotinsun = qb_false;
                         }
                     }
@@ -1173,12 +1159,12 @@ fn plotshot(__rt: &mut Runtime, __gs: &mut GameState, mut startx: f64, mut start
                     impact = qb_true;
                 }
                 lookx = (lookx + direction);
-                let __tmp199 = scl(__rt, __gs, 6_f64);
+                let __tmp199 = scl(__rt, __gs, 6.0f64);
                 looky = (looky + __tmp199);
-                if qb_bool(qb_or(impact, qb_from_bool(lookx != scl(__rt, __gs, 4_f64)))) { break; }
+                if qb_bool(qb_or(impact, qb_from_bool(lookx != scl(__rt, __gs, 4.0f64)))) { break; }
             }
             if qb_bool(qb_and(qb_not(shotinsun), qb_not(impact))) {
-                rot = qb_mod((t * 10_f64), 4_f64);
+                rot = qb_mod((t * 10.0f64), 4.0f64);
                 drawban(__rt, __gs, &mut x, &mut y, &mut rot, &mut qb_true);
                 neederase = qb_true;
             }
@@ -1186,15 +1172,14 @@ fn plotshot(__rt: &mut Runtime, __gs: &mut GameState, mut startx: f64, mut start
             oldy = y;
             oldrot = rot;
         }
-        t = (t + 0.1_f64);
+        t = (t + 0.1f64);
     }
     if qb_bool(qb_and(qb_from_bool(pointval != objectcolor), impact)) {
         let mut __tmp_num200: f64 = (x + adjust);
         let mut __tmp_num201: f64 = (y + adjust);
         doexplosion(__rt, __gs, &mut __tmp_num200, &mut __tmp_num201);
-    } else if qb_bool(qb_from_bool(pointval == objectcolor)) {
-        let __tmp202 = explodegorilla(__rt, __gs, x, y);
-        playerhit = __tmp202;
+    } else if pointval == objectcolor {
+        playerhit = explodegorilla(__rt, __gs, x, y);
     }
     __fn_ret = playerhit;
     __fn_ret
@@ -1202,13 +1187,13 @@ fn plotshot(__rt: &mut Runtime, __gs: &mut GameState, mut startx: f64, mut start
 
 fn scl(__rt: &mut Runtime, __gs: &mut GameState, mut n: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    if qb_bool(qb_from_bool(n != qb_int(n))) {
-        if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
-            n = (n - 1_f64);
+    if n != qb_int(n) {
+        if __gs.mode == 1.0f64 {
+            n = (n - 1.0f64);
         }
     }
-    if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
-        __fn_ret = qb_cint(((n / 2_f64) + 0.1_f64));
+    if __gs.mode == 1.0f64 {
+        __fn_ret = qb_cint(((n / 2.0f64) + 0.1f64));
     } else {
         __fn_ret = qb_cint(n);
     }
@@ -1216,118 +1201,118 @@ fn scl(__rt: &mut Runtime, __gs: &mut GameState, mut n: f64) -> f64 {
 }
 
 fn fnran(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> f64 {
-    (qb_int((__rt.rnd() * x)) + 1_f64)
+    (qb_int((__rt.rnd_arg(1.0f64) * x)) + 1.0f64)
 }
 
 fn initvars(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
-    __gs.pi = (4_f64 * qb_atn(1_f64));
-    __gs.mode = 9_f64;
+    __gs.pi = (4.0f64 * qb_atn(1.0f64));
+    __gs.mode = 9.0f64;
     __rt.screen(__gs.mode);
     if __rt.error_pending { __rt.error_pending = false; screenmodeerror(__rt, __gs); }
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        __rt.palette(4_f64, 0_f64);
+    if __gs.mode == 9.0f64 {
+        __rt.palette(4.0f64, 0.0f64);
     }
     __gs.machspeed = calcdelay(__rt, __gs);
-    if qb_bool(qb_from_bool(__gs.mode == 9_f64)) {
-        __gs.scrwidth = 640_f64;
-        __gs.scrheight = 350_f64;
-        __gs.gheight = 25_f64;
+    if __gs.mode == 9.0f64 {
+        __gs.scrwidth = 640.0f64;
+        __gs.scrheight = 350.0f64;
+        __gs.gheight = 25.0f64;
         __DATA_PTR.store(12, std::sync::atomic::Ordering::SeqCst);
-        __gs.lban.resize((8_f64+1.0) as usize, Default::default());
-        __gs.rban.resize((8_f64+1.0) as usize, Default::default());
-        __gs.uban.resize((8_f64+1.0) as usize, Default::default());
-        __gs.dban.resize((8_f64+1.0) as usize, Default::default());
-        i = 0_f64;
-        let __for_to_i: f64 = 8_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        __gs.lban.resize((8.0f64+1.0) as usize, Default::default());
+        __gs.rban.resize((8.0f64+1.0) as usize, Default::default());
+        __gs.uban.resize((8.0f64+1.0) as usize, Default::default());
+        __gs.dban.resize((8.0f64+1.0) as usize, Default::default());
+        i = 0.0f64;
+        let __for_to_i: f64 = 8.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.lban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 8_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 8.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.dban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 8_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 8.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.uban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 8_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 8.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.rban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        __gs.sunht = 39_f64;
+        __gs.sunht = 39.0f64;
     } else {
-        __gs.scrwidth = 320_f64;
-        __gs.scrheight = 200_f64;
-        __gs.gheight = 12_f64;
+        __gs.scrwidth = 320.0f64;
+        __gs.scrheight = 200.0f64;
+        __gs.gheight = 12.0f64;
         __DATA_PTR.store(0, std::sync::atomic::Ordering::SeqCst);
-        __gs.lban.resize((2_f64+1.0) as usize, Default::default());
-        __gs.rban.resize((2_f64+1.0) as usize, Default::default());
-        __gs.uban.resize((2_f64+1.0) as usize, Default::default());
-        __gs.dban.resize((2_f64+1.0) as usize, Default::default());
-        __gs.gorl.resize((20_f64+1.0) as usize, Default::default());
-        __gs.gord.resize((20_f64+1.0) as usize, Default::default());
-        __gs.gorr.resize((20_f64+1.0) as usize, Default::default());
-        i = 0_f64;
-        let __for_to_i: f64 = 2_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        __gs.lban.resize((2.0f64+1.0) as usize, Default::default());
+        __gs.rban.resize((2.0f64+1.0) as usize, Default::default());
+        __gs.uban.resize((2.0f64+1.0) as usize, Default::default());
+        __gs.dban.resize((2.0f64+1.0) as usize, Default::default());
+        __gs.gorl.resize((20.0f64+1.0) as usize, Default::default());
+        __gs.gord.resize((20.0f64+1.0) as usize, Default::default());
+        __gs.gorr.resize((20.0f64+1.0) as usize, Default::default());
+        i = 0.0f64;
+        let __for_to_i: f64 = 2.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.lban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 2_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 2.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.dban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 2_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 2.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.uban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        i = 0_f64;
-        let __for_to_i: f64 = 2_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 0.0f64;
+        let __for_to_i: f64 = 2.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.rban[(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             i += __for_step_i;
         }
-        __gs.machspeed = (__gs.machspeed * 1.3_f64);
-        __gs.sunht = 20_f64;
+        __gs.machspeed = (__gs.machspeed * 1.3f64);
+        __gs.sunht = 20.0f64;
     }
     return;
 }
 
 fn screenmodeerror(__rt: &mut Runtime, __gs: &mut GameState) {
-    if qb_bool(qb_from_bool(__gs.mode == 1_f64)) {
+    if __gs.mode == 1.0f64 {
         __rt.cls(0u8);
-        __rt.locate(Some(10_f64), Some(5_f64), None);
+        __rt.locate(Some(10.0f64), Some(5.0f64), None);
         __rt.println(&[qb_str(&("Sorry, you must have CGA, EGA color, or VGA graphics to play GORILLA.BAS"))]);
         __rt.quit();
     } else {
-        __gs.mode = 1_f64;
+        __gs.mode = 1.0f64;
         __rt.error_pending = false;
     }
 }
 
 fn paletteerror(__rt: &mut Runtime, __gs: &mut GameState) {
-    __gs.mode = 1_f64;
+    __gs.mode = 1.0f64;
     __rt.error_pending = false;
 }
 
@@ -1335,29 +1320,31 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut x: f64 = 0.0_f64;
-    let mut keyflags: f64 = 0.0_f64;
+    let x: f64 = 0.0;
+    let mut keyflags: f64 = 0.0;
     let mut name1_s: String = String::new();
     let mut name2_s: String = String::new();
-    let mut numgames: f64 = 0.0_f64;
+    let mut numgames: f64 = 0.0;
 
-    __gs.gorillax = vec![Default::default(); (2_f64+1.0) as usize];
-    __gs.gorillay = vec![Default::default(); (2_f64+1.0) as usize];
+    __gs.gorillax = vec![Default::default(); (2.0f64+1.0) as usize];
+    __gs.gorillay = vec![Default::default(); (2.0f64+1.0) as usize];
     __gs.lban = vec![Default::default(); (x+1.0) as usize];
     __gs.rban = vec![Default::default(); (x+1.0) as usize];
     __gs.uban = vec![Default::default(); (x+1.0) as usize];
     __gs.dban = vec![Default::default(); (x+1.0) as usize];
-    __gs.gord = vec![Default::default(); (120_f64+1.0) as usize];
-    __gs.gorl = vec![Default::default(); (120_f64+1.0) as usize];
-    __gs.gorr = vec![Default::default(); (120_f64+1.0) as usize];
-    keyflags = qb_peek(1047_f64);
-    if qb_bool(qb_from_bool(qb_and(keyflags, 32_f64) == 0_f64)) {
+    __gs.gord = vec![Default::default(); (120.0f64+1.0) as usize];
+    __gs.gorl = vec![Default::default(); (120.0f64+1.0) as usize];
+    __gs.gorr = vec![Default::default(); (120.0f64+1.0) as usize];
+    keyflags = __rt.qb_peek(1047.0f64);
+    if qb_and(keyflags, 32.0f64) == 0.0f64 {
+        __rt.qb_poke(1047.0f64, qb_or(keyflags, 32.0f64));
     }
     initvars(&mut __rt, &mut __gs);
     intro(&mut __rt, &mut __gs);
     getinputs(&mut __rt, &mut __gs, &mut name1_s, &mut name2_s, &mut numgames);
     gorillaintro(&mut __rt, &mut __gs, &mut name1_s, &mut name2_s);
     playgame(&mut __rt, &mut __gs, &mut name1_s, &mut name2_s, &mut numgames);
+    __rt.qb_poke(1047.0f64, keyflags);
     __rt.quit();
     // label: CGABanana
     // label: EGABanana

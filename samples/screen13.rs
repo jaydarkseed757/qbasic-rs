@@ -6,33 +6,33 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut i: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut y: f64 = 0.0;
 
-    __rt.screen(13_f64);
-    i = 0_f64;
-    let __for_to_i: f64 = 255_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __rt.screen(13.0f64);
+    i = 0.0f64;
+    let __for_to_i: f64 = 255.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.line((i + 32_f64),10_f64,(i + 32_f64),40_f64,i);
+        __rt.line((i + 32.0f64),10.0f64,(i + 32.0f64),40.0f64,i);
         i += __for_step_i;
     }
-    __rt.palette(100_f64, 63_f64);
-    __rt.palette(101_f64, (63_f64 * 256_f64));
-    __rt.palette(102_f64, (63_f64 * 65536_f64));
-    __rt.palette(103_f64, (63_f64 + (63_f64 * 65536_f64)));
-    __rt.line_box_fill(40_f64,70_f64,110_f64,130_f64,100_f64);
-    __rt.line_box_fill(120_f64,70_f64,190_f64,130_f64,101_f64);
-    __rt.line_box_fill(200_f64,70_f64,270_f64,130_f64,102_f64);
-    __rt.line_box_fill(130_f64,150_f64,190_f64,190_f64,103_f64);
-    y = 150_f64;
-    let __for_to_y: f64 = 190_f64;
-    let __for_step_y: f64 = 1.0_f64;
+    __rt.palette(100.0f64, 63.0f64);
+    __rt.palette(101.0f64, (63.0f64 * 256.0f64));
+    __rt.palette(102.0f64, (63.0f64 * 65536.0f64));
+    __rt.palette(103.0f64, (63.0f64 + (63.0f64 * 65536.0f64)));
+    __rt.line_box_fill(40.0f64,70.0f64,110.0f64,130.0f64,100.0f64);
+    __rt.line_box_fill(120.0f64,70.0f64,190.0f64,130.0f64,101.0f64);
+    __rt.line_box_fill(200.0f64,70.0f64,270.0f64,130.0f64,102.0f64);
+    __rt.line_box_fill(130.0f64,150.0f64,190.0f64,190.0f64,103.0f64);
+    y = 150.0f64;
+    let __for_to_y: f64 = 190.0f64;
+    let __for_step_y: f64 = 1.0;
     while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
-        __rt.pset((50_f64 + (y - 150_f64)), y, 200_f64);
+        __rt.pset((50.0f64 + (y - 150.0f64)), y, 200.0f64);
         y += __for_step_y;
     }
-    __rt.locate(Some(24_f64), Some(1_f64), None);
+    __rt.locate(Some(24.0f64), Some(1.0f64), None);
     __rt.print(&[qb_str(&("SCREEN 13 - 256 colors"))]);
     __rt.quit();
 }

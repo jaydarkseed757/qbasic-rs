@@ -10,27 +10,27 @@ struct GameState {
 }
 
 fn drawhangman(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.line(100_f64,400_f64,250_f64,400_f64,15_f64);
-    __rt.line(150_f64,400_f64,150_f64,100_f64,15_f64);
-    __rt.line(150_f64,100_f64,300_f64,100_f64,15_f64);
-    __rt.line(300_f64,100_f64,300_f64,140_f64,15_f64);
-    if qb_bool(qb_from_bool(__gs.wrong >= 1_f64)) {
-        __rt.circle(300_f64, 170_f64, 30_f64, 15_f64);
+    __rt.line(100.0f64,400.0f64,250.0f64,400.0f64,15.0f64);
+    __rt.line(150.0f64,400.0f64,150.0f64,100.0f64,15.0f64);
+    __rt.line(150.0f64,100.0f64,300.0f64,100.0f64,15.0f64);
+    __rt.line(300.0f64,100.0f64,300.0f64,140.0f64,15.0f64);
+    if __gs.wrong >= 1.0f64 {
+        __rt.circle(300.0f64, 170.0f64, 30.0f64, 15.0f64);
     }
-    if qb_bool(qb_from_bool(__gs.wrong >= 2_f64)) {
-        __rt.line(300_f64,200_f64,300_f64,300_f64,15_f64);
+    if __gs.wrong >= 2.0f64 {
+        __rt.line(300.0f64,200.0f64,300.0f64,300.0f64,15.0f64);
     }
-    if qb_bool(qb_from_bool(__gs.wrong >= 3_f64)) {
-        __rt.line(300_f64,220_f64,260_f64,260_f64,15_f64);
+    if __gs.wrong >= 3.0f64 {
+        __rt.line(300.0f64,220.0f64,260.0f64,260.0f64,15.0f64);
     }
-    if qb_bool(qb_from_bool(__gs.wrong >= 4_f64)) {
-        __rt.line(300_f64,220_f64,340_f64,260_f64,15_f64);
+    if __gs.wrong >= 4.0f64 {
+        __rt.line(300.0f64,220.0f64,340.0f64,260.0f64,15.0f64);
     }
-    if qb_bool(qb_from_bool(__gs.wrong >= 5_f64)) {
-        __rt.line(300_f64,300_f64,260_f64,360_f64,15_f64);
+    if __gs.wrong >= 5.0f64 {
+        __rt.line(300.0f64,300.0f64,260.0f64,360.0f64,15.0f64);
     }
-    if qb_bool(qb_from_bool(__gs.wrong >= 6_f64)) {
-        __rt.line(300_f64,300_f64,340_f64,360_f64,15_f64);
+    if __gs.wrong >= 6.0f64 {
+        __rt.line(300.0f64,300.0f64,340.0f64,360.0f64,15.0f64);
     }
     return;
 }
@@ -46,103 +46,103 @@ fn main() {
     let mut a_s: String = String::new();
     let mut display_s: String = String::new();
 
-    __rt.screen(12_f64);
+    __rt.screen(12.0f64);
     __rt.cls(0u8);
     __rt.randomize(qb_timer());
-    let mut words_s: Vec<String> = vec![Default::default(); (10_f64+1.0) as usize];
-    let mut word: String = Default::default();
-    let mut guess: String = Default::default();
-    let mut letter: String = Default::default();
-    let mut guessed: String = Default::default();
-    let mut a: String = Default::default();
+    let mut words_s: Vec<String> = vec![Default::default(); (10.0f64+1.0) as usize];
+    let word: String = Default::default();
+    let guess: String = Default::default();
+    let letter: String = Default::default();
+    let guessed: String = Default::default();
+    let a: String = Default::default();
     let mut maxwrong: f64 = Default::default();
     let mut complete: f64 = Default::default();
     let mut i: f64 = Default::default();
-    let mut display: String = Default::default();
-    words_s[(1_f64) as usize] = ("COMPUTER").to_string();
-    words_s[(2_f64) as usize] = ("KEYBOARD").to_string();
-    words_s[(3_f64) as usize] = ("PROGRAM").to_string();
-    words_s[(4_f64) as usize] = ("DATABASE").to_string();
-    words_s[(5_f64) as usize] = ("NETWORK").to_string();
-    words_s[(6_f64) as usize] = ("MONITOR").to_string();
-    words_s[(7_f64) as usize] = ("PYTHON").to_string();
-    words_s[(8_f64) as usize] = ("RUST").to_string();
-    words_s[(9_f64) as usize] = ("QBASIC").to_string();
-    words_s[(10_f64) as usize] = ("PRINTER").to_string();
-    word_s = (words_s[((qb_int((__rt.rnd() * 10_f64)) + 1_f64)) as usize]).to_string();
+    let display: String = Default::default();
+    words_s[(1.0f64) as usize] = ("COMPUTER").to_string();
+    words_s[(2.0f64) as usize] = ("KEYBOARD").to_string();
+    words_s[(3.0f64) as usize] = ("PROGRAM").to_string();
+    words_s[(4.0f64) as usize] = ("DATABASE").to_string();
+    words_s[(5.0f64) as usize] = ("NETWORK").to_string();
+    words_s[(6.0f64) as usize] = ("MONITOR").to_string();
+    words_s[(7.0f64) as usize] = ("PYTHON").to_string();
+    words_s[(8.0f64) as usize] = ("RUST").to_string();
+    words_s[(9.0f64) as usize] = ("QBASIC").to_string();
+    words_s[(10.0f64) as usize] = ("PRINTER").to_string();
+    word_s = (words_s[((qb_int((__rt.rnd() * 10.0f64)) + 1.0f64)) as usize]).to_string();
     guessed_s = ("").to_string();
-    __gs.wrong = 0_f64;
-    maxwrong = 6_f64;
+    __gs.wrong = 0.0f64;
+    maxwrong = 6.0f64;
     '_loop_0: loop {
         __rt.cls(0u8);
-        __rt.locate(Some(1_f64), Some(1_f64), None);
+        __rt.locate(Some(1.0f64), Some(1.0f64), None);
         __rt.println(&[qb_str(&("======================="))]);
         __rt.println(&[qb_str(&("      HANGMAN"))]);
         __rt.println(&[qb_str(&("======================="))]);
         drawhangman(&mut __rt, &mut __gs);
         display_s = ("").to_string();
-        complete = 1_f64;
-        i = 1_f64;
+        complete = 1.0f64;
+        i = 1.0f64;
         let __for_to_i: f64 = qb_len(&(word_s));
-        let __for_step_i: f64 = 1.0_f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            letter_s = (qb_mid(&(word_s), i, Some(1_f64))).to_string();
-            if qb_bool(qb_from_bool(qb_instr(1.0, &(guessed_s), &(letter_s)) > 0_f64)) {
+            letter_s = (qb_mid(&(word_s), i, Some(1.0f64))).to_string();
+            if qb_instr(1.0, &(guessed_s), &(letter_s)) > 0.0f64 {
                 display_s = (format!("{}{}" ,format!("{}{}" ,display_s,letter_s)," ")).to_string();
             } else {
                 display_s = (format!("{}{}" ,display_s,"_ ")).to_string();
-                complete = 0_f64;
+                complete = 0.0f64;
             }
             i += __for_step_i;
         }
-        __rt.locate(Some(18_f64), Some(46_f64), None);
+        __rt.locate(Some(18.0f64), Some(46.0f64), None);
         __rt.println(&[qb_str(&("Word:"))]);
-        __rt.locate(Some(19_f64), Some(46_f64), None);
+        __rt.locate(Some(19.0f64), Some(46.0f64), None);
         __rt.println(&[qb_str(&(display_s))]);
-        __rt.locate(Some(21_f64), Some(46_f64), None);
+        __rt.locate(Some(21.0f64), Some(46.0f64), None);
         __rt.println(&[qb_str(&("Guessed Letters:"))]);
-        __rt.locate(Some(22_f64), Some(46_f64), None);
+        __rt.locate(Some(22.0f64), Some(46.0f64), None);
         __rt.println(&[qb_str(&(guessed_s))]);
-        __rt.locate(Some(24_f64), Some(46_f64), None);
+        __rt.locate(Some(24.0f64), Some(46.0f64), None);
         __rt.println(&[qb_str(&("Wrong guesses:")), qb_print_num(__gs.wrong), qb_str(&("/")), qb_print_num(maxwrong)]);
-        if qb_bool(qb_from_bool(complete == 1_f64)) {
-            __rt.locate(Some(26_f64), Some(46_f64), None);
+        if complete == 1.0f64 {
+            __rt.locate(Some(26.0f64), Some(46.0f64), None);
             __rt.println(&[qb_str(&("YOU WIN!"))]);
             break; // EXIT DO
         }
-        if qb_bool(qb_from_bool(__gs.wrong >= maxwrong)) {
-            __rt.locate(Some(26_f64), Some(46_f64), None);
+        if __gs.wrong >= maxwrong {
+            __rt.locate(Some(26.0f64), Some(46.0f64), None);
             __rt.println(&[qb_str(&("YOU LOSE!"))]);
-            __rt.locate(Some(27_f64), Some(46_f64), None);
+            __rt.locate(Some(27.0f64), Some(46.0f64), None);
             __rt.println(&[qb_str(&("The word was: ")), qb_str(&(word_s))]);
             break; // EXIT DO
         }
-        __rt.locate(Some(28_f64), Some(46_f64), None);
+        __rt.locate(Some(28.0f64), Some(46.0f64), None);
         __rt.print_str("Enter a letter? ");
         guess_s = __rt.input_line();
-        if qb_bool(qb_from_bool(qb_len(&(guess_s)) == 0_f64)) {
+        if qb_len(&(guess_s)) == 0.0f64 {
             continue '_loop_0;
         }
-        guess_s = (qb_ucase(&(qb_left(&(guess_s), 1_f64)))).to_string();
+        guess_s = (qb_ucase(&(qb_left(&(guess_s), 1.0f64)))).to_string();
         if qb_bool(qb_or(qb_from_bool((guess_s).as_str() < "A"), qb_from_bool((guess_s).as_str() > "Z"))) {
-            __rt.locate(Some(29_f64), Some(46_f64), None);
+            __rt.locate(Some(29.0f64), Some(46.0f64), None);
             __rt.println(&[qb_str(&("Please enter a letter."))]);
-            __rt.sleep(2_f64);
+            __rt.sleep(2.0f64);
             continue '_loop_0;
         }
-        if qb_bool(qb_from_bool(qb_instr(1.0, &(guessed_s), &(guess_s)) > 0_f64)) {
-            __rt.locate(Some(29_f64), Some(46_f64), None);
+        if qb_instr(1.0, &(guessed_s), &(guess_s)) > 0.0f64 {
+            __rt.locate(Some(29.0f64), Some(46.0f64), None);
             __rt.println(&[qb_str(&("Already guessed!"))]);
-            __rt.sleep(2_f64);
+            __rt.sleep(2.0f64);
             continue '_loop_0;
         }
         guessed_s = (format!("{}{}" ,guessed_s,guess_s)).to_string();
-        if qb_bool(qb_from_bool(qb_instr(1.0, &(word_s), &(guess_s)) == 0_f64)) {
-            __gs.wrong = (__gs.wrong + 1_f64);
+        if qb_instr(1.0, &(word_s), &(guess_s)) == 0.0f64 {
+            __gs.wrong = (__gs.wrong + 1.0f64);
         }
         // label: SkipGuess  (loop continue target)
     }
-    __rt.locate(Some(30_f64), Some(46_f64), None);
+    __rt.locate(Some(30.0f64), Some(46.0f64), None);
     __rt.println(&[qb_str(&("Press ENTER to quit..."))]);
     a_s = __rt.input_line();
     __rt.quit();

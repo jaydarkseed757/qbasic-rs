@@ -6,15 +6,15 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut a: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
 
     // label: 5
     // label: 10
     __rt.println(&[qb_str(&("HELLO WORLD!!"))]);
     // label: 15
-    a = 1_f64;
+    a = 1.0f64;
     // label: 20
-    a = (a + 1_f64);
+    a = (a + 1.0f64);
     // label: 20
     __rt.println(&[qb_print_num(a)]);
     // label: 30

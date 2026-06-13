@@ -18,7 +18,7 @@ fn fnsq(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> f64 {
 }
 
 fn fndb(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> f64 {
-    (x * 2_f64)
+    (x * 2.0f64)
 }
 
 fn lbl_5100(__rt: &mut Runtime, __gs: &mut GameState) {
@@ -52,7 +52,7 @@ fn lbl_7200(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn lbl_9500(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut a_s: String = String::new();
+    let a_s: String = String::new();
 
     __rt.println(&[]);
     // label: 9510
@@ -67,14 +67,14 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut c: f64 = 0.0_f64;
-    let mut a_s: String = String::new();
-    let mut x1: f64 = 0.0_f64;
-    let mut y1: f64 = 0.0_f64;
-    let mut x2: f64 = 0.0_f64;
-    let mut y2: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut s: f64 = 0.0_f64;
+    let mut c: f64 = 0.0;
+    let a_s: String = String::new();
+    let mut x1: f64 = 0.0;
+    let mut y1: f64 = 0.0;
+    let mut x2: f64 = 0.0;
+    let mut y2: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut s: f64 = 0.0;
 
     let mut n: Vec<f64> = Vec::new();
     let mut name_s: Vec<String> = Vec::new();
@@ -90,24 +90,24 @@ fn main() {
                 __pc = 30; continue '__sm;
             }
             30 => {
-                __rt.println(&[qb_str(&(qb_string_s(40_f64, "=")))]);
+                __rt.println(&[qb_str(&(qb_string_s(40.0f64, "=")))]);
                 __pc = 40; continue '__sm;
             }
             40 => {
-                n = vec![Default::default(); (10_f64+1.0) as usize];
+                n = vec![Default::default(); (10.0f64+1.0) as usize];
                 __pc = 50; continue '__sm;
             }
             50 => {
-                name_s = vec![Default::default(); (5_f64+1.0) as usize];
+                name_s = vec![Default::default(); (5.0f64+1.0) as usize];
                 __pc = 60; continue '__sm;
             }
             60 => {
                 __pc = 70; continue '__sm;
             }
             70 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 5_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 5.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 80
                     name_s[(__gs.i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
@@ -117,9 +117,9 @@ fn main() {
                 __pc = 100; continue '__sm;
             }
             100 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 10_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 10.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 110
                     n[(__gs.i) as usize] = (__gs.i * __gs.i);
@@ -184,7 +184,7 @@ fn main() {
             }
             270 => {
                 __rt.print_str("CHOICE? ");
-                c = __rt.input_line().parse().unwrap_or_default();
+                c = __rt.input_line().trim().parse().unwrap_or_default();
                 __pc = 280; continue '__sm;
             }
             280 => {
@@ -233,9 +233,9 @@ fn main() {
                 __pc = 1020; continue '__sm;
             }
             1020 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 10_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 10.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 1030
                     __rt.println(&[qb_print_num(__gs.i), qb_print_num(n[(__gs.i) as usize])]);
@@ -261,13 +261,13 @@ fn main() {
                 __pc = 2020; continue '__sm;
             }
             2020 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 20_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 20.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 2030
                     let __tmp0 = __rt.rnd();
-                    __rt.print(&[qb_print_num(qb_int((__tmp0 * 100_f64)))]);
+                    __rt.print(&[qb_print_num(qb_int((__tmp0 * 100.0f64)))]);
                     // line 2040
                     __gs.i += __for_step_i;
                 }
@@ -302,15 +302,15 @@ fn main() {
                 __pc = 3040; continue '__sm;
             }
             3040 => {
-                __rt.println(&[qb_str(&(qb_left(&(__gs.a), 3_f64)))]);
+                __rt.println(&[qb_str(&(qb_left(&(__gs.a), 3.0f64)))]);
                 __pc = 3050; continue '__sm;
             }
             3050 => {
-                __rt.println(&[qb_str(&(qb_right(&(__gs.a), 4_f64)))]);
+                __rt.println(&[qb_str(&(qb_right(&(__gs.a), 4.0f64)))]);
                 __pc = 3060; continue '__sm;
             }
             3060 => {
-                __rt.println(&[qb_str(&(qb_mid(&(__gs.a), 4_f64, Some(5_f64))))]);
+                __rt.println(&[qb_str(&(qb_mid(&(__gs.a), 4.0f64, Some(5.0f64))))]);
                 __pc = 3070; continue '__sm;
             }
             3070 => {
@@ -330,29 +330,29 @@ fn main() {
                 __pc = 4020; continue '__sm;
             }
             4020 => {
-                __rt.screen(1_f64);
+                __rt.screen(1.0f64);
                 __pc = 4030; continue '__sm;
             }
             4030 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 100_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 100.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 4040
                     let __tmp1 = __rt.rnd();
-                    x1 = qb_int((__tmp1 * 320_f64));
+                    x1 = qb_int((__tmp1 * 320.0f64));
                     // line 4050
                     let __tmp2 = __rt.rnd();
-                    y1 = qb_int((__tmp2 * 200_f64));
+                    y1 = qb_int((__tmp2 * 200.0f64));
                     // line 4060
                     let __tmp3 = __rt.rnd();
-                    x2 = qb_int((__tmp3 * 320_f64));
+                    x2 = qb_int((__tmp3 * 320.0f64));
                     // line 4070
                     let __tmp4 = __rt.rnd();
-                    y2 = qb_int((__tmp4 * 200_f64));
+                    y2 = qb_int((__tmp4 * 200.0f64));
                     // line 4080
                     let __tmp5 = __rt.rnd();
-                    c = qb_int((__tmp5 * 4_f64));
+                    c = qb_int((__tmp5 * 4.0f64));
                     // line 4090
                     __rt.line(x1,y1,x2,y2,c);
                     // line 4100
@@ -361,12 +361,12 @@ fn main() {
                 __pc = 4110; continue '__sm;
             }
             4110 => {
-                let __tmp6 = __rt.input_str(1_f64);
+                let __tmp6 = __rt.input_str(1.0f64);
                 __gs.a = (__tmp6).to_string();
                 __pc = 4120; continue '__sm;
             }
             4120 => {
-                __rt.screen(0_f64);
+                __rt.screen(0.0f64);
                 __pc = 4130; continue '__sm;
             }
             4130 => {
@@ -382,13 +382,13 @@ fn main() {
                 __pc = 5020; continue '__sm;
             }
             5020 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 20_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 20.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 5030
                     let __tmp7 = __rt.rnd();
-                    x = (qb_int((__tmp7 * 4_f64)) + 1_f64);
+                    x = (qb_int((__tmp7 * 4.0f64)) + 1.0f64);
                     // line 5040
                     match qb_cint(x) as i64 {
                         1 => {
@@ -431,9 +431,9 @@ fn main() {
                 __pc = 6030; continue '__sm;
             }
             6030 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 5_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 5.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 6040
                     __gs.a = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
@@ -461,9 +461,9 @@ fn main() {
                 __pc = 7020; continue '__sm;
             }
             7020 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 5_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 5.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 7030
                     lbl_7200(&mut __rt, &mut __gs);
@@ -489,9 +489,9 @@ fn main() {
                 __pc = 8020; continue '__sm;
             }
             8020 => {
-                __gs.i = 1_f64;
-                let __for_to_i: f64 = 10_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __gs.i = 1.0f64;
+                let __for_to_i: f64 = 10.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && __gs.i <= __for_to_i) || (__for_step_i < 0.0 && __gs.i >= __for_to_i) {
                     // line 8030
                     __rt.print(&[qb_print_num(__gs.i)]);
@@ -509,19 +509,19 @@ fn main() {
                 __pc = 8070; continue '__sm;
             }
             8070 => {
-                s = 0_f64;
+                s = 0.0f64;
                 __pc = 8080; continue '__sm;
             }
             8080 => {
-                __gs.i = 1_f64;
+                __gs.i = 1.0f64;
                 __pc = 8090; continue '__sm;
             }
             8090 => {
-                while qb_bool(qb_from_bool(__gs.i <= 100_f64)) {
+                while __gs.i <= 100.0f64 {
                     // line 8100
                     s = (s + __gs.i);
                     // line 8110
-                    __gs.i = (__gs.i + 1_f64);
+                    __gs.i = (__gs.i + 1.0f64);
                     // line 8120
                 }
                 __pc = 8130; continue '__sm;

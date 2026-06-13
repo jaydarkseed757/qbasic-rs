@@ -7,26 +7,26 @@ use qbasic_runtime::*;
 static __DATA: &[&str] = &["9", "10", "2", "3", "0"];
 static __DATA_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-const qb_true: f64 = -1_f64;
-const qb_false: f64 = 0_f64;
-const quit: f64 = 113_f64;
-const up: f64 = 72_f64;
-const down: f64 = 80_f64;
-const left: f64 = 75_f64;
-const right: f64 = 77_f64;
-const bblock: f64 = 1_f64;
-const eblock: f64 = 8_f64;
-const enter: f64 = 13_f64;
-const uleft: f64 = 71_f64;
-const uright: f64 = 73_f64;
-const dleft: f64 = 79_f64;
-const dright: f64 = 81_f64;
-const pass: f64 = 112_f64;
-const diff: f64 = 100_f64;
-const start: f64 = 115_f64;
-const help: f64 = 104_f64;
-const fmove: f64 = 99_f64;
-const space: f64 = 32_f64;
+const qb_true: f64 = -1.0f64;
+const qb_false: f64 = 0.0f64;
+const quit: f64 = 113.0f64;
+const up: f64 = 72.0f64;
+const down: f64 = 80.0f64;
+const left: f64 = 75.0f64;
+const right: f64 = 77.0f64;
+const bblock: f64 = 1.0f64;
+const eblock: f64 = 8.0f64;
+const enter: f64 = 13.0f64;
+const uleft: f64 = 71.0f64;
+const uright: f64 = 73.0f64;
+const dleft: f64 = 79.0f64;
+const dright: f64 = 81.0f64;
+const pass: f64 = 112.0f64;
+const diff: f64 = 100.0f64;
+const start: f64 = 115.0f64;
+const help: f64 = 104.0f64;
+const fmove: f64 = 99.0f64;
+const space: f64 = 32.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -53,101 +53,101 @@ struct GameState {
 }
 
 fn computermove(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut bestmove: f64 = 0.0_f64;
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
-    let mut value: f64 = 0.0_f64;
-    let mut bestrow: f64 = 0.0_f64;
-    let mut bestcol: f64 = 0.0_f64;
+    let mut bestmove: f64 = 0.0;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
+    let mut value: f64 = 0.0;
+    let mut bestrow: f64 = 0.0;
+    let mut bestcol: f64 = 0.0;
 
-    bestmove = (-99_f64);
-    row = 1_f64;
-    let __for_to_row: f64 = 8_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    bestmove = (-99.0f64);
+    row = 1.0f64;
+    let __for_to_row: f64 = 8.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 8_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 8.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-            if qb_bool(qb_from_bool(__gs.gg__ntake[(row) as usize][(col) as usize] > 0_f64)) {
-                if qb_bool(qb_from_bool(__gs.gs__dlevel == "Novice")) {
+            if __gs.gg__ntake[(row) as usize][(col) as usize] > 0.0f64 {
+                if __gs.gs__dlevel == "Novice" {
                     value = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gw[(row) as usize][(col) as usize]);
                 } else {
                     value = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gw[(row) as usize][(col) as usize]);
                     let __sel = row;
-                    if __sel == 1_f64 {
-                        if qb_bool(qb_from_bool(col < 5_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(1_f64) as usize][(1_f64) as usize]) == __gs.comp)));
+                    if __sel == 1.0f64 {
+                        if col < 5.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(1.0f64) as usize][(1.0f64) as usize]) == __gs.comp)));
                         }
-                        if qb_bool(qb_from_bool(col > 4_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(1_f64) as usize][(8_f64) as usize]) == __gs.comp)));
+                        if col > 4.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(1.0f64) as usize][(8.0f64) as usize]) == __gs.comp)));
                         }
-                    } else if __sel == 2_f64 {
-                        if qb_bool(qb_from_bool(__gs.gg__player[(1_f64) as usize][(col) as usize] != __gs.comp)) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(1_f64) as usize][(col) as usize] == __gs.human)));
+                    } else if __sel == 2.0f64 {
+                        if __gs.gg__player[(1.0f64) as usize][(col) as usize] != __gs.comp {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col > 1_f64), qb_from_bool(__gs.gg__player[(1_f64) as usize][((col - 1_f64)) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(1_f64) as usize][((col - 1_f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col - 1.0f64)) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col - 1.0f64)) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col < 8_f64), qb_from_bool(__gs.gg__player[(1_f64) as usize][((col + 1_f64)) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(1_f64) as usize][((col + 1_f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col + 1.0f64)) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col + 1.0f64)) as usize] == __gs.human)));
                         }
-                    } else if __sel == 7_f64 {
-                        if qb_bool(qb_from_bool(__gs.gg__player[(8_f64) as usize][(col) as usize] != __gs.comp)) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(8_f64) as usize][(col) as usize] == __gs.human)));
+                    } else if __sel == 7.0f64 {
+                        if __gs.gg__player[(8.0f64) as usize][(col) as usize] != __gs.comp {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col > 1_f64), qb_from_bool(__gs.gg__player[(8_f64) as usize][((col - 1_f64)) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(8_f64) as usize][((col - 1_f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col - 1.0f64)) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col - 1.0f64)) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col < 8_f64), qb_from_bool(__gs.gg__player[(8_f64) as usize][((col + 1_f64)) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(8_f64) as usize][((col + 1_f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col + 1.0f64)) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col + 1.0f64)) as usize] == __gs.human)));
                         }
-                    } else if __sel == 8_f64 {
-                        if qb_bool(qb_from_bool(col < 5_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(8_f64) as usize][(1_f64) as usize]) == __gs.comp)));
+                    } else if __sel == 8.0f64 {
+                        if col < 5.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(8.0f64) as usize][(1.0f64) as usize]) == __gs.comp)));
                         }
-                        if qb_bool(qb_from_bool(col > 4_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(8_f64) as usize][(8_f64) as usize]) == __gs.comp)));
+                        if col > 4.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(8.0f64) as usize][(8.0f64) as usize]) == __gs.comp)));
                         }
                     }
                     let __sel = col;
-                    if __sel == 1_f64 {
-                        if qb_bool(qb_from_bool(row < 5_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(1_f64) as usize][(1_f64) as usize]) == __gs.comp)));
+                    if __sel == 1.0f64 {
+                        if row < 5.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(1.0f64) as usize][(1.0f64) as usize]) == __gs.comp)));
                         }
-                        if qb_bool(qb_from_bool(row > 4_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(8_f64) as usize][(1_f64) as usize]) == __gs.comp)));
+                        if row > 4.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(8.0f64) as usize][(1.0f64) as usize]) == __gs.comp)));
                         }
-                    } else if __sel == 2_f64 {
-                        if qb_bool(qb_from_bool(__gs.gg__player[(row) as usize][(1_f64) as usize] != __gs.comp)) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(row) as usize][(1_f64) as usize] == __gs.human)));
+                    } else if __sel == 2.0f64 {
+                        if __gs.gg__player[(row) as usize][(1.0f64) as usize] != __gs.comp {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row) as usize][(1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row > 1_f64), qb_from_bool(__gs.gg__player[((row - 1_f64)) as usize][(1_f64) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[((row - 1_f64)) as usize][(1_f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row < 8_f64), qb_from_bool(__gs.gg__player[((row + 1_f64)) as usize][(1_f64) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[((row + 1_f64)) as usize][(1_f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(1.0f64) as usize] == __gs.human)));
                         }
-                    } else if __sel == 7_f64 {
-                        if qb_bool(qb_from_bool(__gs.gg__player[(row) as usize][(8_f64) as usize] != __gs.comp)) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[(row) as usize][(8_f64) as usize] == __gs.human)));
+                    } else if __sel == 7.0f64 {
+                        if __gs.gg__player[(row) as usize][(8.0f64) as usize] != __gs.comp {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row) as usize][(8.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row > 1_f64), qb_from_bool(__gs.gg__player[((row - 1_f64)) as usize][(8_f64) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[((row - 1_f64)) as usize][(8_f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(8.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(8.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row < 8_f64), qb_from_bool(__gs.gg__player[((row + 1_f64)) as usize][(8_f64) as usize] != __gs.comp))) {
-                            value = (value + (5_f64 * qb_from_bool(__gs.gg__player[((row + 1_f64)) as usize][(8_f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(8.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(8.0f64) as usize] == __gs.human)));
                         }
-                    } else if __sel == 8_f64 {
-                        if qb_bool(qb_from_bool(row < 5_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(1_f64) as usize][(8_f64) as usize]) == __gs.comp)));
+                    } else if __sel == 8.0f64 {
+                        if row < 5.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(1.0f64) as usize][(8.0f64) as usize]) == __gs.comp)));
                         }
-                        if qb_bool(qb_from_bool(row > 4_f64)) {
-                            value = (value + qb_abs(qb_from_bool((10_f64 * __gs.gg__player[(8_f64) as usize][(8_f64) as usize]) == __gs.comp)));
+                        if row > 4.0f64 {
+                            value = (value + qb_abs(qb_from_bool((10.0f64 * __gs.gg__player[(8.0f64) as usize][(8.0f64) as usize]) == __gs.comp)));
                         }
                     }
                 }
-                if qb_bool(qb_from_bool(value > bestmove)) {
+                if value > bestmove {
                     bestmove = value;
                     bestrow = row;
                     bestcol = col;
@@ -164,169 +164,169 @@ fn computermove(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn displayhelp(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
     let mut a_s__sc: String = String::new();
 
-    let mut a_s: Vec<String> = vec![Default::default(); (18_f64+1.0) as usize];
-    a_s[(1_f64) as usize] = ("The object of Reversi is to finish the game with more of your red").to_string();
-    a_s[(2_f64) as usize] = ("circles on the board than the computer has of blue (Monochrome").to_string();
-    a_s[(3_f64) as usize] = ("monitors will show red as white and blue as black).").to_string();
-    a_s[(4_f64) as usize] = ("").to_string();
-    a_s[(5_f64) as usize] = ("1) You and the computer play by the same rules.").to_string();
-    a_s[(6_f64) as usize] = ("2) To make a legal move, at least one of the computer's circles").to_string();
-    a_s[(7_f64) as usize] = ("   must lie in a horizontal, vertical, or diagonal line between").to_string();
-    a_s[(8_f64) as usize] = ("   one of your existing circles and the square where you want to").to_string();
-    a_s[(9_f64) as usize] = ("   move.  Use the arrow keys to position the cursor on the square").to_string();
-    a_s[(10_f64) as usize] = ("   and hit Enter or the Space Bar.").to_string();
-    a_s[(11_f64) as usize] = ("3) You can choose Pass from the game controls menu on your first").to_string();
-    a_s[(12_f64) as usize] = ("   move to force the computer to play first.").to_string();
-    a_s[(13_f64) as usize] = ("4) After your first move, you cannot pass if you can make a legal").to_string();
-    a_s[(14_f64) as usize] = ("   move.").to_string();
-    a_s[(15_f64) as usize] = ("5) If you cannot make a legal move, you must choose Pass").to_string();
-    a_s[(16_f64) as usize] = ("6) When neither you nor the computer can make a legal move, the").to_string();
-    a_s[(17_f64) as usize] = ("   game is over.").to_string();
-    a_s[(18_f64) as usize] = ("7) The one with the most circles wins.").to_string();
-    __rt.line_box_fill(0_f64,0_f64,640_f64,480_f64,__gs.bg);
-    __rt.line_box(39_f64,15_f64,590_f64,450_f64,0_f64);
-    if qb_bool(qb_from_bool(__gs.gboard == 85_f64)) {
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint(200_f64, 200_f64, __rt.fg_color as f64, 0_f64);
+    let mut a_s: Vec<String> = vec![Default::default(); (18.0f64+1.0) as usize];
+    a_s[(1.0f64) as usize] = ("The object of Reversi is to finish the game with more of your red").to_string();
+    a_s[(2.0f64) as usize] = ("circles on the board than the computer has of blue (Monochrome").to_string();
+    a_s[(3.0f64) as usize] = ("monitors will show red as white and blue as black).").to_string();
+    a_s[(4.0f64) as usize] = ("").to_string();
+    a_s[(5.0f64) as usize] = ("1) You and the computer play by the same rules.").to_string();
+    a_s[(6.0f64) as usize] = ("2) To make a legal move, at least one of the computer's circles").to_string();
+    a_s[(7.0f64) as usize] = ("   must lie in a horizontal, vertical, or diagonal line between").to_string();
+    a_s[(8.0f64) as usize] = ("   one of your existing circles and the square where you want to").to_string();
+    a_s[(9.0f64) as usize] = ("   move.  Use the arrow keys to position the cursor on the square").to_string();
+    a_s[(10.0f64) as usize] = ("   and hit Enter or the Space Bar.").to_string();
+    a_s[(11.0f64) as usize] = ("3) You can choose Pass from the game controls menu on your first").to_string();
+    a_s[(12.0f64) as usize] = ("   move to force the computer to play first.").to_string();
+    a_s[(13.0f64) as usize] = ("4) After your first move, you cannot pass if you can make a legal").to_string();
+    a_s[(14.0f64) as usize] = ("   move.").to_string();
+    a_s[(15.0f64) as usize] = ("5) If you cannot make a legal move, you must choose Pass").to_string();
+    a_s[(16.0f64) as usize] = ("6) When neither you nor the computer can make a legal move, the").to_string();
+    a_s[(17.0f64) as usize] = ("   game is over.").to_string();
+    a_s[(18.0f64) as usize] = ("7) The one with the most circles wins.").to_string();
+    __rt.line_box_fill(0.0f64,0.0f64,640.0f64,480.0f64,__gs.bg);
+    __rt.line_box(39.0f64,15.0f64,590.0f64,450.0f64,0.0f64);
+    if __gs.gboard == 85.0f64 {
+        let __pat1: String = qb_chr(85.0f64);
+        __rt.paint_pattern(200.0f64, 200.0f64, &__pat1, 0.0f64);
     } else {
-        __rt.paint(200_f64, 200_f64, __gs.gboard, 0_f64);
+        __rt.paint(200.0f64, 200.0f64, __gs.gboard, 0.0f64);
     }
-    __rt.line_box_fill(590_f64,25_f64,600_f64,460_f64,0_f64);
-    __rt.line_box_fill(50_f64,450_f64,600_f64,460_f64,0_f64);
-    __rt.locate(Some(2_f64), Some(35_f64), None);
+    __rt.line_box_fill(590.0f64,25.0f64,600.0f64,460.0f64,0.0f64);
+    __rt.line_box_fill(50.0f64,450.0f64,600.0f64,460.0f64,0.0f64);
+    __rt.locate(Some(2.0f64), Some(35.0f64), None);
     __rt.println(&[qb_str(&("REVERSI HELP"))]);
-    i = 1_f64;
-    let __for_to_i: f64 = 18_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 18.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.locate(Some((3_f64 + i)), Some(7_f64), None);
+        __rt.locate(Some((3.0f64 + i)), Some(7.0f64), None);
         __rt.println(&[qb_str(&(a_s[(i) as usize]))]);
         i += __for_step_i;
     }
-    __rt.locate(Some(23_f64), Some(25_f64), None);
+    __rt.locate(Some(23.0f64), Some(25.0f64), None);
     __rt.println(&[qb_str(&("- Press any key to continue -"))]);
     // label: SLEEP
-    let __tmp1 = __rt.inkey();
-    a_s__sc = (__tmp1).to_string();
+    let __tmp2 = __rt.inkey();
+    a_s__sc = (__tmp2).to_string();
     drawgameboard(__rt, __gs);
-    let mut __tmp_num2: f64 = __gs.gs__currow;
-    let mut __tmp_num3: f64 = __gs.gs__curcol;
-    drawcursor(__rt, __gs, &mut __tmp_num2, &mut __tmp_num3);
+    let mut __tmp_num3: f64 = __gs.gs__currow;
+    let mut __tmp_num4: f64 = __gs.gs__curcol;
+    drawcursor(__rt, __gs, &mut __tmp_num3, &mut __tmp_num4);
 }
 
 fn displaymsg(__rt: &mut Runtime, __gs: &mut GameState, a_s: &mut String) {
-    let mut slen: f64 = 0.0_f64;
-    let mut lx: f64 = 0.0_f64;
+    let mut slen: f64 = 0.0;
+    let mut lx: f64 = 0.0;
 
     slen = qb_len(&(a_s));
-    lx = ((640_f64 - (8_f64 * (slen + 8_f64))) / 2_f64);
-    __rt.line_box((lx - 1_f64),420_f64,(640_f64 - lx),447_f64,0_f64);
-    if qb_bool(qb_from_bool(__gs.gboard == 85_f64)) {
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint((lx + 10_f64), 430_f64, __rt.fg_color as f64, 0_f64);
+    lx = ((640.0f64 - (8.0f64 * (slen + 8.0f64))) / 2.0f64);
+    __rt.line_box((lx - 1.0f64),420.0f64,(640.0f64 - lx),447.0f64,0.0f64);
+    if __gs.gboard == 85.0f64 {
+        let __pat5: String = qb_chr(85.0f64);
+        __rt.paint_pattern((lx + 10.0f64), 430.0f64, &__pat5, 0.0f64);
     } else {
-        __rt.paint((lx + 10_f64), 430_f64, __gs.gboard, 0_f64);
+        __rt.paint((lx + 10.0f64), 430.0f64, __gs.gboard, 0.0f64);
     }
-    __rt.locate(Some(23_f64), Some(((80_f64 - slen) / 2_f64)), None);
+    __rt.locate(Some(23.0f64), Some(((80.0f64 - slen) / 2.0f64)), None);
     __rt.print(&[qb_str(&(a_s))]);
     __gs.gs__mdisplay = qb_true;
 }
 
 fn drawcursor(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64) {
-    let mut lc: f64 = 0.0_f64;
+    let mut lc: f64 = 0.0;
 
-    if qb_bool(qb_from_bool(__gs.gg__ntake[((*row)) as usize][((*col)) as usize] > 0_f64)) {
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15_f64, __gs.human);
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14_f64, __gs.human);
+    if __gs.gg__ntake[((*row)) as usize][((*col)) as usize] > 0.0f64 {
+        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, __gs.human);
+        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14.0f64, __gs.human);
     } else {
-        lc = 0_f64;
-        if qb_bool(qb_from_bool(__gs.gg__player[((*row)) as usize][((*col)) as usize] == 0_f64)) {
-            lc = 7_f64;
+        lc = 0.0f64;
+        if __gs.gg__player[((*row)) as usize][((*col)) as usize] == 0.0f64 {
+            lc = 7.0f64;
         }
-        __rt.line(__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15_f64),__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15_f64),lc);
-        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1_f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15_f64),(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1_f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15_f64),lc);
-        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] + 15_f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 15_f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],lc);
+        __rt.line(__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15.0f64),__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15.0f64),lc);
+        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1.0f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15.0f64),(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1.0f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15.0f64),lc);
+        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] + 15.0f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 15.0f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],lc);
     }
 }
 
 fn drawgameboard(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
 
-    __rt.line_box_fill(0_f64,0_f64,640_f64,480_f64,__gs.bg);
-    __rt.line_box(239_f64,15_f64,400_f64,40_f64,0_f64);
-    __rt.line_box(39_f64,260_f64,231_f64,390_f64,0_f64);
-    __rt.line_box(39_f64,70_f64,231_f64,220_f64,0_f64);
-    __rt.line_box(269_f64,70_f64,591_f64,390_f64,0_f64);
-    if qb_bool(qb_from_bool(__gs.gboard == 85_f64)) {
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint(300_f64, 25_f64, __rt.fg_color as f64, 0_f64);
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint(150_f64, 350_f64, __rt.fg_color as f64, 0_f64);
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint(150_f64, 124_f64, __rt.fg_color as f64, 0_f64);
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint(450_f64, 225_f64, __rt.fg_color as f64, 0_f64);
+    __rt.line_box_fill(0.0f64,0.0f64,640.0f64,480.0f64,__gs.bg);
+    __rt.line_box(239.0f64,15.0f64,400.0f64,40.0f64,0.0f64);
+    __rt.line_box(39.0f64,260.0f64,231.0f64,390.0f64,0.0f64);
+    __rt.line_box(39.0f64,70.0f64,231.0f64,220.0f64,0.0f64);
+    __rt.line_box(269.0f64,70.0f64,591.0f64,390.0f64,0.0f64);
+    if __gs.gboard == 85.0f64 {
+        let __pat6: String = qb_chr(85.0f64);
+        __rt.paint_pattern(300.0f64, 25.0f64, &__pat6, 0.0f64);
+        let __pat7: String = qb_chr(85.0f64);
+        __rt.paint_pattern(150.0f64, 350.0f64, &__pat7, 0.0f64);
+        let __pat8: String = qb_chr(85.0f64);
+        __rt.paint_pattern(150.0f64, 124.0f64, &__pat8, 0.0f64);
+        let __pat9: String = qb_chr(85.0f64);
+        __rt.paint_pattern(450.0f64, 225.0f64, &__pat9, 0.0f64);
     } else {
-        __rt.paint(300_f64, 25_f64, __gs.gboard, 0_f64);
-        __rt.paint(150_f64, 350_f64, __gs.gboard, 0_f64);
-        __rt.paint(150_f64, 124_f64, __gs.gboard, 0_f64);
-        __rt.paint(450_f64, 225_f64, __gs.gboard, 0_f64);
+        __rt.paint(300.0f64, 25.0f64, __gs.gboard, 0.0f64);
+        __rt.paint(150.0f64, 350.0f64, __gs.gboard, 0.0f64);
+        __rt.paint(150.0f64, 124.0f64, __gs.gboard, 0.0f64);
+        __rt.paint(450.0f64, 225.0f64, __gs.gboard, 0.0f64);
     }
-    __rt.line_box_fill(400_f64,25_f64,410_f64,50_f64,0_f64);
-    __rt.line_box_fill(250_f64,40_f64,410_f64,50_f64,0_f64);
-    __rt.line_box_fill(231_f64,80_f64,240_f64,230_f64,0_f64);
-    __rt.line_box_fill(50_f64,220_f64,240_f64,230_f64,0_f64);
-    __rt.line_box_fill(590_f64,80_f64,600_f64,400_f64,0_f64);
-    __rt.line_box_fill(280_f64,390_f64,600_f64,400_f64,0_f64);
-    __rt.line_box_fill(231_f64,270_f64,240_f64,400_f64,0_f64);
-    __rt.line_box_fill(50_f64,390_f64,240_f64,400_f64,0_f64);
-    i = 0_f64;
-    let __for_to_i: f64 = 8_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __rt.line_box_fill(400.0f64,25.0f64,410.0f64,50.0f64,0.0f64);
+    __rt.line_box_fill(250.0f64,40.0f64,410.0f64,50.0f64,0.0f64);
+    __rt.line_box_fill(231.0f64,80.0f64,240.0f64,230.0f64,0.0f64);
+    __rt.line_box_fill(50.0f64,220.0f64,240.0f64,230.0f64,0.0f64);
+    __rt.line_box_fill(590.0f64,80.0f64,600.0f64,400.0f64,0.0f64);
+    __rt.line_box_fill(280.0f64,390.0f64,600.0f64,400.0f64,0.0f64);
+    __rt.line_box_fill(231.0f64,270.0f64,240.0f64,400.0f64,0.0f64);
+    __rt.line_box_fill(50.0f64,390.0f64,240.0f64,400.0f64,0.0f64);
+    i = 0.0f64;
+    let __for_to_i: f64 = 8.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.line(270_f64,(70_f64 + (i * 40_f64)),590_f64,(70_f64 + (i * 40_f64)),0_f64);
-        __rt.line((270_f64 + (i * 40_f64)),70_f64,(270_f64 + (i * 40_f64)),390_f64,0_f64);
-        __rt.line((269_f64 + (i * 40_f64)),70_f64,(269_f64 + (i * 40_f64)),390_f64,0_f64);
+        __rt.line(270.0f64,(70.0f64 + (i * 40.0f64)),590.0f64,(70.0f64 + (i * 40.0f64)),0.0f64);
+        __rt.line((270.0f64 + (i * 40.0f64)),70.0f64,(270.0f64 + (i * 40.0f64)),390.0f64,0.0f64);
+        __rt.line((269.0f64 + (i * 40.0f64)),70.0f64,(269.0f64 + (i * 40.0f64)),390.0f64,0.0f64);
         i += __for_step_i;
     }
-    __rt.locate(Some(2_f64), Some(35_f64), None);
+    __rt.locate(Some(2.0f64), Some(35.0f64), None);
     __rt.println(&[qb_str(&("R E V E R S I"))]);
-    __rt.locate(Some(5_f64), Some(11_f64), None);
+    __rt.locate(Some(5.0f64), Some(11.0f64), None);
     __rt.println(&[qb_str(&("Game Controls"))]);
-    __rt.locate(Some(7_f64), Some(7_f64), None);
+    __rt.locate(Some(7.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("S = Start New Game"))]);
-    __rt.locate(Some(8_f64), Some(7_f64), None);
+    __rt.locate(Some(8.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("P = Pass Turn"))]);
-    __rt.locate(Some(9_f64), Some(7_f64), None);
+    __rt.locate(Some(9.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("D = Set Difficulty"))]);
-    __rt.locate(Some(10_f64), Some(7_f64), None);
+    __rt.locate(Some(10.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("H = Display Help"))]);
-    __rt.locate(Some(11_f64), Some(7_f64), None);
+    __rt.locate(Some(11.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Q = Quit"))]);
-    __rt.locate(Some(15_f64), Some(12_f64), None);
+    __rt.locate(Some(15.0f64), Some(12.0f64), None);
     __rt.println(&[qb_str(&("Game Status"))]);
-    __rt.locate(Some(17_f64), Some(7_f64), None);
+    __rt.locate(Some(17.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Your Score:      ")), qb_print_num(__gs.gs__rscore), qb_str(&(""))]);
-    __rt.locate(Some(18_f64), Some(7_f64), None);
+    __rt.locate(Some(18.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Computer Score:  ")), qb_print_num(__gs.gs__bscore)]);
-    __rt.locate(Some(20_f64), Some(7_f64), None);
+    __rt.locate(Some(20.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Difficulty:   ")), qb_str(&(__gs.gs__dlevel))]);
-    row = 1_f64;
-    let __for_to_row: f64 = 8_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 1.0f64;
+    let __for_to_row: f64 = 8.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 8_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 8.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-            if qb_bool(qb_from_bool(__gs.gg__player[(row) as usize][(col) as usize] != __gs.gboard)) {
-                let mut __tmp_num4: f64 = __gs.gg__player[(row) as usize][(col) as usize];
-                drawgamepiece(__rt, __gs, &mut row, &mut col, &mut __tmp_num4);
+            if __gs.gg__player[(row) as usize][(col) as usize] != __gs.gboard {
+                let mut __tmp_num10: f64 = __gs.gg__player[(row) as usize][(col) as usize];
+                drawgamepiece(__rt, __gs, &mut row, &mut col, &mut __tmp_num10);
             }
             col += __for_step_col;
         }
@@ -335,294 +335,294 @@ fn drawgameboard(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn drawgamepiece(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, gpcolor: &mut f64) {
-    if qb_bool(qb_from_bool(__gs.gboard == 85_f64)) {
-        __rt.line_box_fill((232_f64 + ((*col) * 40_f64)),(33_f64 + ((*row) * 40_f64)),(267_f64 + ((*col) * 40_f64)),(67_f64 + ((*row) * 40_f64)),7_f64);
-        if qb_bool(qb_from_bool((*gpcolor) != __gs.gboard)) {
-            __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15_f64, 0_f64);
-            __rt.paint(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], (*gpcolor), 0_f64);
+    if __gs.gboard == 85.0f64 {
+        __rt.line_box_fill((232.0f64 + ((*col) * 40.0f64)),(33.0f64 + ((*row) * 40.0f64)),(267.0f64 + ((*col) * 40.0f64)),(67.0f64 + ((*row) * 40.0f64)),7.0f64);
+        if (*gpcolor) != __gs.gboard {
+            __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, 0.0f64);
+            __rt.paint(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], (*gpcolor), 0.0f64);
         }
-        // TODO: PAINT pattern fill (CHR$ tiling) — using solid fg color
-        __rt.paint((235_f64 + ((*col) * 40_f64)), (35_f64 + ((*row) * 40_f64)), __rt.fg_color as f64, 0_f64);
+        let __pat11: String = qb_chr(85.0f64);
+        __rt.paint_pattern((235.0f64 + ((*col) * 40.0f64)), (35.0f64 + ((*row) * 40.0f64)), &__pat11, 0.0f64);
     } else {
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15_f64, (*gpcolor));
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14_f64, (*gpcolor));
+        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, (*gpcolor));
+        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14.0f64, (*gpcolor));
         __rt.paint(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], (*gpcolor), (*gpcolor));
     }
 }
 
 fn gameover(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut scorediff: f64 = 0.0_f64;
+    let mut scorediff: f64 = 0.0;
 
     scorediff = (__gs.gs__rscore - __gs.gs__bscore);
-    if qb_bool(qb_from_bool(scorediff == 0_f64)) {
-        let mut __tmp_str5 = ("Tie Game").to_string();
-        displaymsg(__rt, __gs, &mut __tmp_str5);
-    } else if qb_bool(qb_from_bool(scorediff < 0_f64)) {
-        let mut __tmp_str6 = ("You lost by").to_string();
-        displaymsg(__rt, __gs, &mut __tmp_str6);
+    if scorediff == 0.0f64 {
+        let mut __tmp_str12 = ("Tie Game").to_string();
+        displaymsg(__rt, __gs, &mut __tmp_str12);
+    } else if scorediff < 0.0f64 {
+        let mut __tmp_str13 = ("You lost by").to_string();
+        displaymsg(__rt, __gs, &mut __tmp_str13);
         __rt.println(&[qb_print_num(qb_abs(scorediff))]);
     } else {
-        let mut __tmp_str7 = ("You won by").to_string();
-        displaymsg(__rt, __gs, &mut __tmp_str7);
+        let mut __tmp_str14 = ("You won by").to_string();
+        displaymsg(__rt, __gs, &mut __tmp_str14);
         __rt.println(&[qb_print_num(scorediff)]);
     }
     loop {
-        let __tmp8 = __rt.inkey();
-        __gs.gs__stat = qb_asc(&(qb_right(&(__tmp8), 1_f64)));
+        let __tmp15 = __rt.inkey();
+        __gs.gs__stat = qb_asc(&(qb_right(&(__tmp15), 1.0f64)));
         if qb_bool(qb_or(qb_from_bool(__gs.gs__stat == quit), qb_from_bool(__gs.gs__stat == start))) { break; }
     }
-    __rt.line_box_fill(0_f64,420_f64,640_f64,447_f64,__gs.bg);
+    __rt.line_box_fill(0.0f64,420.0f64,640.0f64,447.0f64,__gs.bg);
 }
 
 fn initgame(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
     let __sel = __gs.smode;
-    if __sel == 9_f64 {
-        __gs.human = 4_f64;
-        __gs.comp = 1_f64;
-        __gs.bg = 3_f64;
-        __gs.gboard = 8_f64;
+    if __sel == 9.0f64 {
+        __gs.human = 4.0f64;
+        __gs.comp = 1.0f64;
+        __gs.bg = 3.0f64;
+        __gs.gboard = 8.0f64;
     } else {
-        __gs.human = 7_f64;
-        __gs.comp = 0_f64;
-        __gs.bg = 7_f64;
-        if qb_bool(qb_from_bool(__gs.smode == 10_f64)) {
-            __gs.gboard = 1_f64;
+        __gs.human = 7.0f64;
+        __gs.comp = 0.0f64;
+        __gs.bg = 7.0f64;
+        if __gs.smode == 10.0f64 {
+            __gs.gboard = 1.0f64;
         } else {
-            __gs.gboard = 85_f64;
+            __gs.gboard = 85.0f64;
         }
     }
-    __rt.set_window(640_f64,480_f64,0_f64,0_f64,true);
-    __gs.gs__curcol = 5_f64;
-    __gs.gs__currow = 3_f64;
+    __rt.set_window(640.0f64,480.0f64,0.0f64,0.0f64,true);
+    __gs.gs__curcol = 5.0f64;
+    __gs.gs__currow = 3.0f64;
     __gs.gs__stat = fmove;
-    __gs.gs__bscore = 2_f64;
-    __gs.gs__rscore = 2_f64;
+    __gs.gs__bscore = 2.0f64;
+    __gs.gs__rscore = 2.0f64;
     __gs.gs__mdisplay = qb_false;
-    row = 1_f64;
-    let __for_to_row: f64 = 8_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 1.0f64;
+    let __for_to_row: f64 = 8.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 8_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 8.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
             __gs.gg__player[(row) as usize][(col) as usize] = __gs.gboard;
-            __gs.gg__ntake[(row) as usize][(col) as usize] = 0_f64;
-            __gs.gg__cx[(row) as usize][(col) as usize] = (270_f64 + ((col - 0.5_f64) * 40_f64));
-            __gs.gg__cy[(row) as usize][(col) as usize] = (70_f64 + ((row - 0.5_f64) * 40_f64));
-            __gs.gw[(row) as usize][(col) as usize] = 2_f64;
+            __gs.gg__ntake[(row) as usize][(col) as usize] = 0.0f64;
+            __gs.gg__cx[(row) as usize][(col) as usize] = (270.0f64 + ((col - 0.5f64) * 40.0f64));
+            __gs.gg__cy[(row) as usize][(col) as usize] = (70.0f64 + ((row - 0.5f64) * 40.0f64));
+            __gs.gw[(row) as usize][(col) as usize] = 2.0f64;
             col += __for_step_col;
         }
         row += __for_step_row;
     }
-    __gs.gw[(1_f64) as usize][(1_f64) as usize] = 99_f64;
-    __gs.gw[(1_f64) as usize][(8_f64) as usize] = 99_f64;
-    __gs.gw[(8_f64) as usize][(1_f64) as usize] = 99_f64;
-    __gs.gw[(8_f64) as usize][(8_f64) as usize] = 99_f64;
-    i = 3_f64;
-    let __for_to_i: f64 = 6_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __gs.gw[(1.0f64) as usize][(1.0f64) as usize] = 99.0f64;
+    __gs.gw[(1.0f64) as usize][(8.0f64) as usize] = 99.0f64;
+    __gs.gw[(8.0f64) as usize][(1.0f64) as usize] = 99.0f64;
+    __gs.gw[(8.0f64) as usize][(8.0f64) as usize] = 99.0f64;
+    i = 3.0f64;
+    let __for_to_i: f64 = 6.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 1_f64;
-        let __for_to_j: f64 = 8_f64;
-        let __for_step_j: f64 = 7_f64;
+        j = 1.0f64;
+        let __for_to_j: f64 = 8.0f64;
+        let __for_step_j: f64 = 7.0f64;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            __gs.gw[(i) as usize][(j) as usize] = 5_f64;
-            __gs.gw[(j) as usize][(i) as usize] = 5_f64;
+            __gs.gw[(i) as usize][(j) as usize] = 5.0f64;
+            __gs.gw[(j) as usize][(i) as usize] = 5.0f64;
             j += __for_step_j;
         }
         i += __for_step_i;
     }
-    __gs.gg__player[(4_f64) as usize][(4_f64) as usize] = __gs.human;
-    __gs.gg__player[(5_f64) as usize][(4_f64) as usize] = __gs.comp;
-    __gs.gg__player[(4_f64) as usize][(5_f64) as usize] = __gs.comp;
-    __gs.gg__player[(5_f64) as usize][(5_f64) as usize] = __gs.human;
+    __gs.gg__player[(4.0f64) as usize][(4.0f64) as usize] = __gs.human;
+    __gs.gg__player[(5.0f64) as usize][(4.0f64) as usize] = __gs.comp;
+    __gs.gg__player[(4.0f64) as usize][(5.0f64) as usize] = __gs.comp;
+    __gs.gg__player[(5.0f64) as usize][(5.0f64) as usize] = __gs.human;
 }
 
 fn takeblocks(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, player: &mut f64) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
     __gs.gg__player[((*row)) as usize][((*col)) as usize] = (*player);
     drawgamepiece(__rt, __gs, row, col, player);
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(1_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(1.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[((*row)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num9: f64 = ((*col) - i);
-        drawgamepiece(__rt, __gs, row, &mut __tmp_num9, player);
+        let mut __tmp_num16: f64 = ((*col) - i);
+        drawgamepiece(__rt, __gs, row, &mut __tmp_num16, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(2_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(2.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[((*row)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num10: f64 = ((*col) + i);
-        drawgamepiece(__rt, __gs, row, &mut __tmp_num10, player);
+        let mut __tmp_num17: f64 = ((*col) + i);
+        drawgamepiece(__rt, __gs, row, &mut __tmp_num17, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(3_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(3.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) - i)) as usize][((*col)) as usize] = (*player);
-        let mut __tmp_num11: f64 = ((*row) - i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num11, col, player);
+        let mut __tmp_num18: f64 = ((*row) - i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num18, col, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(4_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(4.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) + i)) as usize][((*col)) as usize] = (*player);
-        let mut __tmp_num12: f64 = ((*row) + i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num12, col, player);
+        let mut __tmp_num19: f64 = ((*row) + i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num19, col, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(5_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(5.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) - i)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num13: f64 = ((*row) - i);
-        let mut __tmp_num14: f64 = ((*col) - i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num13, &mut __tmp_num14, player);
+        let mut __tmp_num20: f64 = ((*row) - i);
+        let mut __tmp_num21: f64 = ((*col) - i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num20, &mut __tmp_num21, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(6_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(6.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) + i)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num15: f64 = ((*row) + i);
-        let mut __tmp_num16: f64 = ((*col) + i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num15, &mut __tmp_num16, player);
+        let mut __tmp_num22: f64 = ((*row) + i);
+        let mut __tmp_num23: f64 = ((*col) + i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num22, &mut __tmp_num23, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(7_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(7.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) - i)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num17: f64 = ((*row) - i);
-        let mut __tmp_num18: f64 = ((*col) + i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num17, &mut __tmp_num18, player);
+        let mut __tmp_num24: f64 = ((*row) - i);
+        let mut __tmp_num25: f64 = ((*col) + i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num24, &mut __tmp_num25, player);
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(8_f64) as usize];
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(8.0f64) as usize];
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.gg__player[(((*row) + i)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num19: f64 = ((*row) + i);
-        let mut __tmp_num20: f64 = ((*col) - i);
-        drawgamepiece(__rt, __gs, &mut __tmp_num19, &mut __tmp_num20, player);
+        let mut __tmp_num26: f64 = ((*row) + i);
+        let mut __tmp_num27: f64 = ((*col) - i);
+        drawgamepiece(__rt, __gs, &mut __tmp_num26, &mut __tmp_num27, player);
         i += __for_step_i;
     }
-    if qb_bool(qb_from_bool((*player) == __gs.human)) {
-        __gs.gs__rscore = ((__gs.gs__rscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1_f64);
+    if (*player) == __gs.human {
+        __gs.gs__rscore = ((__gs.gs__rscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1.0f64);
         __gs.gs__bscore = (__gs.gs__bscore - __gs.gg__ntake[((*row)) as usize][((*col)) as usize]);
     } else {
-        __gs.gs__bscore = ((__gs.gs__bscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1_f64);
+        __gs.gs__bscore = ((__gs.gs__bscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1.0f64);
         __gs.gs__rscore = (__gs.gs__rscore - __gs.gg__ntake[((*row)) as usize][((*col)) as usize]);
     }
-    __rt.locate(Some(17_f64), Some(7_f64), None);
+    __rt.locate(Some(17.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Your Score:      ")), qb_print_num(__gs.gs__rscore)]);
-    __rt.locate(Some(18_f64), Some(7_f64), None);
+    __rt.locate(Some(18.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Computer Score:  ")), qb_print_num(__gs.gs__bscore)]);
 }
 
 fn usermove(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
-    let mut qb_move: f64 = 0.0_f64;
+    let mut qb_move: f64 = 0.0;
 
-    let mut __tmp_num21: f64 = __gs.gs__currow;
-    let mut __tmp_num22: f64 = __gs.gs__curcol;
-    drawcursor(__rt, __gs, &mut __tmp_num21, &mut __tmp_num22);
+    let mut __tmp_num28: f64 = __gs.gs__currow;
+    let mut __tmp_num29: f64 = __gs.gs__curcol;
+    drawcursor(__rt, __gs, &mut __tmp_num28, &mut __tmp_num29);
     loop {
         loop {
-            let __tmp23 = __rt.inkey();
-            a_s = (__tmp23).to_string();
-            if qb_bool(qb_from_bool((a_s).as_str() != "")) { break; }
+            let __tmp30 = __rt.inkey();
+            a_s = (__tmp30).to_string();
+            if (a_s).as_str() != "" { break; }
         }
-        qb_move = qb_asc(&(qb_right(&(a_s), 1_f64)));
+        qb_move = qb_asc(&(qb_right(&(a_s), 1.0f64)));
         if qb_bool(__gs.gs__mdisplay) {
-            __rt.line_box_fill(0_f64,420_f64,640_f64,447_f64,__gs.bg);
+            __rt.line_box_fill(0.0f64,420.0f64,640.0f64,447.0f64,__gs.bg);
             __gs.gs__mdisplay = qb_false;
         }
         let __sel = qb_move;
-        if (__sel >= 71_f64 && __sel <= 81_f64) {
-            let mut __tmp_num24: f64 = __gs.gs__currow;
-            let mut __tmp_num25: f64 = __gs.gs__curcol;
-            let mut __tmp_num26: f64 = __gs.gg__player[(__gs.gs__currow) as usize][(__gs.gs__curcol) as usize];
-            drawgamepiece(__rt, __gs, &mut __tmp_num24, &mut __tmp_num25, &mut __tmp_num26);
-            if qb_bool(qb_from_bool(qb_move < 74_f64)) {
-                if qb_bool(qb_from_bool(__gs.gs__currow == bblock)) {
+        if (__sel >= 71.0f64 && __sel <= 81.0f64) {
+            let mut __tmp_num31: f64 = __gs.gs__currow;
+            let mut __tmp_num32: f64 = __gs.gs__curcol;
+            let mut __tmp_num33: f64 = __gs.gg__player[(__gs.gs__currow) as usize][(__gs.gs__curcol) as usize];
+            drawgamepiece(__rt, __gs, &mut __tmp_num31, &mut __tmp_num32, &mut __tmp_num33);
+            if qb_move < 74.0f64 {
+                if __gs.gs__currow == bblock {
                     __gs.gs__currow = eblock;
                 } else {
-                    __gs.gs__currow = (__gs.gs__currow - 1_f64);
+                    __gs.gs__currow = (__gs.gs__currow - 1.0f64);
                 }
-            } else if qb_bool(qb_from_bool(qb_move > 78_f64)) {
-                if qb_bool(qb_from_bool(__gs.gs__currow == eblock)) {
+            } else if qb_move > 78.0f64 {
+                if __gs.gs__currow == eblock {
                     __gs.gs__currow = bblock;
                 } else {
-                    __gs.gs__currow = (__gs.gs__currow + 1_f64);
+                    __gs.gs__currow = (__gs.gs__currow + 1.0f64);
                 }
             }
-            if qb_bool(qb_or(qb_or(qb_from_bool(qb_move == 71_f64), qb_from_bool(qb_move == 75_f64)), qb_from_bool(qb_move == 79_f64))) {
-                if qb_bool(qb_from_bool(__gs.gs__curcol == bblock)) {
+            if qb_bool(qb_or(qb_or(qb_from_bool(qb_move == 71.0f64), qb_from_bool(qb_move == 75.0f64)), qb_from_bool(qb_move == 79.0f64))) {
+                if __gs.gs__curcol == bblock {
                     __gs.gs__curcol = eblock;
                 } else {
-                    __gs.gs__curcol = (__gs.gs__curcol - 1_f64);
+                    __gs.gs__curcol = (__gs.gs__curcol - 1.0f64);
                 }
-            } else if qb_bool(qb_or(qb_or(qb_from_bool(qb_move == 73_f64), qb_from_bool(qb_move == 77_f64)), qb_from_bool(qb_move == 81_f64))) {
-                if qb_bool(qb_from_bool(__gs.gs__curcol == eblock)) {
+            } else if qb_bool(qb_or(qb_or(qb_from_bool(qb_move == 73.0f64), qb_from_bool(qb_move == 77.0f64)), qb_from_bool(qb_move == 81.0f64))) {
+                if __gs.gs__curcol == eblock {
                     __gs.gs__curcol = bblock;
                 } else {
-                    __gs.gs__curcol = (__gs.gs__curcol + 1_f64);
+                    __gs.gs__curcol = (__gs.gs__curcol + 1.0f64);
                 }
             }
-            let mut __tmp_num27: f64 = __gs.gs__currow;
-            let mut __tmp_num28: f64 = __gs.gs__curcol;
-            drawcursor(__rt, __gs, &mut __tmp_num27, &mut __tmp_num28);
+            let mut __tmp_num34: f64 = __gs.gs__currow;
+            let mut __tmp_num35: f64 = __gs.gs__curcol;
+            drawcursor(__rt, __gs, &mut __tmp_num34, &mut __tmp_num35);
         } else if __sel == start {
             __gs.gs__stat = start;
         } else if __sel == pass {
-            if qb_bool(qb_from_bool(__gs.gs__stat == fmove)) {
-                let mut __tmp_str29 = ("You passed.  Computer will make first move.").to_string();
-                displaymsg(__rt, __gs, &mut __tmp_str29);
+            if __gs.gs__stat == fmove {
+                let mut __tmp_str36 = ("You passed.  Computer will make first move.").to_string();
+                displaymsg(__rt, __gs, &mut __tmp_str36);
                 __gs.gs__stat = __gs.comp;
             } else {
-                let mut __tmp_str30 = ("You can only pass on your first turn.").to_string();
-                displaymsg(__rt, __gs, &mut __tmp_str30);
+                let mut __tmp_str37 = ("You can only pass on your first turn.").to_string();
+                displaymsg(__rt, __gs, &mut __tmp_str37);
             }
         } else if __sel == help {
             displayhelp(__rt, __gs);
         } else if __sel == diff {
-            if qb_bool(qb_from_bool(__gs.gs__dlevel == "Novice")) {
+            if __gs.gs__dlevel == "Novice" {
                 __gs.gs__dlevel = ("Expert").to_string();
             } else {
                 __gs.gs__dlevel = ("Novice").to_string();
             }
-            __rt.locate(Some(20_f64), Some(7_f64), None);
+            __rt.locate(Some(20.0f64), Some(7.0f64), None);
             __rt.print(&[qb_str(&("Difficulty:   ")), qb_str(&(__gs.gs__dlevel))]);
         } else if __sel == enter || __sel == space {
-            if qb_bool(qb_from_bool(__gs.gg__ntake[(__gs.gs__currow) as usize][(__gs.gs__curcol) as usize] > 0_f64)) {
-                let mut __tmp_num31: f64 = __gs.gs__currow;
-                let mut __tmp_num32: f64 = __gs.gs__curcol;
-                let mut __tmp_gs33: f64 = __gs.human;
-                takeblocks(__rt, __gs, &mut __tmp_num31, &mut __tmp_num32, &mut __tmp_gs33);
-                __gs.human = __tmp_gs33;
+            if __gs.gg__ntake[(__gs.gs__currow) as usize][(__gs.gs__curcol) as usize] > 0.0f64 {
+                let mut __tmp_num38: f64 = __gs.gs__currow;
+                let mut __tmp_num39: f64 = __gs.gs__curcol;
+                let mut __tmp_gs40: f64 = __gs.human;
+                takeblocks(__rt, __gs, &mut __tmp_num38, &mut __tmp_num39, &mut __tmp_gs40);
+                __gs.human = __tmp_gs40;
                 __gs.gs__stat = __gs.comp;
             } else {
-                let mut __tmp_str34 = ("Invalid move.  Move to a space where the cursor is a circle.").to_string();
-                displaymsg(__rt, __gs, &mut __tmp_str34);
+                let mut __tmp_str41 = ("Invalid move.  Move to a space where the cursor is a circle.").to_string();
+                displaymsg(__rt, __gs, &mut __tmp_str41);
             }
         } else if __sel == quit {
             __gs.gs__stat = quit;
@@ -633,20 +633,20 @@ fn usermove(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn checkpath(__rt: &mut Runtime, __gs: &mut GameState, mut i: f64, mut ibound: f64, mut istep: f64, mut j: f64, mut jbound: f64, mut jstep: f64, mut opponent: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut done: f64 = 0.0_f64;
-    let mut count: f64 = 0.0_f64;
+    let mut done: f64 = 0.0;
+    let mut count: f64 = 0.0;
 
     done = qb_false;
     while qb_bool(qb_and(qb_or(qb_from_bool(i != ibound), qb_from_bool(j != jbound)), qb_not(done))) {
-        if qb_bool(qb_from_bool(__gs.gg__player[(i) as usize][(j) as usize] == __gs.gboard)) {
-            count = 0_f64;
+        if __gs.gg__player[(i) as usize][(j) as usize] == __gs.gboard {
+            count = 0.0f64;
             done = qb_true;
-        } else if qb_bool(qb_from_bool(__gs.gg__player[(i) as usize][(j) as usize] == opponent)) {
-            count = (count + 1_f64);
+        } else if __gs.gg__player[(i) as usize][(j) as usize] == opponent {
+            count = (count + 1.0f64);
             i = (i + istep);
             j = (j + jstep);
-            if qb_bool(qb_or(qb_or(qb_from_bool(i < 1_f64), qb_from_bool(i > 8_f64)), qb_or(qb_from_bool(j < 1_f64), qb_from_bool(j > 8_f64)))) {
-                count = 0_f64;
+            if qb_bool(qb_or(qb_or(qb_from_bool(i < 1.0f64), qb_from_bool(i > 8.0f64)), qb_or(qb_from_bool(j < 1.0f64), qb_from_bool(j > 8.0f64)))) {
+                count = 0.0f64;
                 done = qb_true;
             }
         } else {
@@ -659,8 +659,8 @@ fn checkpath(__rt: &mut Runtime, __gs: &mut GameState, mut i: f64, mut ibound: f
 
 fn validmove(__rt: &mut Runtime, __gs: &mut GameState, mut opponent: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
 
     __fn_ret = qb_false;
     for __er0 in __gs.gp.iter_mut() {
@@ -670,57 +670,49 @@ fn validmove(__rt: &mut Runtime, __gs: &mut GameState, mut opponent: f64) -> f64
             }
         }
     }
-    row = 1_f64;
-    let __for_to_row: f64 = 8_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 1.0f64;
+    let __for_to_row: f64 = 8.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 8_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 8.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-            __gs.gg__ntake[(row) as usize][(col) as usize] = 0_f64;
-            if qb_bool(qb_from_bool(__gs.gg__player[(row) as usize][(col) as usize] == __gs.gboard)) {
-                if qb_bool(qb_from_bool(col > 2_f64)) {
-                    let __tmp35 = checkpath(__rt, __gs, row, row, 0_f64, (col - 1_f64), 0_f64, (-1_f64), opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(1_f64) as usize] = __tmp35;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(1_f64) as usize]);
+            __gs.gg__ntake[(row) as usize][(col) as usize] = 0.0f64;
+            if __gs.gg__player[(row) as usize][(col) as usize] == __gs.gboard {
+                if col > 2.0f64 {
+                    __gs.gp[(row) as usize][(col) as usize][(1.0f64) as usize] = checkpath(__rt, __gs, row, row, 0.0f64, (col - 1.0f64), 0.0f64, (-1.0f64), opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(1.0f64) as usize]);
                 }
-                if qb_bool(qb_from_bool(col < 7_f64)) {
-                    let __tmp36 = checkpath(__rt, __gs, row, row, 0_f64, (col + 1_f64), 9_f64, 1_f64, opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(2_f64) as usize] = __tmp36;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(2_f64) as usize]);
+                if col < 7.0f64 {
+                    __gs.gp[(row) as usize][(col) as usize][(2.0f64) as usize] = checkpath(__rt, __gs, row, row, 0.0f64, (col + 1.0f64), 9.0f64, 1.0f64, opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(2.0f64) as usize]);
                 }
-                if qb_bool(qb_from_bool(row > 2_f64)) {
-                    let __tmp37 = checkpath(__rt, __gs, (row - 1_f64), 0_f64, (-1_f64), col, col, 0_f64, opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(3_f64) as usize] = __tmp37;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(3_f64) as usize]);
+                if row > 2.0f64 {
+                    __gs.gp[(row) as usize][(col) as usize][(3.0f64) as usize] = checkpath(__rt, __gs, (row - 1.0f64), 0.0f64, (-1.0f64), col, col, 0.0f64, opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(3.0f64) as usize]);
                 }
-                if qb_bool(qb_from_bool(row < 7_f64)) {
-                    let __tmp38 = checkpath(__rt, __gs, (row + 1_f64), 9_f64, 1_f64, col, col, 0_f64, opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(4_f64) as usize] = __tmp38;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(4_f64) as usize]);
+                if row < 7.0f64 {
+                    __gs.gp[(row) as usize][(col) as usize][(4.0f64) as usize] = checkpath(__rt, __gs, (row + 1.0f64), 9.0f64, 1.0f64, col, col, 0.0f64, opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(4.0f64) as usize]);
                 }
-                if qb_bool(qb_and(qb_from_bool(col > 2_f64), qb_from_bool(row > 2_f64))) {
-                    let __tmp39 = checkpath(__rt, __gs, (row - 1_f64), 0_f64, (-1_f64), (col - 1_f64), 0_f64, (-1_f64), opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(5_f64) as usize] = __tmp39;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(5_f64) as usize]);
+                if qb_bool(qb_and(qb_from_bool(col > 2.0f64), qb_from_bool(row > 2.0f64))) {
+                    __gs.gp[(row) as usize][(col) as usize][(5.0f64) as usize] = checkpath(__rt, __gs, (row - 1.0f64), 0.0f64, (-1.0f64), (col - 1.0f64), 0.0f64, (-1.0f64), opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(5.0f64) as usize]);
                 }
-                if qb_bool(qb_and(qb_from_bool(col < 7_f64), qb_from_bool(row < 7_f64))) {
-                    let __tmp40 = checkpath(__rt, __gs, (row + 1_f64), 9_f64, 1_f64, (col + 1_f64), 9_f64, 1_f64, opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(6_f64) as usize] = __tmp40;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(6_f64) as usize]);
+                if qb_bool(qb_and(qb_from_bool(col < 7.0f64), qb_from_bool(row < 7.0f64))) {
+                    __gs.gp[(row) as usize][(col) as usize][(6.0f64) as usize] = checkpath(__rt, __gs, (row + 1.0f64), 9.0f64, 1.0f64, (col + 1.0f64), 9.0f64, 1.0f64, opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(6.0f64) as usize]);
                 }
-                if qb_bool(qb_and(qb_from_bool(col < 7_f64), qb_from_bool(row > 2_f64))) {
-                    let __tmp41 = checkpath(__rt, __gs, (row - 1_f64), 0_f64, (-1_f64), (col + 1_f64), 9_f64, 1_f64, opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(7_f64) as usize] = __tmp41;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(7_f64) as usize]);
+                if qb_bool(qb_and(qb_from_bool(col < 7.0f64), qb_from_bool(row > 2.0f64))) {
+                    __gs.gp[(row) as usize][(col) as usize][(7.0f64) as usize] = checkpath(__rt, __gs, (row - 1.0f64), 0.0f64, (-1.0f64), (col + 1.0f64), 9.0f64, 1.0f64, opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(7.0f64) as usize]);
                 }
-                if qb_bool(qb_and(qb_from_bool(col > 2_f64), qb_from_bool(row < 7_f64))) {
-                    let __tmp42 = checkpath(__rt, __gs, (row + 1_f64), 9_f64, 1_f64, (col - 1_f64), 0_f64, (-1_f64), opponent);
-                    __gs.gp[(row) as usize][(col) as usize][(8_f64) as usize] = __tmp42;
-                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(8_f64) as usize]);
+                if qb_bool(qb_and(qb_from_bool(col > 2.0f64), qb_from_bool(row < 7.0f64))) {
+                    __gs.gp[(row) as usize][(col) as usize][(8.0f64) as usize] = checkpath(__rt, __gs, (row + 1.0f64), 9.0f64, 1.0f64, (col - 1.0f64), 0.0f64, (-1.0f64), opponent);
+                    __gs.gg__ntake[(row) as usize][(col) as usize] = (__gs.gg__ntake[(row) as usize][(col) as usize] + __gs.gp[(row) as usize][(col) as usize][(8.0f64) as usize]);
                 }
-                if qb_bool(qb_from_bool(__gs.gg__ntake[(row) as usize][(col) as usize] > 0_f64)) {
+                if __gs.gg__ntake[(row) as usize][(col) as usize] > 0.0f64 {
                     __fn_ret = qb_true;
                 }
             }
@@ -743,46 +735,46 @@ fn main() {
 
     let mut a_s: String = String::new();
 
-    __gs.gg__player = vec![vec![0.0_f64; (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
-    __gs.gg__ntake = vec![vec![0.0_f64; (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
-    __gs.gg__cx = vec![vec![0.0_f64; (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
-    __gs.gg__cy = vec![vec![0.0_f64; (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
-    __gs.gp = vec![vec![vec![Default::default(); (8_f64+1.0) as usize]; (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
-    __gs.gw = vec![vec![Default::default(); (8_f64+1.0) as usize]; (8_f64+1.0) as usize];
+    __gs.gg__player = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gg__ntake = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gg__cx = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gg__cy = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gp = vec![vec![vec![Default::default(); (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gw = vec![vec![Default::default(); (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
     loop {
         __gs.smode = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
         __gs.vmode = qb_true;
         __rt.screen(__gs.smode);
         if __rt.error_pending { __rt.error_pending = false; badmode(&mut __rt, &mut __gs); }
-        if qb_bool(qb_from_bool(__gs.vmode == qb_true)) { break; }
+        if __gs.vmode == qb_true { break; }
     }
-    if qb_bool(qb_from_bool(__gs.smode == 0_f64)) {
+    if __gs.smode == 0.0f64 {
         __rt.cls(0u8);
-        __rt.locate(Some(10_f64), Some(15_f64), None);
+        __rt.locate(Some(10.0f64), Some(15.0f64), None);
         __rt.println(&[qb_str(&("No graphics screen mode available; cannot run REVERSI.BAS"))]);
     } else {
         __gs.gs__stat = start;
         __gs.gs__dlevel = ("Novice").to_string();
-        while qb_bool(qb_from_bool(__gs.gs__stat != quit)) {
-            if qb_bool(qb_from_bool(__gs.gs__stat == start)) {
+        while __gs.gs__stat != quit {
+            if __gs.gs__stat == start {
                 initgame(&mut __rt, &mut __gs);
                 drawgameboard(&mut __rt, &mut __gs);
             }
-            if qb_bool(qb_from_bool(__gs.gs__stat != __gs.comp)) {
+            if __gs.gs__stat != __gs.comp {
                 if qb_bool({ let __fa0 = __gs.comp; validmove(&mut __rt, &mut __gs, __fa0) }) {
                     usermove(&mut __rt, &mut __gs);
                 } else if qb_bool({ let __fa0 = __gs.human; validmove(&mut __rt, &mut __gs, __fa0) }) {
                     loop {
-                        let mut __tmp_str43 = ("You have no valid moves.  Select pass.").to_string();
-                        displaymsg(&mut __rt, &mut __gs, &mut __tmp_str43);
+                        let mut __tmp_str50 = ("You have no valid moves.  Select pass.").to_string();
+                        displaymsg(&mut __rt, &mut __gs, &mut __tmp_str50);
                         loop {
-                            let __tmp44 = __rt.inkey();
-                            a_s = (__tmp44).to_string();
-                            if qb_bool(qb_from_bool((a_s).as_str() != "")) { break; }
+                            let __tmp51 = __rt.inkey();
+                            a_s = (__tmp51).to_string();
+                            if (a_s).as_str() != "" { break; }
                         }
-                        if qb_bool(qb_from_bool(qb_asc(&(qb_right(&(a_s), 1_f64))) == pass)) { break; }
+                        if qb_asc(&(qb_right(&(a_s), 1.0f64))) == pass { break; }
                     }
-                    __rt.line_box_fill(0_f64,420_f64,640_f64,447_f64,3_f64);
+                    __rt.line_box_fill(0.0f64,420.0f64,640.0f64,447.0f64,3.0f64);
                     __gs.gs__mdisplay = qb_false;
                     __gs.gs__stat = __gs.comp;
                     computermove(&mut __rt, &mut __gs);
@@ -793,8 +785,8 @@ fn main() {
                 if qb_bool({ let __fa0 = __gs.human; validmove(&mut __rt, &mut __gs, __fa0) }) {
                     computermove(&mut __rt, &mut __gs);
                 } else if qb_bool({ let __fa0 = __gs.comp; validmove(&mut __rt, &mut __gs, __fa0) }) {
-                    let mut __tmp_str45 = ("Computer has no valid moves.  Your Turn.").to_string();
-                    displaymsg(&mut __rt, &mut __gs, &mut __tmp_str45);
+                    let mut __tmp_str52 = ("Computer has no valid moves.  Your Turn.").to_string();
+                    displaymsg(&mut __rt, &mut __gs, &mut __tmp_str52);
                     __gs.gs__stat = __gs.human;
                     usermove(&mut __rt, &mut __gs);
                 } else {
@@ -802,7 +794,7 @@ fn main() {
                 }
             }
         }
-        let mut __tmp_str46 = ("Game Over").to_string();
-        displaymsg(&mut __rt, &mut __gs, &mut __tmp_str46);
+        let mut __tmp_str53 = ("Game Over").to_string();
+        displaymsg(&mut __rt, &mut __gs, &mut __tmp_str53);
     }
 }

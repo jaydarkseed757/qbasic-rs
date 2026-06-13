@@ -15,6 +15,11 @@ HALLFAME.*
 # Generated transpiler output (created by build-all.sh)
 /bin
 
+# Compiled sample binaries (samples/ holds .rs source only)
+/samples/*
+!/samples/*.rs
+!/samples/*.MD
+
 # Excluded per request
 CLAUDE.md
 

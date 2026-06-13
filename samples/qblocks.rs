@@ -7,41 +7,41 @@ use qbasic_runtime::*;
 static __DATA: &[&str] = &["1", "1", "1", "1", "0", "0", "0", "0", "1", "1", "1", "0", "0", "0", "1", "0", "0", "1", "1", "1", "0", "1", "0", "0", "1", "1", "0", "0", "0", "1", "1", "0", "0", "1", "1", "0", "1", "1", "0", "0", "1", "1", "1", "0", "0", "1", "0", "0", "0", "1", "1", "0", "0", "1", "1", "0"];
 static __DATA_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-const wellwidth: f64 = 10_f64;
-const wellheight: f64 = 21_f64;
-const numstyles: f64 = 7_f64;
-const wingame: f64 = 1000000_f64;
-const nextlevel: f64 = 300_f64;
-const basescore: f64 = 1000_f64;
-const rotatedir: f64 = 1_f64;
-const qb_false: f64 = 0_f64;
-const qb_true: f64 = -1_f64;
-const spacebar: f64 = 32_f64;
-const downarrow: f64 = 80_f64;
-const rightarrow: f64 = 77_f64;
-const uparrow: f64 = 72_f64;
-const leftarrow: f64 = 75_f64;
-const downarrow2: f64 = 50_f64;
-const rightarrow2: f64 = 54_f64;
-const uparrow2: f64 = 56_f64;
-const leftarrow2: f64 = 52_f64;
-const uparrow3: f64 = 53_f64;
-const xmatrix: f64 = 3_f64;
-const ymatrix: f64 = 1_f64;
-const bytesperblock: f64 = 76_f64;
-const blockvolume: f64 = 8_f64;
-const elementsperblock: f64 = 304_f64;
-const xsize: f64 = 13_f64;
-const ysize: f64 = 8_f64;
-const xoffset: f64 = 10_f64;
-const yoffset: f64 = 2_f64;
-const wellx: f64 = 130_f64;
-const welly: f64 = 16_f64;
-const tiltvalue: f64 = 9999000_f64;
-const wellcolor7: f64 = 0_f64;
-const wellcolor1: f64 = 0_f64;
-const bordercolor1: f64 = 8_f64;
-const bordercolor7: f64 = 15_f64;
+const wellwidth: f64 = 10.0f64;
+const wellheight: f64 = 21.0f64;
+const numstyles: f64 = 7.0f64;
+const wingame: f64 = 1000000.0f64;
+const nextlevel: f64 = 300.0f64;
+const basescore: f64 = 1000.0f64;
+const rotatedir: f64 = 1.0f64;
+const qb_false: f64 = 0.0f64;
+const qb_true: f64 = -1.0f64;
+const spacebar: f64 = 32.0f64;
+const downarrow: f64 = 80.0f64;
+const rightarrow: f64 = 77.0f64;
+const uparrow: f64 = 72.0f64;
+const leftarrow: f64 = 75.0f64;
+const downarrow2: f64 = 50.0f64;
+const rightarrow2: f64 = 54.0f64;
+const uparrow2: f64 = 56.0f64;
+const leftarrow2: f64 = 52.0f64;
+const uparrow3: f64 = 53.0f64;
+const xmatrix: f64 = 3.0f64;
+const ymatrix: f64 = 1.0f64;
+const bytesperblock: f64 = 76.0f64;
+const blockvolume: f64 = 8.0f64;
+const elementsperblock: f64 = 304.0f64;
+const xsize: f64 = 13.0f64;
+const ysize: f64 = 8.0f64;
+const xoffset: f64 = 10.0f64;
+const yoffset: f64 = 2.0f64;
+const wellx: f64 = 130.0f64;
+const welly: f64 = 16.0f64;
+const tiltvalue: f64 = 9999000.0f64;
+const wellcolor7: f64 = 0.0f64;
+const wellcolor1: f64 = 0.0f64;
+const bordercolor1: f64 = 8.0f64;
+const bordercolor7: f64 = 15.0f64;
 const playclearrow: &str = "MBT255L16O4CDEGO6C";
 const playintro: &str = "MBT170O1L8CO2CO1CDCA-A-FGFA-F";
 const playgameover: &str = "MBT255L16O6CO4GEDC";
@@ -78,27 +78,27 @@ struct GameState {
 }
 
 fn addblocktowell(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
-    i = 0_f64;
+    i = 0.0f64;
     let __for_to_i: f64 = xmatrix;
-    let __for_step_i: f64 = 1.0_f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 0_f64;
+        j = 0.0f64;
         let __for_to_j: f64 = ymatrix;
-        let __for_step_j: f64 = 1.0_f64;
+        let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if qb_bool(qb_from_bool(__gs.blockshape[(i) as usize][(j) as usize][(__gs.curblock__style) as usize] == 1_f64)) {
+            if __gs.blockshape[(i) as usize][(j) as usize][(__gs.curblock__style) as usize] == 1.0f64 {
                 let __sel = __gs.curblock__rotation;
-                if __sel == 0_f64 {
+                if __sel == 0.0f64 {
                     __gs.wellblocks[((__gs.curblock__x + i)) as usize][((__gs.curblock__y + j)) as usize] = __gs.curblock__style;
-                } else if __sel == 1_f64 {
-                    __gs.wellblocks[(((__gs.curblock__x - j) + 2_f64)) as usize][(((__gs.curblock__y + i) - 1_f64)) as usize] = __gs.curblock__style;
-                } else if __sel == 2_f64 {
-                    __gs.wellblocks[(((__gs.curblock__x - i) + 3_f64)) as usize][(((__gs.curblock__y - j) + 1_f64)) as usize] = __gs.curblock__style;
-                } else if __sel == 3_f64 {
-                    __gs.wellblocks[(((__gs.curblock__x + j) + 1_f64)) as usize][(((__gs.curblock__y - i) + 2_f64)) as usize] = __gs.curblock__style;
+                } else if __sel == 1.0f64 {
+                    __gs.wellblocks[(((__gs.curblock__x - j) + 2.0f64)) as usize][(((__gs.curblock__y + i) - 1.0f64)) as usize] = __gs.curblock__style;
+                } else if __sel == 2.0f64 {
+                    __gs.wellblocks[(((__gs.curblock__x - i) + 3.0f64)) as usize][(((__gs.curblock__y - j) + 1.0f64)) as usize] = __gs.curblock__style;
+                } else if __sel == 3.0f64 {
+                    __gs.wellblocks[(((__gs.curblock__x + j) + 1.0f64)) as usize][(((__gs.curblock__y - i) + 2.0f64)) as usize] = __gs.curblock__style;
                 }
             }
             j += __for_step_j;
@@ -108,88 +108,88 @@ fn addblocktowell(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String, row: &mut f64) {
-    __rt.locate(Some((*row)), Some((qb_idiv((__gs.screenwidth - qb_len(&(text_s))), 2_f64) + 1_f64)), None);
+    __rt.locate(Some((*row)), Some((qb_idiv((__gs.screenwidth - qb_len(&(text_s))), 2.0f64) + 1.0f64)), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
 fn checkforfullrows(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut numrowstodelete: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut deleterow: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
-    let mut numdeleted: f64 = 0.0_f64;
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
-    let mut highest: f64 = 0.0_f64;
-    let mut lowest: f64 = 0.0_f64;
+    let mut numrowstodelete: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut deleterow: f64 = 0.0;
+    let mut j: f64 = 0.0;
+    let mut numdeleted: f64 = 0.0;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
+    let mut highest: f64 = 0.0;
+    let mut lowest: f64 = 0.0;
 
     let mut rowstodelete: Vec<f64> = vec![Default::default(); (wellheight+1.0) as usize];
-    numrowstodelete = 0_f64;
+    numrowstodelete = 0.0f64;
     i = wellheight;
     loop {
         deleterow = qb_true;
-        j = 0_f64;
+        j = 0.0f64;
         loop {
             deleterow = (deleterow * qb_sgn(__gs.wellblocks[(j) as usize][(i) as usize]));
-            j = (j + 1_f64);
-            if !qb_bool(qb_and(qb_from_bool(deleterow == qb_true), qb_from_bool(j < wellwidth))) { break; }
+            j = (j + 1.0f64);
+            if !(qb_bool(qb_and(qb_from_bool(deleterow == qb_true), qb_from_bool(j < wellwidth)))) { break; }
         }
-        if qb_bool(qb_from_bool(deleterow == qb_true)) {
-            numrowstodelete = (numrowstodelete + 1_f64);
+        if deleterow == qb_true {
+            numrowstodelete = (numrowstodelete + 1.0f64);
             rowstodelete[((i - numdeleted)) as usize] = qb_true;
-            numdeleted = (numdeleted + 1_f64);
+            numdeleted = (numdeleted + 1.0f64);
             row = i;
-            let __for_to_row: f64 = 1_f64;
-            let __for_step_row: f64 = (-1_f64);
+            let __for_to_row: f64 = 1.0f64;
+            let __for_step_row: f64 = (-1.0f64);
             while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-                col = 0_f64;
+                col = 0.0f64;
                 let __for_to_col: f64 = wellwidth;
-                let __for_step_col: f64 = 1.0_f64;
+                let __for_step_col: f64 = 1.0;
                 while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-                    __gs.wellblocks[(col) as usize][(row) as usize] = __gs.wellblocks[(col) as usize][((row - 1_f64)) as usize];
+                    __gs.wellblocks[(col) as usize][(row) as usize] = __gs.wellblocks[(col) as usize][((row - 1.0f64)) as usize];
                     col += __for_step_col;
                 }
                 row += __for_step_row;
             }
         } else {
-            i = (i - 1_f64);
+            i = (i - 1.0f64);
         }
-        if !qb_bool(qb_from_bool(i >= 1_f64)) { break; }
+        if !(i >= 1.0f64) { break; }
     }
-    if qb_bool(qb_from_bool(numrowstodelete > 0_f64)) {
-        __gs.score = (__gs.score + (100_f64 * numrowstodelete));
-        highest = (-1_f64);
-        lowest = 100_f64;
+    if numrowstodelete > 0.0f64 {
+        __gs.score = (__gs.score + (100.0f64 * numrowstodelete));
+        highest = (-1.0f64);
+        lowest = 100.0f64;
         i = wellheight;
-        let __for_to_i: f64 = 1_f64;
-        let __for_step_i: f64 = (-1_f64);
+        let __for_to_i: f64 = 1.0f64;
+        let __for_step_i: f64 = (-1.0f64);
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            if qb_bool(qb_from_bool(rowstodelete[(i) as usize] == qb_true)) {
-                if qb_bool(qb_from_bool(i > highest)) {
+            if rowstodelete[(i) as usize] == qb_true {
+                if i > highest {
                     highest = i;
                 }
-                if qb_bool(qb_from_bool(i < lowest)) {
+                if i < lowest {
                     lowest = i;
                 }
             }
             i += __for_step_i;
         }
-        if qb_bool(qb_from_bool(((highest - lowest) + 1_f64) == numrowstodelete)) {
+        if ((highest - lowest) + 1.0f64) == numrowstodelete {
             deletechunk(__rt, __gs, &mut highest, &mut lowest);
         } else {
             i = lowest;
-            while qb_bool(qb_from_bool(i <= highest)) {
-                if qb_bool(qb_from_bool(rowstodelete[(i) as usize] == qb_false)) {
-                    let mut __tmp_num0: f64 = (i - 1_f64);
+            while i <= highest {
+                if rowstodelete[(i) as usize] == qb_false {
+                    let mut __tmp_num0: f64 = (i - 1.0f64);
                     deletechunk(__rt, __gs, &mut __tmp_num0, &mut lowest);
                     break; // EXIT DO
                 } else {
-                    i = (i + 1_f64);
+                    i = (i + 1.0f64);
                 }
             }
             lowest = i;
-            while qb_bool(qb_from_bool(rowstodelete[(lowest) as usize] == qb_false)) {
-                lowest = (lowest + 1_f64);
+            while rowstodelete[(lowest) as usize] == qb_false {
+                lowest = (lowest + 1.0f64);
             }
             deletechunk(__rt, __gs, &mut highest, &mut lowest);
         }
@@ -197,30 +197,30 @@ fn checkforfullrows(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn deletechunk(__rt: &mut Runtime, __gs: &mut GameState, highest: &mut f64, lowest: &mut f64) {
-    let mut flash: f64 = 0.0_f64;
-    let mut delaytime: f64 = 0.0_f64;
+    let mut flash: f64 = 0.0;
+    let mut delaytime: f64 = 0.0;
 
     let __sgx1_1 = wellx;
     let __sgy1_1 = (((*lowest) * ysize) + welly);
     let __sgx2_1 = (wellx + (wellwidth * xsize));
-    let __sgy2_1 = (((((*highest) + 1_f64) * ysize) + welly) - 1_f64);
+    let __sgy2_1 = (((((*highest) + 1.0f64) * ysize) + welly) - 1.0f64);
     __rt.get_sprite(__sgx1_1, __sgy1_1, __sgx2_1, __sgy2_1, &mut __gs.temp);
     __rt.play(&playclearrow);
-    flash = 1_f64;
-    let __for_to_flash: f64 = 3_f64;
-    let __for_step_flash: f64 = 1.0_f64;
+    flash = 1.0f64;
+    let __for_to_flash: f64 = 3.0f64;
+    let __for_step_flash: f64 = 1.0;
     while (__for_step_flash > 0.0 && flash <= __for_to_flash) || (__for_step_flash < 0.0 && flash >= __for_to_flash) {
         let __spx2 = wellx;
         let __spy2 = (((*lowest) * ysize) + welly);
         __rt.put_sprite(&__gs.temp, __spx2, __spy2, qbasic_runtime::PutAction::Preset);
-        delaytime = (qb_timer() + 0.02_f64);
-        while qb_bool(qb_from_bool(qb_timer() < delaytime)) {
+        delaytime = (qb_timer() + 0.02f64);
+        while qb_timer() < delaytime {
         }
         let __spx3 = wellx;
         let __spy3 = (((*lowest) * ysize) + welly);
         __rt.put_sprite(&__gs.temp, __spx3, __spy3, qbasic_runtime::PutAction::Pset);
-        delaytime = (qb_timer() + 0.02_f64);
-        while qb_bool(qb_from_bool(qb_timer() < delaytime)) {
+        delaytime = (qb_timer() + 0.02f64);
+        while qb_timer() < delaytime {
         }
         flash += __for_step_flash;
     }
@@ -230,94 +230,94 @@ fn deletechunk(__rt: &mut Runtime, __gs: &mut GameState, highest: &mut f64, lowe
     let __sgy2_4 = (((*lowest) * ysize) + welly);
     __rt.get_sprite(__sgx1_4, __sgy1_4, __sgx2_4, __sgy2_4, &mut __gs.temp);
     let __spx5 = wellx;
-    let __spy5 = (((((*highest) - (*lowest)) + 1_f64) * ysize) + welly);
+    let __spy5 = (((((*highest) - (*lowest)) + 1.0f64) * ysize) + welly);
     __rt.put_sprite(&__gs.temp, __spx5, __spy5, qbasic_runtime::PutAction::Pset);
-    __rt.line_box_fill(wellx,welly,(wellx + (wellwidth * xsize)),(welly + ((((*highest) - (*lowest)) + 1_f64) * ysize)),__gs.wellcolor);
+    __rt.line_box_fill(wellx,welly,(wellx + (wellwidth * xsize)),(welly + ((((*highest) - (*lowest)) + 1.0f64) * ysize)),__gs.wellcolor);
 }
 
 fn displaychanges(__rt: &mut Runtime, __gs: &mut GameState) {
     displaygametitle(__rt, __gs);
-    __rt.color(7_f64, None);
+    __rt.color(7.0f64, None);
     let mut __tmp_str6 = ("The following game characteristics can be easily changed from").to_string();
-    let mut __tmp_num7: f64 = 5_f64;
+    let mut __tmp_num7: f64 = 5.0f64;
     center(__rt, __gs, &mut __tmp_str6, &mut __tmp_num7);
     let mut __tmp_str8 = ("within the QuickBASIC Interpreter.  To change the values of  ").to_string();
-    let mut __tmp_num9: f64 = 6_f64;
+    let mut __tmp_num9: f64 = 6.0f64;
     center(__rt, __gs, &mut __tmp_str8, &mut __tmp_num9);
     let mut __tmp_str10 = ("these characteristics, locate the corresponding CONST or DATA").to_string();
-    let mut __tmp_num11: f64 = 7_f64;
+    let mut __tmp_num11: f64 = 7.0f64;
     center(__rt, __gs, &mut __tmp_str10, &mut __tmp_num11);
     let mut __tmp_str12 = ("statements in the source code and change their values, then  ").to_string();
-    let mut __tmp_num13: f64 = 8_f64;
+    let mut __tmp_num13: f64 = 8.0f64;
     center(__rt, __gs, &mut __tmp_str12, &mut __tmp_num13);
     let mut __tmp_str14 = ("restart the program (press Shift + F5).                      ").to_string();
-    let mut __tmp_num15: f64 = 9_f64;
+    let mut __tmp_num15: f64 = 9.0f64;
     center(__rt, __gs, &mut __tmp_str14, &mut __tmp_num15);
-    __rt.color(15_f64, None);
+    __rt.color(15.0f64, None);
     let mut __tmp_str16 = ("Block shapes                         ").to_string();
-    let mut __tmp_num17: f64 = 11_f64;
+    let mut __tmp_num17: f64 = 11.0f64;
     center(__rt, __gs, &mut __tmp_str16, &mut __tmp_num17);
     let mut __tmp_str18 = ("Block rotation                       ").to_string();
-    let mut __tmp_num19: f64 = 12_f64;
+    let mut __tmp_num19: f64 = 12.0f64;
     center(__rt, __gs, &mut __tmp_str18, &mut __tmp_num19);
     let mut __tmp_str20 = ("Number of different block shapes     ").to_string();
-    let mut __tmp_num21: f64 = 13_f64;
+    let mut __tmp_num21: f64 = 13.0f64;
     center(__rt, __gs, &mut __tmp_str20, &mut __tmp_num21);
     let mut __tmp_str22 = ("Score needed to advance to next level").to_string();
-    let mut __tmp_num23: f64 = 14_f64;
+    let mut __tmp_num23: f64 = 14.0f64;
     center(__rt, __gs, &mut __tmp_str22, &mut __tmp_num23);
     let mut __tmp_str24 = ("Width of the game well               ").to_string();
-    let mut __tmp_num25: f64 = 15_f64;
+    let mut __tmp_num25: f64 = 15.0f64;
     center(__rt, __gs, &mut __tmp_str24, &mut __tmp_num25);
     let mut __tmp_str26 = ("Height of the game well              ").to_string();
-    let mut __tmp_num27: f64 = 16_f64;
+    let mut __tmp_num27: f64 = 16.0f64;
     center(__rt, __gs, &mut __tmp_str26, &mut __tmp_num27);
     let mut __tmp_str28 = ("Songs played during game             ").to_string();
-    let mut __tmp_num29: f64 = 17_f64;
+    let mut __tmp_num29: f64 = 17.0f64;
     center(__rt, __gs, &mut __tmp_str28, &mut __tmp_num29);
-    __rt.color(7_f64, None);
+    __rt.color(7.0f64, None);
     let mut __tmp_str30 = ("The CONST statements and instructions on changing them are   ").to_string();
-    let mut __tmp_num31: f64 = 19_f64;
+    let mut __tmp_num31: f64 = 19.0f64;
     center(__rt, __gs, &mut __tmp_str30, &mut __tmp_num31);
     let mut __tmp_str32 = ("located at the beginning of the main program.                ").to_string();
-    let mut __tmp_num33: f64 = 20_f64;
+    let mut __tmp_num33: f64 = 20.0f64;
     center(__rt, __gs, &mut __tmp_str32, &mut __tmp_num33);
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+    while (__rt.inkey()).as_str() == "" {
     }
     __rt.cls(0u8);
 }
 
 fn displaygametitle(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
-    __rt.screen(0_f64);
-    __rt.color(4_f64, Some(0_f64));
+    __rt.screen(0.0f64);
+    __rt.color(4.0f64, Some(0.0f64));
     __rt.cls(0u8);
-    __gs.screenwidth = 80_f64;
-    __rt.locate(Some(1_f64), Some(2_f64), None);
-    __rt.print(&[qb_str(&(qb_chr(201_f64))), qb_str(&(qb_string(76_f64, 205_f64))), qb_str(&(qb_chr(187_f64)))]);
-    i = 2_f64;
-    let __for_to_i: f64 = 24_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __gs.screenwidth = 80.0f64;
+    __rt.locate(Some(1.0f64), Some(2.0f64), None);
+    __rt.print(&[qb_str(&(qb_chr(201.0f64))), qb_str(&(qb_string(76.0f64, 205.0f64))), qb_str(&(qb_chr(187.0f64)))]);
+    i = 2.0f64;
+    let __for_to_i: f64 = 24.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __rt.locate(Some(i), Some(2_f64), None);
-        let __tmp34 = __rt.tab(79_f64);
-        __rt.print(&[qb_str(&(qb_chr(186_f64))), __tmp34, qb_str(&(qb_chr(186_f64)))]);
+        __rt.locate(Some(i), Some(2.0f64), None);
+        let __tmp34 = __rt.tab(79.0f64);
+        __rt.print(&[qb_str(&(qb_chr(186.0f64))), __tmp34, qb_str(&(qb_chr(186.0f64)))]);
         i += __for_step_i;
     }
-    __rt.locate(Some(25_f64), Some(2_f64), None);
-    __rt.print(&[qb_str(&(qb_chr(200_f64))), qb_str(&(qb_string(76_f64, 205_f64))), qb_str(&(qb_chr(188_f64)))]);
-    __rt.color(0_f64, Some(4_f64));
+    __rt.locate(Some(25.0f64), Some(2.0f64), None);
+    __rt.print(&[qb_str(&(qb_chr(200.0f64))), qb_str(&(qb_string(76.0f64, 205.0f64))), qb_str(&(qb_chr(188.0f64)))]);
+    __rt.color(0.0f64, Some(4.0f64));
     let mut __tmp_str35 = ("      Microsoft      ").to_string();
-    let mut __tmp_num36: f64 = 1_f64;
+    let mut __tmp_num36: f64 = 1.0f64;
     center(__rt, __gs, &mut __tmp_str35, &mut __tmp_num36);
     let mut __tmp_str37 = ("    Q B L O C K S    ").to_string();
-    let mut __tmp_num38: f64 = 2_f64;
+    let mut __tmp_num38: f64 = 2.0f64;
     center(__rt, __gs, &mut __tmp_str37, &mut __tmp_num38);
     let mut __tmp_str39 = ("   Press any key to continue   ").to_string();
-    let mut __tmp_num40: f64 = 25_f64;
+    let mut __tmp_num40: f64 = 25.0f64;
     center(__rt, __gs, &mut __tmp_str39, &mut __tmp_num40);
-    __rt.color(7_f64, Some(0_f64));
+    __rt.color(7.0f64, Some(0.0f64));
 }
 
 fn displayintro(__rt: &mut Runtime, __gs: &mut GameState) {
@@ -326,58 +326,58 @@ fn displayintro(__rt: &mut Runtime, __gs: &mut GameState) {
     __rt.cls(0u8);
     displaygametitle(__rt, __gs);
     let mut __tmp_str41 = ("QBlocks challenges you to keep the well from filling.  Do this by").to_string();
-    let mut __tmp_num42: f64 = 5_f64;
+    let mut __tmp_num42: f64 = 5.0f64;
     center(__rt, __gs, &mut __tmp_str41, &mut __tmp_num42);
     let mut __tmp_str43 = ("completely filling rows with blocks, making the rows disappear.  ").to_string();
-    let mut __tmp_num44: f64 = 6_f64;
+    let mut __tmp_num44: f64 = 6.0f64;
     center(__rt, __gs, &mut __tmp_str43, &mut __tmp_num44);
     let mut __tmp_str45 = ("Move and rotate the falling shapes to get them into the best     ").to_string();
-    let mut __tmp_num46: f64 = 7_f64;
+    let mut __tmp_num46: f64 = 7.0f64;
     center(__rt, __gs, &mut __tmp_str45, &mut __tmp_num46);
     let mut __tmp_str47 = ("position.  The game will get faster as you score more points.    ").to_string();
-    let mut __tmp_num48: f64 = 8_f64;
+    let mut __tmp_num48: f64 = 8.0f64;
     center(__rt, __gs, &mut __tmp_str47, &mut __tmp_num48);
-    __rt.color(4_f64, None);
-    let mut __tmp_str49 = (qb_string(74_f64, 196_f64)).to_string();
-    let mut __tmp_num50: f64 = 11_f64;
+    __rt.color(4.0f64, None);
+    let mut __tmp_str49 = (qb_string(74.0f64, 196.0f64)).to_string();
+    let mut __tmp_num50: f64 = 11.0f64;
     center(__rt, __gs, &mut __tmp_str49, &mut __tmp_num50);
-    __rt.color(7_f64, None);
+    __rt.color(7.0f64, None);
     let mut __tmp_str51 = (" Game Controls ").to_string();
-    let mut __tmp_num52: f64 = 11_f64;
+    let mut __tmp_num52: f64 = 11.0f64;
     center(__rt, __gs, &mut __tmp_str51, &mut __tmp_num52);
     let mut __tmp_str53 = ("     General                             Block Control      ").to_string();
-    let mut __tmp_num54: f64 = 13_f64;
+    let mut __tmp_num54: f64 = 13.0f64;
     center(__rt, __gs, &mut __tmp_str53, &mut __tmp_num54);
     let mut __tmp_str55 = ("                                     (Rotate)").to_string();
-    let mut __tmp_num56: f64 = 15_f64;
+    let mut __tmp_num56: f64 = 15.0f64;
     center(__rt, __gs, &mut __tmp_str55, &mut __tmp_num56);
-    let mut __tmp_str57 = (format!("{}{}" ,format!("{}{}" ,"   P - Pause                                 ",qb_chr(24_f64))," (or 5)   ")).to_string();
-    let mut __tmp_num58: f64 = 16_f64;
+    let mut __tmp_str57 = (format!("{}{}" ,format!("{}{}" ,"   P - Pause                                 ",qb_chr(24.0f64))," (or 5)   ")).to_string();
+    let mut __tmp_num58: f64 = 16.0f64;
     center(__rt, __gs, &mut __tmp_str57, &mut __tmp_num58);
-    let mut __tmp_str59 = (format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,"      Q - Quit                         (Left) ",qb_chr(27_f64)),"   "),qb_chr(26_f64))," (Right)   ")).to_string();
-    let mut __tmp_num60: f64 = 17_f64;
+    let mut __tmp_str59 = (format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,"      Q - Quit                         (Left) ",qb_chr(27.0f64)),"   "),qb_chr(26.0f64))," (Right)   ")).to_string();
+    let mut __tmp_num60: f64 = 17.0f64;
     center(__rt, __gs, &mut __tmp_str59, &mut __tmp_num60);
-    let mut __tmp_str61 = (format!("{}{}" ,"                                    ",qb_chr(25_f64))).to_string();
-    let mut __tmp_num62: f64 = 18_f64;
+    let mut __tmp_str61 = (format!("{}{}" ,"                                    ",qb_chr(25.0f64))).to_string();
+    let mut __tmp_num62: f64 = 18.0f64;
     center(__rt, __gs, &mut __tmp_str61, &mut __tmp_num62);
     let mut __tmp_str63 = ("                                          (Drop)      ").to_string();
-    let mut __tmp_num64: f64 = 19_f64;
+    let mut __tmp_num64: f64 = 19.0f64;
     center(__rt, __gs, &mut __tmp_str63, &mut __tmp_num64);
     loop {
         let __tmp65 = __rt.inkey();
         kbd_s = (qb_ucase(&(__tmp65))).to_string();
-        if !qb_bool(qb_from_bool((kbd_s).as_str() == "")) { break; }
+        if !((kbd_s).as_str() == "") { break; }
     }
-    if qb_bool(qb_from_bool((kbd_s).as_str() == "Q")) {
+    if (kbd_s).as_str() == "Q" {
         __rt.cls(0u8);
-        __rt.locate(Some(10_f64), Some(30_f64), None);
+        __rt.locate(Some(10.0f64), Some(30.0f64), None);
         __rt.print(&[qb_str(&("Really quit? (Y/N)"))]);
         loop {
             let __tmp66 = __rt.inkey();
             kbd_s = (qb_ucase(&(__tmp66))).to_string();
-            if !qb_bool(qb_from_bool((kbd_s).as_str() == "")) { break; }
+            if !((kbd_s).as_str() == "") { break; }
         }
-        if qb_bool(qb_from_bool((kbd_s).as_str() == "Y")) {
+        if (kbd_s).as_str() == "Y" {
             __rt.cls(0u8);
             __rt.quit();
         }
@@ -385,99 +385,99 @@ fn displayintro(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn drawallshapes(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut b: f64 = 0.0_f64;
-    let mut colors__sc: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut count: f64 = 0.0_f64;
-    let mut shape: f64 = 0.0_f64;
-    let mut rtside: f64 = 0.0_f64;
-    let mut ltside: f64 = 0.0_f64;
-    let mut rotation: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut x1: f64 = 0.0_f64;
-    let mut x2: f64 = 0.0_f64;
-    let mut y1: f64 = 0.0_f64;
-    let mut y2: f64 = 0.0_f64;
+    let mut b: f64 = 0.0;
+    let colors__sc: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut count: f64 = 0.0;
+    let mut shape: f64 = 0.0;
+    let mut rtside: f64 = 0.0;
+    let mut ltside: f64 = 0.0;
+    let mut rotation: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut x1: f64 = 0.0;
+    let mut x2: f64 = 0.0;
+    let mut y1: f64 = 0.0;
+    let mut y2: f64 = 0.0;
 
     let mut b__x: f64 = Default::default();
     let mut b__y: f64 = Default::default();
     let mut b__style: f64 = Default::default();
     let mut b__rotation: f64 = Default::default();
     __rt.screen(__gs.screenmode);
-    if qb_bool(qb_from_bool(__gs.screenmode == 7_f64)) {
-        let mut colors: Vec<f64> = vec![Default::default(); (15_f64+1.0) as usize];
+    if __gs.screenmode == 7.0f64 {
+        let colors: Vec<f64> = vec![Default::default(); (15.0f64+1.0) as usize];
         __rt.palette_using(&colors[(0) as usize..]);
-        i = 1_f64;
+        i = 1.0f64;
         let __for_to_i: f64 = numstyles;
-        let __for_step_i: f64 = 1.0_f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __gs.blockcolor[(i) as usize] = (qb_mod((i - 1_f64), 7_f64) + 1_f64);
+            __gs.blockcolor[(i) as usize] = (qb_mod((i - 1.0f64), 7.0f64) + 1.0f64);
             i += __for_step_i;
         }
     } else {
-        i = 1_f64;
+        i = 1.0f64;
         let __for_to_i: f64 = numstyles;
-        let __for_step_i: f64 = 1.0_f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __gs.blockcolor[(i) as usize] = (qb_mod((i - 1_f64), 3_f64) + 1_f64);
+            __gs.blockcolor[(i) as usize] = (qb_mod((i - 1.0f64), 3.0f64) + 1.0f64);
             i += __for_step_i;
         }
     }
     __rt.cls(0u8);
-    count = 0_f64;
-    shape = 1_f64;
+    count = 0.0f64;
+    shape = 1.0f64;
     let __for_to_shape: f64 = numstyles;
-    let __for_step_shape: f64 = 1.0_f64;
+    let __for_step_shape: f64 = 1.0;
     while (__for_step_shape > 0.0 && shape <= __for_to_shape) || (__for_step_shape < 0.0 && shape >= __for_to_shape) {
-        rtside = 4_f64;
+        rtside = 4.0f64;
         loop {
-            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[((rtside - 1_f64)) as usize][(0_f64) as usize][(shape) as usize] == 1_f64), qb_from_bool(__gs.blockshape[((rtside - 1_f64)) as usize][(1_f64) as usize][(shape) as usize] == 1_f64))) {
+            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[((rtside - 1.0f64)) as usize][(0.0f64) as usize][(shape) as usize] == 1.0f64), qb_from_bool(__gs.blockshape[((rtside - 1.0f64)) as usize][(1.0f64) as usize][(shape) as usize] == 1.0f64))) {
                 break; // EXIT DO
             }
-            rtside = (rtside - 1_f64);
-            if qb_bool(qb_from_bool(rtside == 1_f64)) { break; }
+            rtside = (rtside - 1.0f64);
+            if rtside == 1.0f64 { break; }
         }
-        ltside = 0_f64;
+        ltside = 0.0f64;
         loop {
-            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[(ltside) as usize][(0_f64) as usize][(shape) as usize] == 1_f64), qb_from_bool(__gs.blockshape[(ltside) as usize][(1_f64) as usize][(shape) as usize] == 1_f64))) {
+            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[(ltside) as usize][(0.0f64) as usize][(shape) as usize] == 1.0f64), qb_from_bool(__gs.blockshape[(ltside) as usize][(1.0f64) as usize][(shape) as usize] == 1.0f64))) {
                 break; // EXIT DO
             }
-            ltside = (ltside + 1_f64);
-            if qb_bool(qb_from_bool(ltside == 3_f64)) { break; }
+            ltside = (ltside + 1.0f64);
+            if ltside == 3.0f64 { break; }
         }
-        rotation = 0_f64;
-        let __for_to_rotation: f64 = 3_f64;
-        let __for_step_rotation: f64 = 1.0_f64;
+        rotation = 0.0f64;
+        let __for_to_rotation: f64 = 3.0f64;
+        let __for_step_rotation: f64 = 1.0;
         while (__for_step_rotation > 0.0 && rotation <= __for_to_rotation) || (__for_step_rotation < 0.0 && rotation >= __for_to_rotation) {
-            b__x = ((rotation * 4_f64) + 2_f64);
-            b__y = (count + 2_f64);
+            b__x = ((rotation * 4.0f64) + 2.0f64);
+            b__y = (count + 2.0f64);
             b__rotation = rotation;
             b__style = shape;
             show(__rt, __gs, &mut b__x, &mut b__y, &mut b__style, &mut b__rotation);
             x = b__x;
             y = b__y;
             let __sel = rotation;
-            if __sel == 0_f64 {
+            if __sel == 0.0f64 {
                 x1 = x;
                 x2 = (x + rtside);
                 y1 = y;
-                y2 = (y + 2_f64);
-            } else if __sel == 1_f64 {
-                x1 = (x + 1_f64);
-                x2 = (x + 3_f64);
-                y1 = (y - 1_f64);
-                y2 = ((y + rtside) - 1_f64);
-            } else if __sel == 2_f64 {
+                y2 = (y + 2.0f64);
+            } else if __sel == 1.0f64 {
+                x1 = (x + 1.0f64);
+                x2 = (x + 3.0f64);
+                y1 = (y - 1.0f64);
+                y2 = ((y + rtside) - 1.0f64);
+            } else if __sel == 2.0f64 {
                 x1 = x;
-                x2 = ((x + 4_f64) - ltside);
+                x2 = ((x + 4.0f64) - ltside);
                 y1 = y;
-                y2 = (y + 2_f64);
-            } else if __sel == 3_f64 {
-                x1 = (x + 1_f64);
-                x2 = (x + 3_f64);
-                y1 = (y - 1_f64);
-                y2 = ((y + 3_f64) - ltside);
+                y2 = (y + 2.0f64);
+            } else if __sel == 3.0f64 {
+                x1 = (x + 1.0f64);
+                x2 = (x + 3.0f64);
+                y1 = (y - 1.0f64);
+                y2 = ((y + 3.0f64) - ltside);
             }
             let __sgx1_67 = (x1 * xsize);
             let __sgy1_67 = (y1 * ysize);
@@ -486,127 +486,128 @@ fn drawallshapes(__rt: &mut Runtime, __gs: &mut GameState) {
             __rt.get_sprite(__sgx1_67, __sgy1_67, __sgx2_67, __sgy2_67, &mut __gs.blockimage);
             rotation += __for_step_rotation;
         }
-        count = (count + 5_f64);
-        if qb_bool(qb_from_bool(count == 20_f64)) {
+        count = (count + 5.0f64);
+        if count == 20.0f64 {
             __rt.cls(0u8);
-            count = 0_f64;
+            count = 0.0f64;
         }
         shape += __for_step_shape;
     }
     __rt.cls(0u8);
-    if qb_bool(qb_from_bool(__gs.screenmode == 7_f64)) {
-        __rt.palette(6_f64, 14_f64);
-        __rt.palette(14_f64, 15_f64);
+    if __gs.screenmode == 7.0f64 {
+        __rt.palette_reset();
+        __rt.palette(6.0f64, 14.0f64);
+        __rt.palette(14.0f64, 15.0f64);
     }
 }
 
 fn drawblock(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, y: &mut f64, fillcolor: &mut f64) {
-    __rt.line_box_fill((((*x) * xsize) + 2_f64),(((*y) * ysize) + 2_f64),((((*x) + 1_f64) * xsize) - 2_f64),((((*y) + 1_f64) * ysize) - 2_f64),(*fillcolor));
-    __rt.line((((*x) * xsize) + 1_f64),(((*y) * ysize) + 1_f64),((((*x) + 1_f64) * xsize) - 1_f64),(((*y) * ysize) + 1_f64),((*fillcolor) + 8_f64));
-    __rt.line((((*x) * xsize) + 1_f64),(((*y) * ysize) + 1_f64),(((*x) * xsize) + 1_f64),((((*y) + 1_f64) * ysize) - 1_f64),((*fillcolor) + 8_f64));
+    __rt.line_box_fill((((*x) * xsize) + 2.0f64),(((*y) * ysize) + 2.0f64),((((*x) + 1.0f64) * xsize) - 2.0f64),((((*y) + 1.0f64) * ysize) - 2.0f64),(*fillcolor));
+    __rt.line((((*x) * xsize) + 1.0f64),(((*y) * ysize) + 1.0f64),((((*x) + 1.0f64) * xsize) - 1.0f64),(((*y) * ysize) + 1.0f64),((*fillcolor) + 8.0f64));
+    __rt.line((((*x) * xsize) + 1.0f64),(((*y) * ysize) + 1.0f64),(((*x) * xsize) + 1.0f64),((((*y) + 1.0f64) * ysize) - 1.0f64),((*fillcolor) + 8.0f64));
 }
 
 fn drawpattern(__rt: &mut Runtime, __gs: &mut GameState, pattern: &mut f64) {
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut h: f64 = 0.0_f64;
-    let mut v: f64 = 0.0_f64;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut j: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut h: f64 = 0.0;
+    let mut v: f64 = 0.0;
 
     __rt.cls(0u8);
-    x = 1_f64;
-    y = 1_f64;
-    let mut temp2: Vec<f64> = vec![Default::default(); (215_f64+1.0) as usize];
+    x = 1.0f64;
+    y = 1.0f64;
+    let mut temp2: Vec<f64> = vec![Default::default(); (215.0f64+1.0) as usize];
     let __sel = (*pattern);
-    if __sel == 0_f64 {
-        j = (y + 21_f64);
+    if __sel == 0.0f64 {
+        j = (y + 21.0f64);
         i = x;
-        let __for_to_i: f64 = (x + 27_f64);
-        let __for_step_i: f64 = 3_f64;
+        let __for_to_i: f64 = (x + 27.0f64);
+        let __for_step_i: f64 = 3.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            j = (j - 2_f64);
-            __rt.line_box_fill(i,j,i,(y + 19_f64),12_f64);
+            j = (j - 2.0f64);
+            __rt.line_box_fill(i,j,i,(y + 19.0f64),12.0f64);
             i += __for_step_i;
         }
-        __rt.line_box(x,y,(x + 30_f64),(y + 19_f64),4_f64);
-        __rt.line_box((x + 1_f64),(y + 1_f64),(x + 31_f64),(y + 18_f64),4_f64);
-    } else if __sel == 1_f64 {
-        __rt.line_box_fill(x,y,(x + 8_f64),(y + 12_f64),1_f64);
-        __rt.line_box_fill((x + 9_f64),(y + 8_f64),(x + 24_f64),(y + 20_f64),2_f64);
-        __rt.line_box_fill((x + 25_f64),y,(x + 32_f64),(y + 12_f64),3_f64);
-    } else if __sel == 2_f64 {
-        __rt.line_box(x,y,(x + 29_f64),(y + 18_f64),((x / 32_f64) + 1_f64));
-        __rt.line_box((x + 1_f64),(y + 1_f64),(x + 28_f64),(y + 17_f64),((x / 32_f64) + 2_f64));
-    } else if __sel == 3_f64 {
-        i = 0_f64;
-        let __for_to_i: f64 = 9_f64;
-        let __for_step_i: f64 = 2_f64;
+        __rt.line_box(x,y,(x + 30.0f64),(y + 19.0f64),4.0f64);
+        __rt.line_box((x + 1.0f64),(y + 1.0f64),(x + 31.0f64),(y + 18.0f64),4.0f64);
+    } else if __sel == 1.0f64 {
+        __rt.line_box_fill(x,y,(x + 8.0f64),(y + 12.0f64),1.0f64);
+        __rt.line_box_fill((x + 9.0f64),(y + 8.0f64),(x + 24.0f64),(y + 20.0f64),2.0f64);
+        __rt.line_box_fill((x + 25.0f64),y,(x + 32.0f64),(y + 12.0f64),3.0f64);
+    } else if __sel == 2.0f64 {
+        __rt.line_box(x,y,(x + 29.0f64),(y + 18.0f64),((x / 32.0f64) + 1.0f64));
+        __rt.line_box((x + 1.0f64),(y + 1.0f64),(x + 28.0f64),(y + 17.0f64),((x / 32.0f64) + 2.0f64));
+    } else if __sel == 3.0f64 {
+        i = 0.0f64;
+        let __for_to_i: f64 = 9.0f64;
+        let __for_step_i: f64 = 2.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __rt.line_box((x + i),(y + i),((x + 29_f64) - i),((y + 18_f64) - i),i);
+            __rt.line_box((x + i),(y + i),((x + 29.0f64) - i),((y + 18.0f64) - i),i);
             i += __for_step_i;
         }
-    } else if __sel == 4_f64 {
-        j = 0_f64;
-        i = 1_f64;
-        let __for_to_i: f64 = 30_f64;
-        let __for_step_i: f64 = 3_f64;
+    } else if __sel == 4.0f64 {
+        j = 0.0f64;
+        i = 1.0f64;
+        let __for_to_i: f64 = 30.0f64;
+        let __for_step_i: f64 = 3.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __rt.line((x + i),(y + j),((x + 30_f64) - i),(y + j),i);
-            __rt.line((x + i),((y + 19_f64) - j),((x + 30_f64) - i),((y + 19_f64) - j),i);
-            j = (j + 2_f64);
+            __rt.line((x + i),(y + j),((x + 30.0f64) - i),(y + j),i);
+            __rt.line((x + i),((y + 19.0f64) - j),((x + 30.0f64) - i),((y + 19.0f64) - j),i);
+            j = (j + 2.0f64);
             i += __for_step_i;
         }
-    } else if __sel == 5_f64 {
-        __rt.line_box_fill(x,y,(x + 29_f64),(y + 4_f64),1_f64);
-        __rt.line_box_fill(x,y,(x + 4_f64),(y + 18_f64),1_f64);
-        __rt.line_box_fill((x + 7_f64),(y + 7_f64),(x + 29_f64),(y + 11_f64),5_f64);
-        __rt.line_box_fill((x + 7_f64),(y + 7_f64),(x + 11_f64),(y + 18_f64),5_f64);
-        __rt.line_box_fill((x + 14_f64),(y + 14_f64),(x + 29_f64),(y + 18_f64),4_f64);
-    } else if __sel == 6_f64 {
-        __rt.line((x + 15_f64),y,(x + 17_f64),(y + 19_f64),1_f64);
-        __rt.line(x,(y + 9_f64),(x + 31_f64),(y + 11_f64),2_f64);
-        __rt.line(x,(y + 1_f64),(x + 31_f64),(y + 18_f64),9_f64);
-        __rt.line((x + 30_f64),y,(x + 1_f64),(y + 19_f64),10_f64);
-    } else if __sel == 7_f64 {
-        i = 1_f64;
-        let __for_to_i: f64 = 6_f64;
-        let __for_step_i: f64 = 1.0_f64;
+    } else if __sel == 5.0f64 {
+        __rt.line_box_fill(x,y,(x + 29.0f64),(y + 4.0f64),1.0f64);
+        __rt.line_box_fill(x,y,(x + 4.0f64),(y + 18.0f64),1.0f64);
+        __rt.line_box_fill((x + 7.0f64),(y + 7.0f64),(x + 29.0f64),(y + 11.0f64),5.0f64);
+        __rt.line_box_fill((x + 7.0f64),(y + 7.0f64),(x + 11.0f64),(y + 18.0f64),5.0f64);
+        __rt.line_box_fill((x + 14.0f64),(y + 14.0f64),(x + 29.0f64),(y + 18.0f64),4.0f64);
+    } else if __sel == 6.0f64 {
+        __rt.line((x + 15.0f64),y,(x + 17.0f64),(y + 19.0f64),1.0f64);
+        __rt.line(x,(y + 9.0f64),(x + 31.0f64),(y + 11.0f64),2.0f64);
+        __rt.line(x,(y + 1.0f64),(x + 31.0f64),(y + 18.0f64),9.0f64);
+        __rt.line((x + 30.0f64),y,(x + 1.0f64),(y + 19.0f64),10.0f64);
+    } else if __sel == 7.0f64 {
+        i = 1.0f64;
+        let __for_to_i: f64 = 6.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __rt.circle((x + 16_f64), (y + 10_f64), i, i);
+            __rt.circle((x + 16.0f64), (y + 10.0f64), i, i);
             i += __for_step_i;
         }
-    } else if __sel == 8_f64 {
+    } else if __sel == 8.0f64 {
         i = x;
-        let __for_to_i: f64 = (x + 30_f64);
-        let __for_step_i: f64 = 10_f64;
+        let __for_to_i: f64 = (x + 30.0f64);
+        let __for_step_i: f64 = 10.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            __rt.circle(i, (y + 9_f64), 10_f64, ((y / 20_f64) + 1_f64));
+            __rt.circle(i, (y + 9.0f64), 10.0f64, ((y / 20.0f64) + 1.0f64));
             i += __for_step_i;
         }
-    } else if __sel == 9_f64 {
-        __rt.line((x + 1_f64),y,(x + 1_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 1_f64),y,(x + 12_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 1_f64),(y + 18_f64),(x + 12_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 30_f64),y,(x + 30_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 30_f64),y,(x + 19_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 30_f64),(y + 18_f64),(x + 19_f64),(y + 18_f64),3_f64);
-        __rt.line((x + 4_f64),y,(x + 26_f64),y,1_f64);
-        __rt.line((x + 4_f64),y,(x + 15_f64),(y + 18_f64),1_f64);
-        __rt.line((x + 26_f64),y,(x + 15_f64),(y + 18_f64),1_f64);
+    } else if __sel == 9.0f64 {
+        __rt.line((x + 1.0f64),y,(x + 1.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 1.0f64),y,(x + 12.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 1.0f64),(y + 18.0f64),(x + 12.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 30.0f64),y,(x + 30.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 30.0f64),y,(x + 19.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 30.0f64),(y + 18.0f64),(x + 19.0f64),(y + 18.0f64),3.0f64);
+        __rt.line((x + 4.0f64),y,(x + 26.0f64),y,1.0f64);
+        __rt.line((x + 4.0f64),y,(x + 15.0f64),(y + 18.0f64),1.0f64);
+        __rt.line((x + 26.0f64),y,(x + 15.0f64),(y + 18.0f64),1.0f64);
     }
-    let __sgx1_68 = 0_f64;
-    let __sgy1_68 = 0_f64;
-    let __sgx2_68 = 31_f64;
-    let __sgy2_68 = 19_f64;
+    let __sgx1_68 = 0.0f64;
+    let __sgy1_68 = 0.0f64;
+    let __sgx2_68 = 31.0f64;
+    let __sgy2_68 = 19.0f64;
     __rt.get_sprite(__sgx1_68, __sgy1_68, __sgx2_68, __sgy2_68, &mut temp2);
-    h = 0_f64;
-    let __for_to_h: f64 = 319_f64;
-    let __for_step_h: f64 = 32_f64;
+    h = 0.0f64;
+    let __for_to_h: f64 = 319.0f64;
+    let __for_step_h: f64 = 32.0f64;
     while (__for_step_h > 0.0 && h <= __for_to_h) || (__for_step_h < 0.0 && h >= __for_to_h) {
-        v = 0_f64;
-        let __for_to_v: f64 = 199_f64;
-        let __for_step_v: f64 = 20_f64;
+        v = 0.0f64;
+        let __for_to_v: f64 = 199.0f64;
+        let __for_step_v: f64 = 20.0f64;
         while (__for_step_v > 0.0 && v <= __for_to_v) || (__for_step_v < 0.0 && v >= __for_to_v) {
             let __spx69 = h;
             let __spy69 = v;
@@ -619,34 +620,34 @@ fn drawpattern(__rt: &mut Runtime, __gs: &mut GameState, pattern: &mut f64) {
 
 fn drawplayingfield(__rt: &mut Runtime, __gs: &mut GameState) {
     let __sel = __gs.screenmode;
-    if __sel == 7_f64 {
+    if __sel == 7.0f64 {
         __gs.wellcolor = wellcolor7;
         __gs.bordercolor = bordercolor7;
     } else {
         __gs.wellcolor = wellcolor1;
         __gs.bordercolor = bordercolor1;
     }
-    __gs.screenwidth = 40_f64;
+    __gs.screenwidth = 40.0f64;
     let mut __tmp_gs70: f64 = __gs.level;
     drawpattern(__rt, __gs, &mut __tmp_gs70);
     __gs.level = __tmp_gs70;
-    __rt.line_box_fill((wellx - 1_f64),(welly - 5_f64),((wellx + (wellwidth * xsize)) + 1_f64),((welly + (wellheight * ysize)) + 1_f64),__gs.wellcolor);
-    __rt.line_box((wellx - 1_f64),(welly - 5_f64),((wellx + (wellwidth * xsize)) + 1_f64),((welly + (wellheight * ysize)) + 1_f64),__gs.bordercolor);
-    __rt.line_box_fill(xsize,(welly - 5_f64),(xsize * 8_f64),(welly + 12_f64),__gs.wellcolor);
-    __rt.line_box(xsize,(welly - 5_f64),(xsize * 8_f64),(welly + 12_f64),__gs.bordercolor);
-    __rt.line_box_fill(xsize,(welly + 20_f64),(wellx - (2_f64 * xsize)),78_f64,__gs.wellcolor);
-    __rt.line_box(xsize,(welly + 20_f64),(wellx - (2_f64 * xsize)),78_f64,__gs.bordercolor);
+    __rt.line_box_fill((wellx - 1.0f64),(welly - 5.0f64),((wellx + (wellwidth * xsize)) + 1.0f64),((welly + (wellheight * ysize)) + 1.0f64),__gs.wellcolor);
+    __rt.line_box((wellx - 1.0f64),(welly - 5.0f64),((wellx + (wellwidth * xsize)) + 1.0f64),((welly + (wellheight * ysize)) + 1.0f64),__gs.bordercolor);
+    __rt.line_box_fill(xsize,(welly - 5.0f64),(xsize * 8.0f64),(welly + 12.0f64),__gs.wellcolor);
+    __rt.line_box(xsize,(welly - 5.0f64),(xsize * 8.0f64),(welly + 12.0f64),__gs.bordercolor);
+    __rt.line_box_fill(xsize,(welly + 20.0f64),(wellx - (2.0f64 * xsize)),78.0f64,__gs.wellcolor);
+    __rt.line_box(xsize,(welly + 20.0f64),(wellx - (2.0f64 * xsize)),78.0f64,__gs.bordercolor);
     makeinfobox(__rt, __gs);
-    __rt.color(12_f64, None);
-    __rt.locate(Some(3_f64), Some(5_f64), None);
+    __rt.color(12.0f64, None);
+    __rt.locate(Some(3.0f64), Some(5.0f64), None);
     __rt.println(&[qb_str(&("QBLOCKS"))]);
     __rt.color(__gs.bordercolor, None);
-    __rt.locate(Some(6_f64), Some(4_f64), None);
+    __rt.locate(Some(6.0f64), Some(4.0f64), None);
     __rt.print(&[qb_str(&("Score:"))]);
-    __rt.locate(Some(7_f64), Some(4_f64), None);
+    __rt.locate(Some(7.0f64), Some(4.0f64), None);
     let __pu71 = qb_print_using(&("#,###,###"), &[QbVal::Num(__gs.score)]);
     __rt.println(&[__pu71]);
-    __rt.locate(Some(9_f64), Some(4_f64), None);
+    __rt.locate(Some(9.0f64), Some(4.0f64), None);
     let __pu72 = qb_print_using(&("Level: ##"), &[QbVal::Num(__gs.level)]);
     __rt.println(&[__pu72]);
 }
@@ -655,53 +656,53 @@ fn initscreen(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
 
     drawplayingfield(__rt, __gs);
-    __rt.color(12_f64, None);
-    __rt.locate(Some(14_f64), Some(5_f64), None);
+    __rt.color(12.0f64, None);
+    __rt.locate(Some(14.0f64), Some(5.0f64), None);
     __rt.print(&[qb_str(&("Select"))]);
-    __rt.locate(Some(16_f64), Some(5_f64), None);
+    __rt.locate(Some(16.0f64), Some(5.0f64), None);
     __rt.print(&[qb_str(&("start"))]);
-    __rt.locate(Some(18_f64), Some(5_f64), None);
+    __rt.locate(Some(18.0f64), Some(5.0f64), None);
     __rt.print(&[qb_str(&("level?"))]);
-    __rt.locate(Some(20_f64), Some(5_f64), None);
+    __rt.locate(Some(20.0f64), Some(5.0f64), None);
     __rt.print(&[qb_str(&("(0 - 9)"))]);
     __rt.color(__gs.bordercolor, None);
     __gs.level = qb_true;
     loop {
         let __tmp73 = __rt.inkey();
         a_s = (qb_ucase(&(__tmp73))).to_string();
-        if !qb_bool(qb_and(qb_or(qb_from_bool((a_s).as_str() > "9"), qb_from_bool((a_s).as_str() < "0")), qb_from_bool((a_s).as_str() != "Q"))) { break; }
+        if !(qb_bool(qb_and(qb_or(qb_from_bool((a_s).as_str() > "9"), qb_from_bool((a_s).as_str() < "0")), qb_from_bool((a_s).as_str() != "Q")))) { break; }
     }
-    if qb_bool(qb_from_bool((a_s).as_str() == "Q")) {
+    if (a_s).as_str() == "Q" {
         return; // EXIT SUB
     } else {
         __gs.level = qb_val(&(a_s));
     }
-    if qb_bool(qb_from_bool(__gs.level > 0_f64)) {
+    if __gs.level > 0.0f64 {
         drawplayingfield(__rt, __gs);
     }
     redrawcontrols(__rt, __gs);
 }
 
 fn makeinfobox(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.line_box_fill((wellx - (9_f64 * xsize)),90_f64,(wellx - (2_f64 * xsize)),185_f64,__gs.wellcolor);
-    __rt.line_box((wellx - (9_f64 * xsize)),90_f64,(wellx - (2_f64 * xsize)),185_f64,__gs.bordercolor);
+    __rt.line_box_fill((wellx - (9.0f64 * xsize)),90.0f64,(wellx - (2.0f64 * xsize)),185.0f64,__gs.wellcolor);
+    __rt.line_box((wellx - (9.0f64 * xsize)),90.0f64,(wellx - (2.0f64 * xsize)),185.0f64,__gs.bordercolor);
 }
 
 fn newblock(__rt: &mut Runtime, __gs: &mut GameState) {
-    let __tmp74 = __rt.rnd();
-    __gs.curblock__style = (qb_int((__tmp74 * numstyles)) + 1_f64);
-    __gs.curblock__x = (qb_idiv(wellwidth, 2_f64) - 1_f64);
-    __gs.curblock__y = 0_f64;
-    __gs.curblock__rotation = 0_f64;
+    let __tmp74 = __rt.rnd_arg(1.0f64);
+    __gs.curblock__style = (qb_int((__tmp74 * numstyles)) + 1.0f64);
+    __gs.curblock__x = (qb_idiv(wellwidth, 2.0f64) - 1.0f64);
+    __gs.curblock__y = 0.0f64;
+    __gs.curblock__rotation = 0.0f64;
     __rt.play(&playnewblock);
 }
 
 fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
-    let mut donewiththisblock: f64 = 0.0_f64;
-    let mut validevent: f64 = 0.0_f64;
+    let mut donewiththisblock: f64 = 0.0;
+    let mut validevent: f64 = 0.0;
     let mut ans_s: String = String::new();
-    let mut ans: f64 = 0.0_f64;
+    let mut ans: f64 = 0.0;
 
     loop {
         a_s = ("").to_string();
@@ -710,19 +711,19 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
                 *__er1 = Default::default();
             }
         }
-        __gs.score = 0_f64;
-        __gs.level = 0_f64;
+        __gs.score = 0.0f64;
+        __gs.level = 0.0f64;
         __gs.prevscore = (basescore - nextlevel);
         __gs.gametiltscore = wingame;
         initscreen(__rt, __gs);
-        if qb_bool(qb_from_bool(__gs.level == (-1_f64))) {
+        if __gs.level == (-1.0f64) {
             return; // EXIT SUB
         }
-        __gs.targettime = (qb_timer() + (1_f64 / (__gs.level + 1_f64)));
+        __gs.targettime = (qb_timer() + (1.0f64 / (__gs.level + 1.0f64)));
         loop {
             donewiththisblock = qb_false;
             newblock(__rt, __gs);
-            if qb_bool(qb_from_bool(checkfit(__rt, __gs) == qb_false)) {
+            if checkfit(__rt, __gs) == qb_false {
                 break; // EXIT DO
             }
             let mut __tmp_gst75 = __gs.curblock__x.clone();
@@ -747,59 +748,59 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
                         makeinfobox(__rt, __gs);
                         let __sel = ans_s.clone();
                         if __sel == pause {
-                            let __sf80: f64 = 1100_f64;
-                            let __sd80: f64 = 0.75_f64;
+                            let __sf80: f64 = 1100.0f64;
+                            let __sd80: f64 = 0.75f64;
                             __rt.sound(__sf80, __sd80);
-                            __rt.locate(Some(16_f64), Some(6_f64), None);
+                            __rt.locate(Some(16.0f64), Some(6.0f64), None);
                             __rt.print(&[qb_str(&("GAME"))]);
-                            __rt.locate(Some(18_f64), Some(5_f64), None);
+                            __rt.locate(Some(18.0f64), Some(5.0f64), None);
                             __rt.print(&[qb_str(&("PAUSED"))]);
-                            while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+                            while (__rt.inkey()).as_str() == "" {
                             }
                         } else if __sel == quit {
-                            let __sf81: f64 = 1600_f64;
-                            let __sd81: f64 = 1_f64;
+                            let __sf81: f64 = 1600.0f64;
+                            let __sd81: f64 = 1.0f64;
                             __rt.sound(__sf81, __sd81);
-                            let __sf82: f64 = 1000_f64;
-                            let __sd82: f64 = 0.75_f64;
+                            let __sf82: f64 = 1000.0f64;
+                            let __sd82: f64 = 0.75f64;
                             __rt.sound(__sf82, __sd82);
-                            __rt.locate(Some(15_f64), Some(5_f64), None);
+                            __rt.locate(Some(15.0f64), Some(5.0f64), None);
                             __rt.print(&[qb_str(&("Really"))]);
-                            __rt.locate(Some(17_f64), Some(6_f64), None);
+                            __rt.locate(Some(17.0f64), Some(6.0f64), None);
                             __rt.print(&[qb_str(&("quit?"))]);
-                            __rt.locate(Some(19_f64), Some(6_f64), None);
+                            __rt.locate(Some(19.0f64), Some(6.0f64), None);
                             __rt.print(&[qb_str(&("(Y/N)"))]);
                             loop {
                                 let __tmp83 = __rt.inkey();
                                 a_s = (qb_ucase(&(__tmp83))).to_string();
-                                if qb_bool(qb_from_bool((a_s).as_str() != "")) { break; }
+                                if (a_s).as_str() != "" { break; }
                             }
-                            if qb_bool(qb_from_bool((a_s).as_str() == "Y")) {
+                            if (a_s).as_str() == "Y" {
                                 return; // EXIT SUB
                             }
                         }
                         redrawcontrols(__rt, __gs);
                     } else {
-                        ans = qb_asc(&(qb_right(&(format!("{}{}" ,qb_chr(0_f64),ans_s)), 1_f64)));
+                        ans = qb_asc(&(qb_right(&(format!("{}{}" ,qb_chr(0.0f64),ans_s)), 1.0f64)));
                         let __sel = ans;
                         if __sel == downarrow || __sel == downarrow2 || __sel == spacebar {
                             loop {
-                                __gs.curblock__y = (__gs.curblock__y + 1_f64);
-                                if !qb_bool(qb_from_bool(checkfit(__rt, __gs) == qb_true)) { break; }
+                                __gs.curblock__y = (__gs.curblock__y + 1.0f64);
+                                if !(checkfit(__rt, __gs) == qb_true) { break; }
                             }
-                            __gs.curblock__y = (__gs.curblock__y - 1_f64);
-                            __gs.targettime = (qb_timer() - 1_f64);
+                            __gs.curblock__y = (__gs.curblock__y - 1.0f64);
+                            __gs.targettime = (qb_timer() - 1.0f64);
                         } else if __sel == rightarrow || __sel == rightarrow2 {
-                            __gs.curblock__x = (__gs.curblock__x + 1_f64);
+                            __gs.curblock__x = (__gs.curblock__x + 1.0f64);
                         } else if __sel == leftarrow || __sel == leftarrow2 {
-                            __gs.curblock__x = (__gs.curblock__x - 1_f64);
+                            __gs.curblock__x = (__gs.curblock__x - 1.0f64);
                         } else if __sel == uparrow || __sel == uparrow2 || __sel == uparrow3 {
-                            __gs.curblock__rotation = qb_mod((__gs.curblock__rotation + rotatedir), 4_f64);
+                            __gs.curblock__rotation = qb_mod((__gs.curblock__rotation + rotatedir), 4.0f64);
                         } else {
                             validevent = qb_false;
                         }
-                        if qb_bool(qb_from_bool(validevent == qb_true)) {
-                            if qb_bool(qb_from_bool(checkfit(__rt, __gs) == qb_true)) {
+                        if validevent == qb_true {
+                            if checkfit(__rt, __gs) == qb_true {
                                 let mut __tmp_gst84 = __gs.oldblock__x.clone();
                                 let mut __tmp_gst85 = __gs.oldblock__y.clone();
                                 let mut __tmp_gst86 = __gs.oldblock__style.clone();
@@ -830,11 +831,11 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
                             }
                         }
                     }
-                    if qb_bool(qb_from_bool(qb_timer() >= __gs.targettime)) { break; }
+                    if qb_timer() >= __gs.targettime { break; }
                 }
-                __gs.targettime = (qb_timer() + (1_f64 / (__gs.level + 1_f64)));
-                __gs.curblock__y = (__gs.curblock__y + 1_f64);
-                if qb_bool(qb_from_bool(checkfit(__rt, __gs) == qb_false)) {
+                __gs.targettime = (qb_timer() + (1.0f64 / (__gs.level + 1.0f64)));
+                __gs.curblock__y = (__gs.curblock__y + 1.0f64);
+                if checkfit(__rt, __gs) == qb_false {
                     donewiththisblock = qb_true;
                     __gs.curblock__x = __gs.oldblock__x.clone();
                     __gs.curblock__y = __gs.oldblock__y.clone();
@@ -868,43 +869,43 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
             addblocktowell(__rt, __gs);
             checkforfullrows(__rt, __gs);
             updatescoring(__rt, __gs);
-            if qb_bool(qb_from_bool(__gs.score >= __gs.gametiltscore)) {
+            if __gs.score >= __gs.gametiltscore {
                 __rt.play(&playwingame);
                 makeinfobox(__rt, __gs);
-                __rt.locate(Some(13_f64), Some(5_f64), None);
+                __rt.locate(Some(13.0f64), Some(5.0f64), None);
                 let __pu100 = qb_print_using(&("#######"), &[QbVal::Num(__gs.score)]);
                 __rt.println(&[__pu100]);
                 __rt.play(&playwingame);
-                if qb_bool(qb_from_bool(__gs.gametiltscore == tiltvalue)) {
-                    __rt.locate(Some(15_f64), Some(4_f64), None);
+                if __gs.gametiltscore == tiltvalue {
+                    __rt.locate(Some(15.0f64), Some(4.0f64), None);
                     __rt.println(&[qb_str(&("GAME TILT"))]);
-                    __rt.locate(Some(17_f64), Some(5_f64), None);
+                    __rt.locate(Some(17.0f64), Some(5.0f64), None);
                     __rt.println(&[qb_str(&("You are"))]);
-                    __rt.locate(Some(18_f64), Some(4_f64), None);
+                    __rt.locate(Some(18.0f64), Some(4.0f64), None);
                     __rt.println(&[qb_str(&("Awesome!"))]);
-                    __rt.locate(Some(20_f64), Some(4_f64), None);
+                    __rt.locate(Some(20.0f64), Some(4.0f64), None);
                     __rt.println(&[qb_str(&("Press any"))]);
-                    __rt.locate(Some(21_f64), Some(6_f64), None);
+                    __rt.locate(Some(21.0f64), Some(6.0f64), None);
                     __rt.println(&[qb_str(&("key..."))]);
                     __rt.play(&playwingame);
-                    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+                    while (__rt.inkey()).as_str() == "" {
                     }
                     return; // EXIT SUB
                 } else {
-                    __rt.locate(Some(15_f64), Some(4_f64), None);
+                    __rt.locate(Some(15.0f64), Some(4.0f64), None);
                     __rt.println(&[qb_str(&("YOU WON!"))]);
-                    __rt.locate(Some(17_f64), Some(5_f64), None);
+                    __rt.locate(Some(17.0f64), Some(5.0f64), None);
                     __rt.println(&[qb_str(&("Want to"))]);
-                    __rt.locate(Some(18_f64), Some(4_f64), None);
+                    __rt.locate(Some(18.0f64), Some(4.0f64), None);
                     __rt.println(&[qb_str(&("continue"))]);
-                    __rt.locate(Some(20_f64), Some(6_f64), None);
+                    __rt.locate(Some(20.0f64), Some(6.0f64), None);
                     __rt.println(&[qb_str(&("(Y/N)"))]);
                     loop {
                         let __tmp101 = __rt.inkey();
                         a_s = (qb_ucase(&(__tmp101))).to_string();
-                        if qb_bool(qb_from_bool((a_s).as_str() != "")) { break; }
+                        if (a_s).as_str() != "" { break; }
                     }
-                    if qb_bool(qb_from_bool((a_s).as_str() != "Y")) {
+                    if (a_s).as_str() != "Y" {
                         break; // EXIT DO
                     }
                     __gs.gametiltscore = tiltvalue;
@@ -917,22 +918,22 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn putblock(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut f64, b__style: &mut f64, b__rotation: &mut f64) {
-    let mut x1: f64 = 0.0_f64;
-    let mut y1: f64 = 0.0_f64;
+    let mut x1: f64 = 0.0;
+    let mut y1: f64 = 0.0;
 
     let __sel = (*b__rotation);
-    if __sel == 0_f64 {
+    if __sel == 0.0f64 {
         x1 = (*b__x);
         y1 = (*b__y);
-    } else if __sel == 1_f64 {
-        x1 = ((*b__x) + 1_f64);
-        y1 = ((*b__y) - 1_f64);
-    } else if __sel == 2_f64 {
+    } else if __sel == 1.0f64 {
+        x1 = ((*b__x) + 1.0f64);
+        y1 = ((*b__y) - 1.0f64);
+    } else if __sel == 2.0f64 {
         x1 = (*b__x);
         y1 = (*b__y);
-    } else if __sel == 3_f64 {
-        x1 = ((*b__x) + 1_f64);
-        y1 = ((*b__y) - 1_f64);
+    } else if __sel == 3.0f64 {
+        x1 = ((*b__x) + 1.0f64);
+        y1 = ((*b__y) - 1.0f64);
     }
     let __spx102 = ((x1 * xsize) + wellx);
     let __spy102 = ((y1 * ysize) + welly);
@@ -942,58 +943,66 @@ fn putblock(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut
 fn redrawcontrols(__rt: &mut Runtime, __gs: &mut GameState) {
     makeinfobox(__rt, __gs);
     __rt.color(__gs.bordercolor, None);
-    __rt.locate(Some(13_f64), Some(4_f64), None);
+    __rt.locate(Some(13.0f64), Some(4.0f64), None);
     __rt.println(&[qb_str(&("Controls"))]);
-    __rt.locate(Some(14_f64), Some(4_f64), None);
+    __rt.locate(Some(14.0f64), Some(4.0f64), None);
     __rt.println(&[qb_str(&("--------"))]);
-    __rt.locate(Some(15_f64), Some(4_f64), None);
-    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(24_f64)," = Turn")))]);
-    __rt.locate(Some(16_f64), Some(4_f64), None);
-    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(27_f64)," = Left")))]);
-    __rt.locate(Some(17_f64), Some(4_f64), None);
-    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(26_f64)," = Right")))]);
-    __rt.locate(Some(18_f64), Some(4_f64), None);
-    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(25_f64)," = Drop")))]);
-    __rt.locate(Some(20_f64), Some(4_f64), None);
+    __rt.locate(Some(15.0f64), Some(4.0f64), None);
+    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(24.0f64)," = Turn")))]);
+    __rt.locate(Some(16.0f64), Some(4.0f64), None);
+    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(27.0f64)," = Left")))]);
+    __rt.locate(Some(17.0f64), Some(4.0f64), None);
+    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(26.0f64)," = Right")))]);
+    __rt.locate(Some(18.0f64), Some(4.0f64), None);
+    __rt.println(&[qb_str(&(format!("{}{}" ,qb_chr(25.0f64)," = Drop")))]);
+    __rt.locate(Some(20.0f64), Some(4.0f64), None);
     __rt.println(&[qb_str(&("P = Pause"))]);
-    __rt.locate(Some(21_f64), Some(4_f64), None);
+    __rt.locate(Some(21.0f64), Some(4.0f64), None);
     __rt.println(&[qb_str(&("Q = Quit"))]);
 }
 
 fn show(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut f64, b__style: &mut f64, b__rotation: &mut f64) {
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
-    i = 0_f64;
+    i = 0.0f64;
     let __for_to_i: f64 = xmatrix;
-    let __for_step_i: f64 = 1.0_f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 0_f64;
+        j = 0.0f64;
         let __for_to_j: f64 = ymatrix;
-        let __for_step_j: f64 = 1.0_f64;
+        let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if qb_bool(qb_from_bool(__gs.blockshape[(i) as usize][(j) as usize][((*b__style)) as usize] == 1_f64)) {
+            if __gs.blockshape[(i) as usize][(j) as usize][((*b__style)) as usize] == 1.0f64 {
                 let __sel = (*b__rotation);
-                if __sel == 0_f64 {
+                if __sel == 0.0f64 {
                     let mut __tmp_num103: f64 = ((*b__x) + i);
                     let mut __tmp_num104: f64 = ((*b__y) + j);
-                    let mut __tmp_num105: f64 = __gs.blockcolor[((*b__style)) as usize];
-                    drawblock(__rt, __gs, &mut __tmp_num103, &mut __tmp_num104, &mut __tmp_num105);
-                } else if __sel == 1_f64 {
-                    let mut __tmp_num106: f64 = (((*b__x) - j) + 2_f64);
-                    let mut __tmp_num107: f64 = (((*b__y) - 1_f64) + i);
-                    let mut __tmp_num108: f64 = __gs.blockcolor[((*b__style)) as usize];
-                    drawblock(__rt, __gs, &mut __tmp_num106, &mut __tmp_num107, &mut __tmp_num108);
-                } else if __sel == 2_f64 {
-                    let mut __tmp_num109: f64 = (((*b__x) + 3_f64) - i);
-                    let mut __tmp_num110: f64 = (((*b__y) - j) + 1_f64);
-                    let mut __tmp_num111: f64 = __gs.blockcolor[((*b__style)) as usize];
-                    drawblock(__rt, __gs, &mut __tmp_num109, &mut __tmp_num110, &mut __tmp_num111);
-                } else if __sel == 3_f64 {
-                    let mut __tmp_num112: f64 = (((*b__x) + j) + 1_f64);
-                    let mut __tmp_num113: f64 = (((*b__y) - i) + 2_f64);
-                    let mut __tmp_num114: f64 = __gs.blockcolor[((*b__style)) as usize];
-                    drawblock(__rt, __gs, &mut __tmp_num112, &mut __tmp_num113, &mut __tmp_num114);
+                    let __baidx105 = ((*b__style)) as usize;
+                    let mut __tmp_arr106: f64 = __gs.blockcolor[__baidx105];
+                    drawblock(__rt, __gs, &mut __tmp_num103, &mut __tmp_num104, &mut __tmp_arr106);
+                    __gs.blockcolor[__baidx105] = __tmp_arr106;
+                } else if __sel == 1.0f64 {
+                    let mut __tmp_num107: f64 = (((*b__x) - j) + 2.0f64);
+                    let mut __tmp_num108: f64 = (((*b__y) - 1.0f64) + i);
+                    let __baidx109 = ((*b__style)) as usize;
+                    let mut __tmp_arr110: f64 = __gs.blockcolor[__baidx109];
+                    drawblock(__rt, __gs, &mut __tmp_num107, &mut __tmp_num108, &mut __tmp_arr110);
+                    __gs.blockcolor[__baidx109] = __tmp_arr110;
+                } else if __sel == 2.0f64 {
+                    let mut __tmp_num111: f64 = (((*b__x) + 3.0f64) - i);
+                    let mut __tmp_num112: f64 = (((*b__y) - j) + 1.0f64);
+                    let __baidx113 = ((*b__style)) as usize;
+                    let mut __tmp_arr114: f64 = __gs.blockcolor[__baidx113];
+                    drawblock(__rt, __gs, &mut __tmp_num111, &mut __tmp_num112, &mut __tmp_arr114);
+                    __gs.blockcolor[__baidx113] = __tmp_arr114;
+                } else if __sel == 3.0f64 {
+                    let mut __tmp_num115: f64 = (((*b__x) + j) + 1.0f64);
+                    let mut __tmp_num116: f64 = (((*b__y) - i) + 2.0f64);
+                    let __baidx117 = ((*b__style)) as usize;
+                    let mut __tmp_arr118: f64 = __gs.blockcolor[__baidx117];
+                    drawblock(__rt, __gs, &mut __tmp_num115, &mut __tmp_num116, &mut __tmp_arr118);
+                    __gs.blockcolor[__baidx117] = __tmp_arr118;
                 }
             }
             j += __for_step_j;
@@ -1003,57 +1012,57 @@ fn show(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut f64
 }
 
 fn updatescoring(__rt: &mut Runtime, __gs: &mut GameState) {
-    if qb_bool(qb_and(qb_from_bool(__gs.level < 9_f64), qb_from_bool(__gs.score >= ((nextlevel * (__gs.level + 1_f64)) + __gs.prevscore)))) {
-        let __sgx1_115 = wellx;
-        let __sgy1_115 = welly;
-        let __sgx2_115 = (wellx + (wellwidth * xsize));
-        let __sgy2_115 = (welly + (wellheight * ysize));
-        __rt.get_sprite(__sgx1_115, __sgy1_115, __sgx2_115, __sgy2_115, &mut __gs.temp);
+    if qb_bool(qb_and(qb_from_bool(__gs.level < 9.0f64), qb_from_bool(__gs.score >= ((nextlevel * (__gs.level + 1.0f64)) + __gs.prevscore)))) {
+        let __sgx1_119 = wellx;
+        let __sgy1_119 = welly;
+        let __sgx2_119 = (wellx + (wellwidth * xsize));
+        let __sgy2_119 = (welly + (wellheight * ysize));
+        __rt.get_sprite(__sgx1_119, __sgy1_119, __sgx2_119, __sgy2_119, &mut __gs.temp);
         __gs.prevscore = __gs.score;
-        __gs.level = (__gs.level + 1_f64);
+        __gs.level = (__gs.level + 1.0f64);
         drawplayingfield(__rt, __gs);
-        let __spx116 = wellx;
-        let __spy116 = welly;
-        __rt.put_sprite(&__gs.temp, __spx116, __spy116, qbasic_runtime::PutAction::Xor);
+        let __spx120 = wellx;
+        let __spy120 = welly;
+        __rt.put_sprite(&__gs.temp, __spx120, __spy120, qbasic_runtime::PutAction::Xor);
         redrawcontrols(__rt, __gs);
     }
-    __rt.locate(Some(7_f64), Some(4_f64), None);
-    let __pu117 = qb_print_using(&("#,###,###"), &[QbVal::Num(__gs.score)]);
-    __rt.println(&[__pu117]);
+    __rt.locate(Some(7.0f64), Some(4.0f64), None);
+    let __pu121 = qb_print_using(&("#,###,###"), &[QbVal::Num(__gs.score)]);
+    __rt.println(&[__pu121]);
 }
 
 fn checkfit(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
-    let mut newx: f64 = 0.0_f64;
-    let mut newy: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
+    let mut newx: f64 = 0.0;
+    let mut newy: f64 = 0.0;
 
     __fn_ret = qb_true;
-    i = 0_f64;
+    i = 0.0f64;
     let __for_to_i: f64 = xmatrix;
-    let __for_step_i: f64 = 1.0_f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 0_f64;
+        j = 0.0f64;
         let __for_to_j: f64 = ymatrix;
-        let __for_step_j: f64 = 1.0_f64;
+        let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if qb_bool(qb_from_bool(__gs.blockshape[(i) as usize][(j) as usize][(__gs.curblock__style) as usize] == 1_f64)) {
+            if __gs.blockshape[(i) as usize][(j) as usize][(__gs.curblock__style) as usize] == 1.0f64 {
                 let __sel = __gs.curblock__rotation;
-                if __sel == 0_f64 {
+                if __sel == 0.0f64 {
                     newx = (__gs.curblock__x + i);
                     newy = (__gs.curblock__y + j);
-                } else if __sel == 1_f64 {
-                    newx = ((__gs.curblock__x - j) + 2_f64);
-                    newy = ((__gs.curblock__y + i) - 1_f64);
-                } else if __sel == 2_f64 {
-                    newx = ((__gs.curblock__x - i) + 3_f64);
-                    newy = ((__gs.curblock__y - j) + 1_f64);
-                } else if __sel == 3_f64 {
-                    newx = ((__gs.curblock__x + j) + 1_f64);
-                    newy = ((__gs.curblock__y - i) + 2_f64);
+                } else if __sel == 1.0f64 {
+                    newx = ((__gs.curblock__x - j) + 2.0f64);
+                    newy = ((__gs.curblock__y + i) - 1.0f64);
+                } else if __sel == 2.0f64 {
+                    newx = ((__gs.curblock__x - i) + 3.0f64);
+                    newy = ((__gs.curblock__y - j) + 1.0f64);
+                } else if __sel == 3.0f64 {
+                    newx = ((__gs.curblock__x + j) + 1.0f64);
+                    newy = ((__gs.curblock__y - i) + 2.0f64);
                 }
-                if qb_bool(qb_or(qb_or(qb_or(qb_from_bool(newx > (wellwidth - 1_f64)), qb_from_bool(newx < 0_f64)), qb_from_bool(newy > (wellheight - 1_f64))), qb_from_bool(newy < 0_f64))) {
+                if qb_bool(qb_or(qb_or(qb_or(qb_from_bool(newx > (wellwidth - 1.0f64)), qb_from_bool(newx < 0.0f64)), qb_from_bool(newy > (wellheight - 1.0f64))), qb_from_bool(newy < 0.0f64))) {
                     __fn_ret = qb_false;
                     return __fn_ret; // EXIT FUNCTION
                 } else if qb_bool(__gs.wellblocks[(newx) as usize][(newy) as usize]) {
@@ -1074,22 +1083,22 @@ fn gameover(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
 
     __rt.play(&playgameover);
     makeinfobox(__rt, __gs);
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    while (__rt.inkey()).as_str() != "" {
     }
-    __rt.locate(Some(14_f64), Some(4_f64), None);
+    __rt.locate(Some(14.0f64), Some(4.0f64), None);
     __rt.println(&[qb_str(&("Game Over"))]);
-    __rt.locate(Some(17_f64), Some(6_f64), None);
+    __rt.locate(Some(17.0f64), Some(6.0f64), None);
     __rt.println(&[qb_str(&("Play"))]);
-    __rt.locate(Some(18_f64), Some(5_f64), None);
+    __rt.locate(Some(18.0f64), Some(5.0f64), None);
     __rt.println(&[qb_str(&("again?"))]);
-    __rt.locate(Some(20_f64), Some(6_f64), None);
+    __rt.locate(Some(20.0f64), Some(6.0f64), None);
     __rt.println(&[qb_str(&("(Y/N)"))]);
     loop {
-        let __tmp118 = __rt.inkey();
-        a_s = (qb_ucase(&(__tmp118))).to_string();
+        let __tmp122 = __rt.inkey();
+        a_s = (qb_ucase(&(__tmp122))).to_string();
         if qb_bool(qb_or(qb_from_bool((a_s).as_str() == "Y"), qb_from_bool((a_s).as_str() == "N"))) { break; }
     }
-    if qb_bool(qb_from_bool((a_s).as_str() == "Y")) {
+    if (a_s).as_str() == "Y" {
         __fn_ret = qb_false;
     } else {
         __fn_ret = qb_true;
@@ -1106,47 +1115,49 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
-    let mut k: f64 = 0.0_f64;
+    let keyflays: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
+    let mut k: f64 = 0.0;
 
     __gs.wellblocks = vec![vec![Default::default(); (wellheight+1.0) as usize]; (wellwidth+1.0) as usize];
     __gs.blockshape = vec![vec![vec![Default::default(); (numstyles+1.0) as usize]; (ymatrix+1.0) as usize]; (xmatrix+1.0) as usize];
-    __gs.temp = vec![Default::default(); (11175_f64+1.0) as usize];
+    __gs.temp = vec![Default::default(); (11175.0f64+1.0) as usize];
     __gs.blockcolor = vec![Default::default(); (numstyles+1.0) as usize];
-    __gs.blockimage = vec![Default::default(); ((((numstyles * 4_f64) + 3_f64) * elementsperblock)+1.0) as usize];
+    __gs.blockimage = vec![Default::default(); ((((numstyles * 4.0f64) + 3.0f64) * elementsperblock)+1.0) as usize];
     let mut keyflags: f64 = Default::default();
     __gs.badmode = qb_false;
-    __gs.screenmode = 8_f64;
+    __gs.screenmode = 7.0f64;
     __rt.screen(__gs.screenmode);
     if __rt.error_pending { __rt.error_pending = false; screenerror(&mut __rt, &mut __gs); }
-    if qb_bool(qb_from_bool(__gs.badmode == qb_true)) {
-        __gs.screenmode = 1_f64;
+    if __gs.badmode == qb_true {
+        __gs.screenmode = 1.0f64;
         __gs.badmode = qb_false;
         __rt.screen(__gs.screenmode);
         if __rt.error_pending { __rt.error_pending = false; screenerror(&mut __rt, &mut __gs); }
     }
-    if qb_bool(qb_from_bool(__gs.badmode == qb_true)) {
+    if __gs.badmode == qb_true {
         __rt.cls(0u8);
-        __rt.locate(Some(10_f64), Some(12_f64), None);
+        __rt.locate(Some(10.0f64), Some(12.0f64), None);
         __rt.println(&[qb_str(&("CGA, EGA Color, or VGA graphics required to run QBLOCKS.BAS"))]);
     } else {
         __rt.randomize(qb_timer());
         displayintro(&mut __rt, &mut __gs);
-        keyflags = qb_peek(1047_f64);
-        if qb_bool(qb_from_bool(qb_and(keyflags, 32_f64) == 0_f64)) {
+        keyflags = __rt.qb_peek(1047.0f64);
+        if qb_and(keyflags, 32.0f64) == 0.0f64 {
+            __rt.qb_poke(1047.0f64, qb_or(keyflays, 32.0f64));
         }
-        i = 1_f64;
+        i = 1.0f64;
         let __for_to_i: f64 = numstyles;
-        let __for_step_i: f64 = 1.0_f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            j = 0_f64;
+            j = 0.0f64;
             let __for_to_j: f64 = ymatrix;
-            let __for_step_j: f64 = 1.0_f64;
+            let __for_step_j: f64 = 1.0;
             while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-                k = 0_f64;
+                k = 0.0f64;
                 let __for_to_k: f64 = xmatrix;
-                let __for_step_k: f64 = 1.0_f64;
+                let __for_step_k: f64 = 1.0;
                 while (__for_step_k > 0.0 && k <= __for_to_k) || (__for_step_k < 0.0 && k >= __for_to_k) {
                     __gs.blockshape[(k) as usize][(j) as usize][(i) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
                     k += __for_step_k;
@@ -1158,7 +1169,9 @@ fn main() {
         drawallshapes(&mut __rt, &mut __gs);
         performgame(&mut __rt, &mut __gs);
         displaychanges(&mut __rt, &mut __gs);
-        if qb_bool(qb_from_bool(__gs.screenmode == 7_f64)) {
+        __rt.qb_poke(1047.0f64, qb_and(keyflags, 233.0f64));
+        if __gs.screenmode == 7.0f64 {
+            __rt.palette_reset();
         }
     }
     __rt.quit();

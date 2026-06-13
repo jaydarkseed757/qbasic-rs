@@ -15,19 +15,19 @@ fn lbl_700(__rt: &mut Runtime, __gs: &mut GameState) {
     // label: 720
     __rt.println(&[qb_str(&(" |"))]);
     // label: 730
-    if qb_bool(qb_from_bool(__gs.wr >= 1_f64)) {
+    if __gs.wr >= 1.0f64 {
         __rt.println(&[qb_str(&(" |    O"))]);
     } else {
         __rt.println(&[qb_str(&(" |"))]);
     }
     // label: 740
-    if qb_bool(qb_from_bool(__gs.wr == 2_f64)) {
+    if __gs.wr == 2.0f64 {
         __rt.println(&[qb_str(&(" |    |"))]);
     } else {
-        if qb_bool(qb_from_bool(__gs.wr == 3_f64)) {
+        if __gs.wr == 3.0f64 {
             __rt.println(&[qb_str(&(" |   /|"))]);
         } else {
-            if qb_bool(qb_from_bool(__gs.wr >= 4_f64)) {
+            if __gs.wr >= 4.0f64 {
                 __rt.println(&[qb_str(&(" |   /|\\"))]);
             } else {
                 __rt.println(&[qb_str(&(" |"))]);
@@ -35,10 +35,10 @@ fn lbl_700(__rt: &mut Runtime, __gs: &mut GameState) {
         }
     }
     // label: 750
-    if qb_bool(qb_from_bool(__gs.wr == 5_f64)) {
+    if __gs.wr == 5.0f64 {
         __rt.println(&[qb_str(&(" |   /"))]);
     } else {
-        if qb_bool(qb_from_bool(__gs.wr >= 6_f64)) {
+        if __gs.wr >= 6.0f64 {
             __rt.println(&[qb_str(&(" |   / \\"))]);
         } else {
             __rt.println(&[qb_str(&(" |"))]);
@@ -56,9 +56,9 @@ fn main() {
 
     let mut wd_s: String = String::new();
     let mut gs_s: String = String::new();
-    let mut mx: f64 = 0.0_f64;
-    let mut ok: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
+    let mut mx: f64 = 0.0;
+    let mut ok: f64 = 0.0;
+    let mut i: f64 = 0.0;
     let mut l_s: String = String::new();
     let mut g_s: String = String::new();
     let mut a_s: String = String::new();
@@ -76,51 +76,51 @@ fn main() {
                 __pc = 30; continue '__sm;
             }
             30 => {
-                w_s = vec![Default::default(); (10_f64+1.0) as usize];
+                w_s = vec![Default::default(); (10.0f64+1.0) as usize];
                 __pc = 40; continue '__sm;
             }
             40 => {
-                w_s[(1_f64) as usize] = ("COMPUTER").to_string();
+                w_s[(1.0f64) as usize] = ("COMPUTER").to_string();
                 __pc = 50; continue '__sm;
             }
             50 => {
-                w_s[(2_f64) as usize] = ("KEYBOARD").to_string();
+                w_s[(2.0f64) as usize] = ("KEYBOARD").to_string();
                 __pc = 60; continue '__sm;
             }
             60 => {
-                w_s[(3_f64) as usize] = ("PROGRAM").to_string();
+                w_s[(3.0f64) as usize] = ("PROGRAM").to_string();
                 __pc = 70; continue '__sm;
             }
             70 => {
-                w_s[(4_f64) as usize] = ("DATABASE").to_string();
+                w_s[(4.0f64) as usize] = ("DATABASE").to_string();
                 __pc = 80; continue '__sm;
             }
             80 => {
-                w_s[(5_f64) as usize] = ("NETWORK").to_string();
+                w_s[(5.0f64) as usize] = ("NETWORK").to_string();
                 __pc = 90; continue '__sm;
             }
             90 => {
-                w_s[(6_f64) as usize] = ("MONITOR").to_string();
+                w_s[(6.0f64) as usize] = ("MONITOR").to_string();
                 __pc = 100; continue '__sm;
             }
             100 => {
-                w_s[(7_f64) as usize] = ("PYTHON").to_string();
+                w_s[(7.0f64) as usize] = ("PYTHON").to_string();
                 __pc = 110; continue '__sm;
             }
             110 => {
-                w_s[(8_f64) as usize] = ("RUST").to_string();
+                w_s[(8.0f64) as usize] = ("RUST").to_string();
                 __pc = 120; continue '__sm;
             }
             120 => {
-                w_s[(9_f64) as usize] = ("GWBASIC").to_string();
+                w_s[(9.0f64) as usize] = ("GWBASIC").to_string();
                 __pc = 130; continue '__sm;
             }
             130 => {
-                w_s[(10_f64) as usize] = ("PRINTER").to_string();
+                w_s[(10.0f64) as usize] = ("PRINTER").to_string();
                 __pc = 140; continue '__sm;
             }
             140 => {
-                wd_s = (w_s[((qb_int((__rt.rnd() * 10_f64)) + 1_f64)) as usize]).to_string();
+                wd_s = (w_s[((qb_int((__rt.rnd() * 10.0f64)) + 1.0f64)) as usize]).to_string();
                 __pc = 150; continue '__sm;
             }
             150 => {
@@ -128,11 +128,11 @@ fn main() {
                 __pc = 160; continue '__sm;
             }
             160 => {
-                __gs.wr = 0_f64;
+                __gs.wr = 0.0f64;
                 __pc = 170; continue '__sm;
             }
             170 => {
-                mx = 6_f64;
+                mx = 6.0f64;
                 __pc = 180; continue '__sm;
             }
             180 => {
@@ -168,22 +168,22 @@ fn main() {
                 __pc = 260; continue '__sm;
             }
             260 => {
-                ok = 1_f64;
+                ok = 1.0f64;
                 __pc = 270; continue '__sm;
             }
             270 => {
-                i = 1_f64;
+                i = 1.0f64;
                 let __for_to_i: f64 = qb_len(&(wd_s));
-                let __for_step_i: f64 = 1.0_f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
                     // line 280
-                    l_s = (qb_mid(&(wd_s), i, Some(1_f64))).to_string();
+                    l_s = (qb_mid(&(wd_s), i, Some(1.0f64))).to_string();
                     // line 290
-                    if qb_bool(qb_from_bool(qb_instr(1.0, &(gs_s), &(l_s)) > 0_f64)) {
+                    if qb_instr(1.0, &(gs_s), &(l_s)) > 0.0f64 {
                         __rt.print(&[qb_str(&(l_s)), qb_str(&(" "))]);
                     } else {
                         __rt.print(&[qb_str(&("_ "))]);
-                        ok = 0_f64;
+                        ok = 0.0f64;
                     }
                     // line 300
                     i += __for_step_i;
@@ -203,12 +203,12 @@ fn main() {
                 __pc = 340; continue '__sm;
             }
             340 => {
-                i = 1_f64;
+                i = 1.0f64;
                 let __for_to_i: f64 = qb_len(&(gs_s));
-                let __for_step_i: f64 = 1.0_f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
                     // line 350
-                    __rt.print(&[qb_str(&(qb_mid(&(gs_s), i, Some(1_f64)))), qb_str(&(" "))]);
+                    __rt.print(&[qb_str(&(qb_mid(&(gs_s), i, Some(1.0f64)))), qb_str(&(" "))]);
                     // line 360
                     i += __for_step_i;
                 }
@@ -238,7 +238,7 @@ fn main() {
                 __pc = 420; continue '__sm;
             }
             420 => {
-                if qb_bool(qb_from_bool(__gs.wr >= mx)) {
+                if __gs.wr >= mx {
                     __rt.println(&[qb_str(&("YOU LOSE! Word was: ")), qb_str(&(wd_s))]);
                     { __pc = 660; continue '__sm; }
                 }
@@ -250,27 +250,27 @@ fn main() {
                 __pc = 440; continue '__sm;
             }
             440 => {
-                if qb_bool(qb_from_bool(qb_len(&(g_s)) == 0_f64)) {
+                if qb_len(&(g_s)) == 0.0f64 {
                     { __pc = 180; continue '__sm; }
                 }
                 __pc = 450; continue '__sm;
             }
             450 => {
-                g_s = (qb_ucase(&(qb_left(&(g_s), 1_f64)))).to_string();
+                g_s = (qb_ucase(&(qb_left(&(g_s), 1.0f64)))).to_string();
                 __pc = 460; continue '__sm;
             }
             460 => {
                 if qb_bool(qb_or(qb_from_bool((g_s).as_str() < "A"), qb_from_bool((g_s).as_str() > "Z"))) {
                     __rt.println(&[qb_str(&("A-Z only!"))]);
-                    __rt.sleep(2_f64);
+                    __rt.sleep(2.0f64);
                     { __pc = 180; continue '__sm; }
                 }
                 __pc = 470; continue '__sm;
             }
             470 => {
-                if qb_bool(qb_from_bool(qb_instr(1.0, &(gs_s), &(g_s)) > 0_f64)) {
+                if qb_instr(1.0, &(gs_s), &(g_s)) > 0.0f64 {
                     __rt.println(&[qb_str(&("Already guessed!"))]);
-                    __rt.sleep(2_f64);
+                    __rt.sleep(2.0f64);
                     { __pc = 180; continue '__sm; }
                 }
                 __pc = 480; continue '__sm;
@@ -280,8 +280,8 @@ fn main() {
                 __pc = 490; continue '__sm;
             }
             490 => {
-                if qb_bool(qb_from_bool(qb_instr(1.0, &(wd_s), &(g_s)) == 0_f64)) {
-                    __gs.wr = (__gs.wr + 1_f64);
+                if qb_instr(1.0, &(wd_s), &(g_s)) == 0.0f64 {
+                    __gs.wr = (__gs.wr + 1.0f64);
                 }
                 __pc = 500; continue '__sm;
             }

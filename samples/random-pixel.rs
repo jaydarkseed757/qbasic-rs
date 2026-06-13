@@ -6,24 +6,24 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    __rt.set_fps(30_f64);
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
+    __rt.set_fps(30.0);
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut c: f64 = 0.0;
 
     __rt.cls(0u8);
-    __rt.screen(13_f64);
+    __rt.screen(13.0f64);
     __rt.randomize(qb_timer());
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+    while (__rt.inkey()).as_str() == "" {
         let __tmp0 = __rt.rnd();
-        x = qb_int((__tmp0 * 320_f64));
+        x = qb_int((__tmp0 * 320.0f64));
         let __tmp1 = __rt.rnd();
-        y = qb_int((__tmp1 * 200_f64));
+        y = qb_int((__tmp1 * 200.0f64));
         let __tmp2 = __rt.rnd();
-        c = qb_int((__tmp2 * 256_f64));
+        c = qb_int((__tmp2 * 256.0f64));
         __rt.pset(x, y, c);
     }
-    __rt.screen(0_f64);
+    __rt.screen(0.0f64);
     __rt.cls(0u8);
     __rt.println(&[qb_str(&("Done."))]);
 }

@@ -7,12 +7,12 @@ use qbasic_runtime::*;
 static __DATA: &[&str] = &["15", "7", "7", "0", "15", "0", "14", "13", "12", "1", "15", "4"];
 static __DATA_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-const qb_true: f64 = -1_f64;
-const qb_false: f64 = 0_f64;
-const maxsnakelength: f64 = 1000_f64;
-const startover: f64 = 1_f64;
-const samelevel: f64 = 2_f64;
-const nextlevel: f64 = 3_f64;
+const qb_true: f64 = -1.0f64;
+const qb_false: f64 = 0.0f64;
+const maxsnakelength: f64 = 1000.0f64;
+const startover: f64 = 1.0f64;
+const samelevel: f64 = 2.0f64;
+const nextlevel: f64 = 3.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -24,33 +24,33 @@ struct GameState {
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, text_s: &mut String) {
-    __rt.locate(Some((*row)), Some((41_f64 - (qb_len(&(text_s)) / 2_f64))), None);
+    __rt.locate(Some((*row)), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
 fn drawscreen(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
 
     __rt.view_print(None, None);
-    __rt.color(__gs.colortable[(1_f64) as usize], Some(__gs.colortable[(4_f64) as usize]));
+    __rt.color(__gs.colortable[(1.0f64) as usize], Some(__gs.colortable[(4.0f64) as usize]));
     __rt.cls(0u8);
-    let mut __tmp_num0: f64 = 1_f64;
+    let mut __tmp_num0: f64 = 1.0f64;
     let mut __tmp_str1 = ("Nibbles!").to_string();
     center(__rt, __gs, &mut __tmp_num0, &mut __tmp_str1);
-    let mut __tmp_num2: f64 = 11_f64;
+    let mut __tmp_num2: f64 = 11.0f64;
     let mut __tmp_str3 = ("Initializing Playing Field...").to_string();
     center(__rt, __gs, &mut __tmp_num2, &mut __tmp_str3);
-    row = 1_f64;
-    let __for_to_row: f64 = 50_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 1.0f64;
+    let __for_to_row: f64 = 50.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 80_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 80.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-            __gs.arena__realrow[(row) as usize][(col) as usize] = qb_int(((row + 1_f64) / 2_f64));
-            __gs.arena__sister[(row) as usize][(col) as usize] = ((qb_mod(row, 2_f64) * 2_f64) - 1_f64);
+            __gs.arena__realrow[(row) as usize][(col) as usize] = qb_int(((row + 1.0f64) / 2.0f64));
+            __gs.arena__sister[(row) as usize][(col) as usize] = ((qb_mod(row, 2.0f64) * 2.0f64) - 1.0f64);
             col += __for_step_col;
         }
         row += __for_step_row;
@@ -58,23 +58,25 @@ fn drawscreen(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn erasesnake(__rt: &mut Runtime, __gs: &mut GameState, snake__length: &mut Vec<f64>, snake__head: &mut Vec<f64>, snakebod__row: &mut Vec<Vec<f64>>, snakebod__col: &mut Vec<Vec<f64>>, snakenum: &mut f64) {
-    let mut c: f64 = 0.0_f64;
-    let mut b: f64 = 0.0_f64;
-    let mut tail: f64 = 0.0_f64;
+    let mut c: f64 = 0.0;
+    let mut b: f64 = 0.0;
+    let mut tail: f64 = 0.0;
 
-    c = 0_f64;
-    let __for_to_c: f64 = 9_f64;
-    let __for_step_c: f64 = 1.0_f64;
+    c = 0.0f64;
+    let __for_to_c: f64 = 9.0f64;
+    let __for_step_c: f64 = 1.0;
     while (__for_step_c > 0.0 && c <= __for_to_c) || (__for_step_c < 0.0 && c >= __for_to_c) {
         b = (snake__length[((*snakenum)) as usize] - c);
-        let __for_to_b: f64 = 0_f64;
-        let __for_step_b: f64 = (-10_f64);
+        let __for_to_b: f64 = 0.0f64;
+        let __for_step_b: f64 = (-10.0f64);
         while (__for_step_b > 0.0 && b <= __for_to_b) || (__for_step_b < 0.0 && b >= __for_to_b) {
             tail = qb_mod(((snake__head[((*snakenum)) as usize] + maxsnakelength) - b), maxsnakelength);
             let mut __tmp_num4: f64 = snakebod__row[(tail) as usize][((*snakenum)) as usize];
             let mut __tmp_num5: f64 = snakebod__col[(tail) as usize][((*snakenum)) as usize];
-            let mut __tmp_num6: f64 = __gs.colortable[(4_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num4, &mut __tmp_num5, &mut __tmp_num6);
+            let __baidx6 = (4.0f64) as usize;
+            let mut __tmp_arr7: f64 = __gs.colortable[__baidx6];
+            set(__rt, __gs, &mut __tmp_num4, &mut __tmp_num5, &mut __tmp_arr7);
+            __gs.colortable[__baidx6] = __tmp_arr7;
             b += __for_step_b;
         }
         c += __for_step_c;
@@ -84,720 +86,800 @@ fn erasesnake(__rt: &mut Runtime, __gs: &mut GameState, snake__length: &mut Vec<
 fn getinputs(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, speed: &mut f64, diff_s: &mut String, monitor_s: &mut String) {
     let mut num_s: String = String::new();
     let mut gamespeed_s: String = String::new();
-    let mut starttime: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut stoptime: f64 = 0.0_f64;
+    let mut starttime: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut stoptime: f64 = 0.0;
 
-    __rt.color(7_f64, Some(0_f64));
+    __rt.color(7.0f64, Some(0.0f64));
     __rt.cls(0u8);
     loop {
-        __rt.locate(Some(5_f64), Some(47_f64), None);
-        __rt.print(&[qb_str(&(qb_space(34_f64)))]);
-        __rt.locate(Some(5_f64), Some(20_f64), None);
+        __rt.locate(Some(5.0f64), Some(47.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(34.0f64)))]);
+        __rt.locate(Some(5.0f64), Some(20.0f64), None);
         __rt.print_str("How many players (1 or 2)? ");
         num_s = __rt.input_line();
-        if qb_bool(qb_or(qb_from_bool(qb_val(&(num_s)) == 1_f64), qb_from_bool(qb_val(&(num_s)) == 2_f64))) { break; }
+        if qb_bool(qb_or(qb_from_bool(qb_val(&(num_s)) == 1.0f64), qb_from_bool(qb_val(&(num_s)) == 2.0f64))) { break; }
     }
     (*numplayers) = qb_val(&(num_s));
-    __rt.locate(Some(8_f64), Some(21_f64), None);
+    __rt.locate(Some(8.0f64), Some(21.0f64), None);
     __rt.println(&[qb_str(&("Skill level (1 to 100)"))]);
-    __rt.locate(Some(9_f64), Some(22_f64), None);
+    __rt.locate(Some(9.0f64), Some(22.0f64), None);
     __rt.println(&[qb_str(&("1   = Novice"))]);
-    __rt.locate(Some(10_f64), Some(22_f64), None);
+    __rt.locate(Some(10.0f64), Some(22.0f64), None);
     __rt.println(&[qb_str(&("90  = Expert"))]);
-    __rt.locate(Some(11_f64), Some(22_f64), None);
+    __rt.locate(Some(11.0f64), Some(22.0f64), None);
     __rt.println(&[qb_str(&("100 = Twiddle Fingers"))]);
-    __rt.locate(Some(12_f64), Some(15_f64), None);
+    __rt.locate(Some(12.0f64), Some(15.0f64), None);
     __rt.println(&[qb_str(&("(Computer speed may affect your skill level)"))]);
     loop {
-        __rt.locate(Some(8_f64), Some(44_f64), None);
-        __rt.print(&[qb_str(&(qb_space(35_f64)))]);
-        __rt.locate(Some(8_f64), Some(43_f64), None);
+        __rt.locate(Some(8.0f64), Some(44.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(35.0f64)))]);
+        __rt.locate(Some(8.0f64), Some(43.0f64), None);
         gamespeed_s = __rt.input_line();
-        if qb_bool(qb_and(qb_from_bool(qb_val(&(gamespeed_s)) >= 1_f64), qb_from_bool(qb_val(&(gamespeed_s)) <= 100_f64))) { break; }
+        if qb_bool(qb_and(qb_from_bool(qb_val(&(gamespeed_s)) >= 1.0f64), qb_from_bool(qb_val(&(gamespeed_s)) <= 100.0f64))) { break; }
     }
     (*speed) = qb_val(&(gamespeed_s));
-    (*speed) = (((100_f64 - (*speed)) * 2_f64) + 1_f64);
+    (*speed) = (((100.0f64 - (*speed)) * 2.0f64) + 1.0f64);
     loop {
-        __rt.locate(Some(15_f64), Some(56_f64), None);
-        __rt.print(&[qb_str(&(qb_space(25_f64)))]);
-        __rt.locate(Some(15_f64), Some(15_f64), None);
+        __rt.locate(Some(15.0f64), Some(56.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(25.0f64)))]);
+        __rt.locate(Some(15.0f64), Some(15.0f64), None);
         __rt.print_str("Increase game speed during play (Y or N)? ");
         *diff_s = __rt.input_line();
         *diff_s = (qb_ucase(&(diff_s))).to_string();
         if qb_bool(qb_or(qb_from_bool((diff_s).as_str() == "Y"), qb_from_bool((diff_s).as_str() == "N"))) { break; }
     }
     loop {
-        __rt.locate(Some(17_f64), Some(46_f64), None);
-        __rt.print(&[qb_str(&(qb_space(34_f64)))]);
-        __rt.locate(Some(17_f64), Some(17_f64), None);
+        __rt.locate(Some(17.0f64), Some(46.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(34.0f64)))]);
+        __rt.locate(Some(17.0f64), Some(17.0f64), None);
         __rt.print_str("Monochrome or color monitor (M or C)? ");
         *monitor_s = __rt.input_line();
         *monitor_s = (qb_ucase(&(monitor_s))).to_string();
         if qb_bool(qb_or(qb_from_bool((monitor_s).as_str() == "M"), qb_from_bool((monitor_s).as_str() == "C"))) { break; }
     }
     starttime = qb_timer();
-    i = 1_f64;
-    let __for_to_i: f64 = 1000_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 1000.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         i += __for_step_i;
     }
     stoptime = qb_timer();
-    (*speed) = (((*speed) * 0.5_f64) / (stoptime - starttime));
+    (*speed) = (((*speed) * 0.5f64) / (stoptime - starttime));
 }
 
 fn initcolors(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
 
-    row = 1_f64;
-    let __for_to_row: f64 = 50_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 1.0f64;
+    let __for_to_row: f64 = 50.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        col = 1_f64;
-        let __for_to_col: f64 = 80_f64;
-        let __for_step_col: f64 = 1.0_f64;
+        col = 1.0f64;
+        let __for_to_col: f64 = 80.0f64;
+        let __for_step_col: f64 = 1.0;
         while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-            __gs.arena__acolor[(row) as usize][(col) as usize] = __gs.colortable[(4_f64) as usize];
+            __gs.arena__acolor[(row) as usize][(col) as usize] = __gs.colortable[(4.0f64) as usize];
             col += __for_step_col;
         }
         row += __for_step_row;
     }
     __rt.cls(0u8);
-    col = 1_f64;
-    let __for_to_col: f64 = 80_f64;
-    let __for_step_col: f64 = 1.0_f64;
+    col = 1.0f64;
+    let __for_to_col: f64 = 80.0f64;
+    let __for_step_col: f64 = 1.0;
     while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-        let mut __tmp_num7: f64 = 3_f64;
-        let mut __tmp_num8: f64 = __gs.colortable[(3_f64) as usize];
-        set(__rt, __gs, &mut __tmp_num7, &mut col, &mut __tmp_num8);
-        let mut __tmp_num9: f64 = 50_f64;
-        let mut __tmp_num10: f64 = __gs.colortable[(3_f64) as usize];
-        set(__rt, __gs, &mut __tmp_num9, &mut col, &mut __tmp_num10);
+        let mut __tmp_num8: f64 = 3.0f64;
+        let __baidx9 = (3.0f64) as usize;
+        let mut __tmp_arr10: f64 = __gs.colortable[__baidx9];
+        set(__rt, __gs, &mut __tmp_num8, &mut col, &mut __tmp_arr10);
+        __gs.colortable[__baidx9] = __tmp_arr10;
+        let mut __tmp_num11: f64 = 50.0f64;
+        let __baidx12 = (3.0f64) as usize;
+        let mut __tmp_arr13: f64 = __gs.colortable[__baidx12];
+        set(__rt, __gs, &mut __tmp_num11, &mut col, &mut __tmp_arr13);
+        __gs.colortable[__baidx12] = __tmp_arr13;
         col += __for_step_col;
     }
-    row = 4_f64;
-    let __for_to_row: f64 = 49_f64;
-    let __for_step_row: f64 = 1.0_f64;
+    row = 4.0f64;
+    let __for_to_row: f64 = 49.0f64;
+    let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        let mut __tmp_num11: f64 = 1_f64;
-        let mut __tmp_num12: f64 = __gs.colortable[(3_f64) as usize];
-        set(__rt, __gs, &mut row, &mut __tmp_num11, &mut __tmp_num12);
-        let mut __tmp_num13: f64 = 80_f64;
-        let mut __tmp_num14: f64 = __gs.colortable[(3_f64) as usize];
-        set(__rt, __gs, &mut row, &mut __tmp_num13, &mut __tmp_num14);
+        let mut __tmp_num14: f64 = 1.0f64;
+        let __baidx15 = (3.0f64) as usize;
+        let mut __tmp_arr16: f64 = __gs.colortable[__baidx15];
+        set(__rt, __gs, &mut row, &mut __tmp_num14, &mut __tmp_arr16);
+        __gs.colortable[__baidx15] = __tmp_arr16;
+        let mut __tmp_num17: f64 = 80.0f64;
+        let __baidx18 = (3.0f64) as usize;
+        let mut __tmp_arr19: f64 = __gs.colortable[__baidx18];
+        set(__rt, __gs, &mut row, &mut __tmp_num17, &mut __tmp_arr19);
+        __gs.colortable[__baidx18] = __tmp_arr19;
         row += __for_step_row;
     }
 }
 
 fn intro(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.screen(0_f64);
-    __rt.color(15_f64, Some(0_f64));
+    __rt.screen(0.0f64);
+    __rt.color(15.0f64, Some(0.0f64));
     __rt.cls(0u8);
-    let mut __tmp_num15: f64 = 4_f64;
-    let mut __tmp_str16 = ("Q B a s i c   N i b b l e s").to_string();
-    center(__rt, __gs, &mut __tmp_num15, &mut __tmp_str16);
-    __rt.color(7_f64, None);
-    let mut __tmp_num17: f64 = 6_f64;
-    let mut __tmp_str18 = ("Copyright (C) Microsoft Corporation 1990").to_string();
-    center(__rt, __gs, &mut __tmp_num17, &mut __tmp_str18);
-    let mut __tmp_num19: f64 = 8_f64;
-    let mut __tmp_str20 = ("Nibbles is a game for one or two players.  Navigate your snakes").to_string();
-    center(__rt, __gs, &mut __tmp_num19, &mut __tmp_str20);
-    let mut __tmp_num21: f64 = 9_f64;
-    let mut __tmp_str22 = ("around the game board trying to eat up numbers while avoiding").to_string();
-    center(__rt, __gs, &mut __tmp_num21, &mut __tmp_str22);
-    let mut __tmp_num23: f64 = 10_f64;
-    let mut __tmp_str24 = ("running into walls or other snakes.  The more numbers you eat up,").to_string();
-    center(__rt, __gs, &mut __tmp_num23, &mut __tmp_str24);
-    let mut __tmp_num25: f64 = 11_f64;
-    let mut __tmp_str26 = ("the more points you gain and the longer your snake becomes.").to_string();
-    center(__rt, __gs, &mut __tmp_num25, &mut __tmp_str26);
-    let mut __tmp_num27: f64 = 13_f64;
-    let mut __tmp_str28 = (" Game Controls ").to_string();
-    center(__rt, __gs, &mut __tmp_num27, &mut __tmp_str28);
-    let mut __tmp_num29: f64 = 15_f64;
-    let mut __tmp_str30 = ("  General             Player 1               Player 2    ").to_string();
-    center(__rt, __gs, &mut __tmp_num29, &mut __tmp_str30);
-    let mut __tmp_num31: f64 = 16_f64;
-    let mut __tmp_str32 = ("                        (Up)                   (Up)      ").to_string();
-    center(__rt, __gs, &mut __tmp_num31, &mut __tmp_str32);
-    let mut __tmp_num33: f64 = 17_f64;
-    let mut __tmp_str34 = (format!("{}{}" ,format!("{}{}" ,"P - Pause                ",qb_chr(24_f64)),"                      W       ")).to_string();
-    center(__rt, __gs, &mut __tmp_num33, &mut __tmp_str34);
-    let mut __tmp_num35: f64 = 18_f64;
-    let mut __tmp_str36 = (format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,"                     (Left) ",qb_chr(27_f64)),"   "),qb_chr(26_f64))," (Right)   (Left) A   D (Right)  ")).to_string();
-    center(__rt, __gs, &mut __tmp_num35, &mut __tmp_str36);
-    let mut __tmp_num37: f64 = 19_f64;
-    let mut __tmp_str38 = (format!("{}{}" ,format!("{}{}" ,"                         ",qb_chr(25_f64)),"                      S       ")).to_string();
-    center(__rt, __gs, &mut __tmp_num37, &mut __tmp_str38);
-    let mut __tmp_num39: f64 = 20_f64;
-    let mut __tmp_str40 = ("                       (Down)                 (Down)     ").to_string();
-    center(__rt, __gs, &mut __tmp_num39, &mut __tmp_str40);
-    let mut __tmp_num41: f64 = 24_f64;
-    let mut __tmp_str42 = ("Press any key to continue").to_string();
-    center(__rt, __gs, &mut __tmp_num41, &mut __tmp_str42);
+    let mut __tmp_num20: f64 = 4.0f64;
+    let mut __tmp_str21 = ("Q B a s i c   N i b b l e s").to_string();
+    center(__rt, __gs, &mut __tmp_num20, &mut __tmp_str21);
+    __rt.color(7.0f64, None);
+    let mut __tmp_num22: f64 = 6.0f64;
+    let mut __tmp_str23 = ("Copyright (C) Microsoft Corporation 1990").to_string();
+    center(__rt, __gs, &mut __tmp_num22, &mut __tmp_str23);
+    let mut __tmp_num24: f64 = 8.0f64;
+    let mut __tmp_str25 = ("Nibbles is a game for one or two players.  Navigate your snakes").to_string();
+    center(__rt, __gs, &mut __tmp_num24, &mut __tmp_str25);
+    let mut __tmp_num26: f64 = 9.0f64;
+    let mut __tmp_str27 = ("around the game board trying to eat up numbers while avoiding").to_string();
+    center(__rt, __gs, &mut __tmp_num26, &mut __tmp_str27);
+    let mut __tmp_num28: f64 = 10.0f64;
+    let mut __tmp_str29 = ("running into walls or other snakes.  The more numbers you eat up,").to_string();
+    center(__rt, __gs, &mut __tmp_num28, &mut __tmp_str29);
+    let mut __tmp_num30: f64 = 11.0f64;
+    let mut __tmp_str31 = ("the more points you gain and the longer your snake becomes.").to_string();
+    center(__rt, __gs, &mut __tmp_num30, &mut __tmp_str31);
+    let mut __tmp_num32: f64 = 13.0f64;
+    let mut __tmp_str33 = (" Game Controls ").to_string();
+    center(__rt, __gs, &mut __tmp_num32, &mut __tmp_str33);
+    let mut __tmp_num34: f64 = 15.0f64;
+    let mut __tmp_str35 = ("  General             Player 1               Player 2    ").to_string();
+    center(__rt, __gs, &mut __tmp_num34, &mut __tmp_str35);
+    let mut __tmp_num36: f64 = 16.0f64;
+    let mut __tmp_str37 = ("                        (Up)                   (Up)      ").to_string();
+    center(__rt, __gs, &mut __tmp_num36, &mut __tmp_str37);
+    let mut __tmp_num38: f64 = 17.0f64;
+    let mut __tmp_str39 = (format!("{}{}" ,format!("{}{}" ,"P - Pause                ",qb_chr(24.0f64)),"                      W       ")).to_string();
+    center(__rt, __gs, &mut __tmp_num38, &mut __tmp_str39);
+    let mut __tmp_num40: f64 = 18.0f64;
+    let mut __tmp_str41 = (format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,"                     (Left) ",qb_chr(27.0f64)),"   "),qb_chr(26.0f64))," (Right)   (Left) A   D (Right)  ")).to_string();
+    center(__rt, __gs, &mut __tmp_num40, &mut __tmp_str41);
+    let mut __tmp_num42: f64 = 19.0f64;
+    let mut __tmp_str43 = (format!("{}{}" ,format!("{}{}" ,"                         ",qb_chr(25.0f64)),"                      S       ")).to_string();
+    center(__rt, __gs, &mut __tmp_num42, &mut __tmp_str43);
+    let mut __tmp_num44: f64 = 20.0f64;
+    let mut __tmp_str45 = ("                       (Down)                 (Down)     ").to_string();
+    center(__rt, __gs, &mut __tmp_num44, &mut __tmp_str45);
+    let mut __tmp_num46: f64 = 24.0f64;
+    let mut __tmp_str47 = ("Press any key to continue").to_string();
+    center(__rt, __gs, &mut __tmp_num46, &mut __tmp_str47);
     __rt.play(&"MBT160O1L8CDEDCDL4ECC");
     sparklepause(__rt, __gs);
 }
 
 fn level(__rt: &mut Runtime, __gs: &mut GameState, whattodo: &mut f64, sammy__head: &mut Vec<f64>, sammy__length: &mut Vec<f64>, sammy__row: &mut Vec<f64>, sammy__col: &mut Vec<f64>, sammy__direction: &mut Vec<f64>, sammy__lives: &mut Vec<f64>, sammy__score: &mut Vec<f64>, sammy__scolor: &mut Vec<f64>, sammy__alive: &mut Vec<f64>) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
     let __sel = (*whattodo);
     if __sel == startover {
-        __gs.curlevel = 1_f64;
+        __gs.curlevel = 1.0f64;
     } else if __sel == nextlevel {
-        __gs.curlevel = (__gs.curlevel + 1_f64);
+        __gs.curlevel = (__gs.curlevel + 1.0f64);
     }
-    sammy__head[(1_f64) as usize] = 1_f64;
-    sammy__length[(1_f64) as usize] = 2_f64;
-    sammy__alive[(1_f64) as usize] = qb_true;
-    sammy__head[(2_f64) as usize] = 1_f64;
-    sammy__length[(2_f64) as usize] = 2_f64;
-    sammy__alive[(2_f64) as usize] = qb_true;
+    sammy__head[(1.0f64) as usize] = 1.0f64;
+    sammy__length[(1.0f64) as usize] = 2.0f64;
+    sammy__alive[(1.0f64) as usize] = qb_true;
+    sammy__head[(2.0f64) as usize] = 1.0f64;
+    sammy__length[(2.0f64) as usize] = 2.0f64;
+    sammy__alive[(2.0f64) as usize] = qb_true;
     initcolors(__rt, __gs);
     let __sel = __gs.curlevel;
-    if __sel == 1_f64 {
-        sammy__row[(1_f64) as usize] = 25_f64;
-        sammy__row[(2_f64) as usize] = 25_f64;
-        sammy__col[(1_f64) as usize] = 50_f64;
-        sammy__col[(2_f64) as usize] = 30_f64;
-        sammy__direction[(1_f64) as usize] = 4_f64;
-        sammy__direction[(2_f64) as usize] = 3_f64;
-    } else if __sel == 2_f64 {
-        i = 20_f64;
-        let __for_to_i: f64 = 60_f64;
-        let __for_step_i: f64 = 1.0_f64;
+    if __sel == 1.0f64 {
+        sammy__row[(1.0f64) as usize] = 25.0f64;
+        sammy__row[(2.0f64) as usize] = 25.0f64;
+        sammy__col[(1.0f64) as usize] = 50.0f64;
+        sammy__col[(2.0f64) as usize] = 30.0f64;
+        sammy__direction[(1.0f64) as usize] = 4.0f64;
+        sammy__direction[(2.0f64) as usize] = 3.0f64;
+    } else if __sel == 2.0f64 {
+        i = 20.0f64;
+        let __for_to_i: f64 = 60.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num43: f64 = 25_f64;
-            let mut __tmp_num44: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num43, &mut i, &mut __tmp_num44);
+            let mut __tmp_num48: f64 = 25.0f64;
+            let __baidx49 = (3.0f64) as usize;
+            let mut __tmp_arr50: f64 = __gs.colortable[__baidx49];
+            set(__rt, __gs, &mut __tmp_num48, &mut i, &mut __tmp_arr50);
+            __gs.colortable[__baidx49] = __tmp_arr50;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 60_f64;
-        sammy__col[(2_f64) as usize] = 20_f64;
-        sammy__direction[(1_f64) as usize] = 3_f64;
-        sammy__direction[(2_f64) as usize] = 4_f64;
-    } else if __sel == 3_f64 {
-        i = 10_f64;
-        let __for_to_i: f64 = 40_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 60.0f64;
+        sammy__col[(2.0f64) as usize] = 20.0f64;
+        sammy__direction[(1.0f64) as usize] = 3.0f64;
+        sammy__direction[(2.0f64) as usize] = 4.0f64;
+    } else if __sel == 3.0f64 {
+        i = 10.0f64;
+        let __for_to_i: f64 = 40.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num45: f64 = 20_f64;
-            let mut __tmp_num46: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num45, &mut __tmp_num46);
-            let mut __tmp_num47: f64 = 60_f64;
-            let mut __tmp_num48: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num47, &mut __tmp_num48);
+            let mut __tmp_num51: f64 = 20.0f64;
+            let __baidx52 = (3.0f64) as usize;
+            let mut __tmp_arr53: f64 = __gs.colortable[__baidx52];
+            set(__rt, __gs, &mut i, &mut __tmp_num51, &mut __tmp_arr53);
+            __gs.colortable[__baidx52] = __tmp_arr53;
+            let mut __tmp_num54: f64 = 60.0f64;
+            let __baidx55 = (3.0f64) as usize;
+            let mut __tmp_arr56: f64 = __gs.colortable[__baidx55];
+            set(__rt, __gs, &mut i, &mut __tmp_num54, &mut __tmp_arr56);
+            __gs.colortable[__baidx55] = __tmp_arr56;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 25_f64;
-        sammy__row[(2_f64) as usize] = 25_f64;
-        sammy__col[(1_f64) as usize] = 50_f64;
-        sammy__col[(2_f64) as usize] = 30_f64;
-        sammy__direction[(1_f64) as usize] = 1_f64;
-        sammy__direction[(2_f64) as usize] = 2_f64;
-    } else if __sel == 4_f64 {
-        i = 4_f64;
-        let __for_to_i: f64 = 30_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 25.0f64;
+        sammy__row[(2.0f64) as usize] = 25.0f64;
+        sammy__col[(1.0f64) as usize] = 50.0f64;
+        sammy__col[(2.0f64) as usize] = 30.0f64;
+        sammy__direction[(1.0f64) as usize] = 1.0f64;
+        sammy__direction[(2.0f64) as usize] = 2.0f64;
+    } else if __sel == 4.0f64 {
+        i = 4.0f64;
+        let __for_to_i: f64 = 30.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num49: f64 = 20_f64;
-            let mut __tmp_num50: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num49, &mut __tmp_num50);
-            let mut __tmp_num51: f64 = (53_f64 - i);
-            let mut __tmp_num52: f64 = 60_f64;
-            let mut __tmp_num53: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num51, &mut __tmp_num52, &mut __tmp_num53);
+            let mut __tmp_num57: f64 = 20.0f64;
+            let __baidx58 = (3.0f64) as usize;
+            let mut __tmp_arr59: f64 = __gs.colortable[__baidx58];
+            set(__rt, __gs, &mut i, &mut __tmp_num57, &mut __tmp_arr59);
+            __gs.colortable[__baidx58] = __tmp_arr59;
+            let mut __tmp_num60: f64 = (53.0f64 - i);
+            let mut __tmp_num61: f64 = 60.0f64;
+            let __baidx62 = (3.0f64) as usize;
+            let mut __tmp_arr63: f64 = __gs.colortable[__baidx62];
+            set(__rt, __gs, &mut __tmp_num60, &mut __tmp_num61, &mut __tmp_arr63);
+            __gs.colortable[__baidx62] = __tmp_arr63;
             i += __for_step_i;
         }
-        i = 2_f64;
-        let __for_to_i: f64 = 40_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 2.0f64;
+        let __for_to_i: f64 = 40.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num54: f64 = 38_f64;
-            let mut __tmp_num55: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num54, &mut i, &mut __tmp_num55);
-            let mut __tmp_num56: f64 = 15_f64;
-            let mut __tmp_num57: f64 = (81_f64 - i);
-            let mut __tmp_num58: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num56, &mut __tmp_num57, &mut __tmp_num58);
+            let mut __tmp_num64: f64 = 38.0f64;
+            let __baidx65 = (3.0f64) as usize;
+            let mut __tmp_arr66: f64 = __gs.colortable[__baidx65];
+            set(__rt, __gs, &mut __tmp_num64, &mut i, &mut __tmp_arr66);
+            __gs.colortable[__baidx65] = __tmp_arr66;
+            let mut __tmp_num67: f64 = 15.0f64;
+            let mut __tmp_num68: f64 = (81.0f64 - i);
+            let __baidx69 = (3.0f64) as usize;
+            let mut __tmp_arr70: f64 = __gs.colortable[__baidx69];
+            set(__rt, __gs, &mut __tmp_num67, &mut __tmp_num68, &mut __tmp_arr70);
+            __gs.colortable[__baidx69] = __tmp_arr70;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 60_f64;
-        sammy__col[(2_f64) as usize] = 20_f64;
-        sammy__direction[(1_f64) as usize] = 3_f64;
-        sammy__direction[(2_f64) as usize] = 4_f64;
-    } else if __sel == 5_f64 {
-        i = 13_f64;
-        let __for_to_i: f64 = 39_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 60.0f64;
+        sammy__col[(2.0f64) as usize] = 20.0f64;
+        sammy__direction[(1.0f64) as usize] = 3.0f64;
+        sammy__direction[(2.0f64) as usize] = 4.0f64;
+    } else if __sel == 5.0f64 {
+        i = 13.0f64;
+        let __for_to_i: f64 = 39.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num59: f64 = 21_f64;
-            let mut __tmp_num60: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num59, &mut __tmp_num60);
-            let mut __tmp_num61: f64 = 59_f64;
-            let mut __tmp_num62: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num61, &mut __tmp_num62);
+            let mut __tmp_num71: f64 = 21.0f64;
+            let __baidx72 = (3.0f64) as usize;
+            let mut __tmp_arr73: f64 = __gs.colortable[__baidx72];
+            set(__rt, __gs, &mut i, &mut __tmp_num71, &mut __tmp_arr73);
+            __gs.colortable[__baidx72] = __tmp_arr73;
+            let mut __tmp_num74: f64 = 59.0f64;
+            let __baidx75 = (3.0f64) as usize;
+            let mut __tmp_arr76: f64 = __gs.colortable[__baidx75];
+            set(__rt, __gs, &mut i, &mut __tmp_num74, &mut __tmp_arr76);
+            __gs.colortable[__baidx75] = __tmp_arr76;
             i += __for_step_i;
         }
-        i = 23_f64;
-        let __for_to_i: f64 = 57_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        i = 23.0f64;
+        let __for_to_i: f64 = 57.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num63: f64 = 11_f64;
-            let mut __tmp_num64: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num63, &mut i, &mut __tmp_num64);
-            let mut __tmp_num65: f64 = 41_f64;
-            let mut __tmp_num66: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num65, &mut i, &mut __tmp_num66);
+            let mut __tmp_num77: f64 = 11.0f64;
+            let __baidx78 = (3.0f64) as usize;
+            let mut __tmp_arr79: f64 = __gs.colortable[__baidx78];
+            set(__rt, __gs, &mut __tmp_num77, &mut i, &mut __tmp_arr79);
+            __gs.colortable[__baidx78] = __tmp_arr79;
+            let mut __tmp_num80: f64 = 41.0f64;
+            let __baidx81 = (3.0f64) as usize;
+            let mut __tmp_arr82: f64 = __gs.colortable[__baidx81];
+            set(__rt, __gs, &mut __tmp_num80, &mut i, &mut __tmp_arr82);
+            __gs.colortable[__baidx81] = __tmp_arr82;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 25_f64;
-        sammy__row[(2_f64) as usize] = 25_f64;
-        sammy__col[(1_f64) as usize] = 50_f64;
-        sammy__col[(2_f64) as usize] = 30_f64;
-        sammy__direction[(1_f64) as usize] = 1_f64;
-        sammy__direction[(2_f64) as usize] = 2_f64;
-    } else if __sel == 6_f64 {
-        i = 4_f64;
-        let __for_to_i: f64 = 49_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 25.0f64;
+        sammy__row[(2.0f64) as usize] = 25.0f64;
+        sammy__col[(1.0f64) as usize] = 50.0f64;
+        sammy__col[(2.0f64) as usize] = 30.0f64;
+        sammy__direction[(1.0f64) as usize] = 1.0f64;
+        sammy__direction[(2.0f64) as usize] = 2.0f64;
+    } else if __sel == 6.0f64 {
+        i = 4.0f64;
+        let __for_to_i: f64 = 49.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            if qb_bool(qb_or(qb_from_bool(i > 30_f64), qb_from_bool(i < 23_f64))) {
-                let mut __tmp_num67: f64 = 10_f64;
-                let mut __tmp_num68: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num67, &mut __tmp_num68);
-                let mut __tmp_num69: f64 = 20_f64;
-                let mut __tmp_num70: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num69, &mut __tmp_num70);
-                let mut __tmp_num71: f64 = 30_f64;
-                let mut __tmp_num72: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num71, &mut __tmp_num72);
-                let mut __tmp_num73: f64 = 40_f64;
-                let mut __tmp_num74: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num73, &mut __tmp_num74);
-                let mut __tmp_num75: f64 = 50_f64;
-                let mut __tmp_num76: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num75, &mut __tmp_num76);
-                let mut __tmp_num77: f64 = 60_f64;
-                let mut __tmp_num78: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num77, &mut __tmp_num78);
-                let mut __tmp_num79: f64 = 70_f64;
-                let mut __tmp_num80: f64 = __gs.colortable[(3_f64) as usize];
-                set(__rt, __gs, &mut i, &mut __tmp_num79, &mut __tmp_num80);
+            if qb_bool(qb_or(qb_from_bool(i > 30.0f64), qb_from_bool(i < 23.0f64))) {
+                let mut __tmp_num83: f64 = 10.0f64;
+                let __baidx84 = (3.0f64) as usize;
+                let mut __tmp_arr85: f64 = __gs.colortable[__baidx84];
+                set(__rt, __gs, &mut i, &mut __tmp_num83, &mut __tmp_arr85);
+                __gs.colortable[__baidx84] = __tmp_arr85;
+                let mut __tmp_num86: f64 = 20.0f64;
+                let __baidx87 = (3.0f64) as usize;
+                let mut __tmp_arr88: f64 = __gs.colortable[__baidx87];
+                set(__rt, __gs, &mut i, &mut __tmp_num86, &mut __tmp_arr88);
+                __gs.colortable[__baidx87] = __tmp_arr88;
+                let mut __tmp_num89: f64 = 30.0f64;
+                let __baidx90 = (3.0f64) as usize;
+                let mut __tmp_arr91: f64 = __gs.colortable[__baidx90];
+                set(__rt, __gs, &mut i, &mut __tmp_num89, &mut __tmp_arr91);
+                __gs.colortable[__baidx90] = __tmp_arr91;
+                let mut __tmp_num92: f64 = 40.0f64;
+                let __baidx93 = (3.0f64) as usize;
+                let mut __tmp_arr94: f64 = __gs.colortable[__baidx93];
+                set(__rt, __gs, &mut i, &mut __tmp_num92, &mut __tmp_arr94);
+                __gs.colortable[__baidx93] = __tmp_arr94;
+                let mut __tmp_num95: f64 = 50.0f64;
+                let __baidx96 = (3.0f64) as usize;
+                let mut __tmp_arr97: f64 = __gs.colortable[__baidx96];
+                set(__rt, __gs, &mut i, &mut __tmp_num95, &mut __tmp_arr97);
+                __gs.colortable[__baidx96] = __tmp_arr97;
+                let mut __tmp_num98: f64 = 60.0f64;
+                let __baidx99 = (3.0f64) as usize;
+                let mut __tmp_arr100: f64 = __gs.colortable[__baidx99];
+                set(__rt, __gs, &mut i, &mut __tmp_num98, &mut __tmp_arr100);
+                __gs.colortable[__baidx99] = __tmp_arr100;
+                let mut __tmp_num101: f64 = 70.0f64;
+                let __baidx102 = (3.0f64) as usize;
+                let mut __tmp_arr103: f64 = __gs.colortable[__baidx102];
+                set(__rt, __gs, &mut i, &mut __tmp_num101, &mut __tmp_arr103);
+                __gs.colortable[__baidx102] = __tmp_arr103;
             }
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 65_f64;
-        sammy__col[(2_f64) as usize] = 15_f64;
-        sammy__direction[(1_f64) as usize] = 2_f64;
-        sammy__direction[(2_f64) as usize] = 1_f64;
-    } else if __sel == 7_f64 {
-        i = 4_f64;
-        let __for_to_i: f64 = 49_f64;
-        let __for_step_i: f64 = 2_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 65.0f64;
+        sammy__col[(2.0f64) as usize] = 15.0f64;
+        sammy__direction[(1.0f64) as usize] = 2.0f64;
+        sammy__direction[(2.0f64) as usize] = 1.0f64;
+    } else if __sel == 7.0f64 {
+        i = 4.0f64;
+        let __for_to_i: f64 = 49.0f64;
+        let __for_step_i: f64 = 2.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num81: f64 = 40_f64;
-            let mut __tmp_num82: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num81, &mut __tmp_num82);
+            let mut __tmp_num104: f64 = 40.0f64;
+            let __baidx105 = (3.0f64) as usize;
+            let mut __tmp_arr106: f64 = __gs.colortable[__baidx105];
+            set(__rt, __gs, &mut i, &mut __tmp_num104, &mut __tmp_arr106);
+            __gs.colortable[__baidx105] = __tmp_arr106;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 65_f64;
-        sammy__col[(2_f64) as usize] = 15_f64;
-        sammy__direction[(1_f64) as usize] = 2_f64;
-        sammy__direction[(2_f64) as usize] = 1_f64;
-    } else if __sel == 8_f64 {
-        i = 4_f64;
-        let __for_to_i: f64 = 40_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 65.0f64;
+        sammy__col[(2.0f64) as usize] = 15.0f64;
+        sammy__direction[(1.0f64) as usize] = 2.0f64;
+        sammy__direction[(2.0f64) as usize] = 1.0f64;
+    } else if __sel == 8.0f64 {
+        i = 4.0f64;
+        let __for_to_i: f64 = 40.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num83: f64 = 10_f64;
-            let mut __tmp_num84: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num83, &mut __tmp_num84);
-            let mut __tmp_num85: f64 = (53_f64 - i);
-            let mut __tmp_num86: f64 = 20_f64;
-            let mut __tmp_num87: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num85, &mut __tmp_num86, &mut __tmp_num87);
-            let mut __tmp_num88: f64 = 30_f64;
-            let mut __tmp_num89: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num88, &mut __tmp_num89);
-            let mut __tmp_num90: f64 = (53_f64 - i);
-            let mut __tmp_num91: f64 = 40_f64;
-            let mut __tmp_num92: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num90, &mut __tmp_num91, &mut __tmp_num92);
-            let mut __tmp_num93: f64 = 50_f64;
-            let mut __tmp_num94: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num93, &mut __tmp_num94);
-            let mut __tmp_num95: f64 = (53_f64 - i);
-            let mut __tmp_num96: f64 = 60_f64;
-            let mut __tmp_num97: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num95, &mut __tmp_num96, &mut __tmp_num97);
-            let mut __tmp_num98: f64 = 70_f64;
-            let mut __tmp_num99: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num98, &mut __tmp_num99);
+            let mut __tmp_num107: f64 = 10.0f64;
+            let __baidx108 = (3.0f64) as usize;
+            let mut __tmp_arr109: f64 = __gs.colortable[__baidx108];
+            set(__rt, __gs, &mut i, &mut __tmp_num107, &mut __tmp_arr109);
+            __gs.colortable[__baidx108] = __tmp_arr109;
+            let mut __tmp_num110: f64 = (53.0f64 - i);
+            let mut __tmp_num111: f64 = 20.0f64;
+            let __baidx112 = (3.0f64) as usize;
+            let mut __tmp_arr113: f64 = __gs.colortable[__baidx112];
+            set(__rt, __gs, &mut __tmp_num110, &mut __tmp_num111, &mut __tmp_arr113);
+            __gs.colortable[__baidx112] = __tmp_arr113;
+            let mut __tmp_num114: f64 = 30.0f64;
+            let __baidx115 = (3.0f64) as usize;
+            let mut __tmp_arr116: f64 = __gs.colortable[__baidx115];
+            set(__rt, __gs, &mut i, &mut __tmp_num114, &mut __tmp_arr116);
+            __gs.colortable[__baidx115] = __tmp_arr116;
+            let mut __tmp_num117: f64 = (53.0f64 - i);
+            let mut __tmp_num118: f64 = 40.0f64;
+            let __baidx119 = (3.0f64) as usize;
+            let mut __tmp_arr120: f64 = __gs.colortable[__baidx119];
+            set(__rt, __gs, &mut __tmp_num117, &mut __tmp_num118, &mut __tmp_arr120);
+            __gs.colortable[__baidx119] = __tmp_arr120;
+            let mut __tmp_num121: f64 = 50.0f64;
+            let __baidx122 = (3.0f64) as usize;
+            let mut __tmp_arr123: f64 = __gs.colortable[__baidx122];
+            set(__rt, __gs, &mut i, &mut __tmp_num121, &mut __tmp_arr123);
+            __gs.colortable[__baidx122] = __tmp_arr123;
+            let mut __tmp_num124: f64 = (53.0f64 - i);
+            let mut __tmp_num125: f64 = 60.0f64;
+            let __baidx126 = (3.0f64) as usize;
+            let mut __tmp_arr127: f64 = __gs.colortable[__baidx126];
+            set(__rt, __gs, &mut __tmp_num124, &mut __tmp_num125, &mut __tmp_arr127);
+            __gs.colortable[__baidx126] = __tmp_arr127;
+            let mut __tmp_num128: f64 = 70.0f64;
+            let __baidx129 = (3.0f64) as usize;
+            let mut __tmp_arr130: f64 = __gs.colortable[__baidx129];
+            set(__rt, __gs, &mut i, &mut __tmp_num128, &mut __tmp_arr130);
+            __gs.colortable[__baidx129] = __tmp_arr130;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 65_f64;
-        sammy__col[(2_f64) as usize] = 15_f64;
-        sammy__direction[(1_f64) as usize] = 2_f64;
-        sammy__direction[(2_f64) as usize] = 1_f64;
-    } else if __sel == 9_f64 {
-        i = 6_f64;
-        let __for_to_i: f64 = 47_f64;
-        let __for_step_i: f64 = 1.0_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 65.0f64;
+        sammy__col[(2.0f64) as usize] = 15.0f64;
+        sammy__direction[(1.0f64) as usize] = 2.0f64;
+        sammy__direction[(2.0f64) as usize] = 1.0f64;
+    } else if __sel == 9.0f64 {
+        i = 6.0f64;
+        let __for_to_i: f64 = 47.0f64;
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num100: f64 = i;
-            let mut __tmp_num101: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num100, &mut __tmp_num101);
-            let mut __tmp_num102: f64 = (i + 28_f64);
-            let mut __tmp_num103: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num102, &mut __tmp_num103);
+            let mut __tmp_num131: f64 = i;
+            let __baidx132 = (3.0f64) as usize;
+            let mut __tmp_arr133: f64 = __gs.colortable[__baidx132];
+            set(__rt, __gs, &mut i, &mut __tmp_num131, &mut __tmp_arr133);
+            __gs.colortable[__baidx132] = __tmp_arr133;
+            let mut __tmp_num134: f64 = (i + 28.0f64);
+            let __baidx135 = (3.0f64) as usize;
+            let mut __tmp_arr136: f64 = __gs.colortable[__baidx135];
+            set(__rt, __gs, &mut i, &mut __tmp_num134, &mut __tmp_arr136);
+            __gs.colortable[__baidx135] = __tmp_arr136;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 40_f64;
-        sammy__row[(2_f64) as usize] = 15_f64;
-        sammy__col[(1_f64) as usize] = 75_f64;
-        sammy__col[(2_f64) as usize] = 5_f64;
-        sammy__direction[(1_f64) as usize] = 1_f64;
-        sammy__direction[(2_f64) as usize] = 2_f64;
+        sammy__row[(1.0f64) as usize] = 40.0f64;
+        sammy__row[(2.0f64) as usize] = 15.0f64;
+        sammy__col[(1.0f64) as usize] = 75.0f64;
+        sammy__col[(2.0f64) as usize] = 5.0f64;
+        sammy__direction[(1.0f64) as usize] = 1.0f64;
+        sammy__direction[(2.0f64) as usize] = 2.0f64;
     } else {
-        i = 4_f64;
-        let __for_to_i: f64 = 49_f64;
-        let __for_step_i: f64 = 2_f64;
+        i = 4.0f64;
+        let __for_to_i: f64 = 49.0f64;
+        let __for_step_i: f64 = 2.0f64;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-            let mut __tmp_num104: f64 = 10_f64;
-            let mut __tmp_num105: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num104, &mut __tmp_num105);
-            let mut __tmp_num106: f64 = (i + 1_f64);
-            let mut __tmp_num107: f64 = 20_f64;
-            let mut __tmp_num108: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num106, &mut __tmp_num107, &mut __tmp_num108);
-            let mut __tmp_num109: f64 = 30_f64;
-            let mut __tmp_num110: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num109, &mut __tmp_num110);
-            let mut __tmp_num111: f64 = (i + 1_f64);
-            let mut __tmp_num112: f64 = 40_f64;
-            let mut __tmp_num113: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num111, &mut __tmp_num112, &mut __tmp_num113);
-            let mut __tmp_num114: f64 = 50_f64;
-            let mut __tmp_num115: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num114, &mut __tmp_num115);
-            let mut __tmp_num116: f64 = (i + 1_f64);
-            let mut __tmp_num117: f64 = 60_f64;
-            let mut __tmp_num118: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut __tmp_num116, &mut __tmp_num117, &mut __tmp_num118);
-            let mut __tmp_num119: f64 = 70_f64;
-            let mut __tmp_num120: f64 = __gs.colortable[(3_f64) as usize];
-            set(__rt, __gs, &mut i, &mut __tmp_num119, &mut __tmp_num120);
+            let mut __tmp_num137: f64 = 10.0f64;
+            let __baidx138 = (3.0f64) as usize;
+            let mut __tmp_arr139: f64 = __gs.colortable[__baidx138];
+            set(__rt, __gs, &mut i, &mut __tmp_num137, &mut __tmp_arr139);
+            __gs.colortable[__baidx138] = __tmp_arr139;
+            let mut __tmp_num140: f64 = (i + 1.0f64);
+            let mut __tmp_num141: f64 = 20.0f64;
+            let __baidx142 = (3.0f64) as usize;
+            let mut __tmp_arr143: f64 = __gs.colortable[__baidx142];
+            set(__rt, __gs, &mut __tmp_num140, &mut __tmp_num141, &mut __tmp_arr143);
+            __gs.colortable[__baidx142] = __tmp_arr143;
+            let mut __tmp_num144: f64 = 30.0f64;
+            let __baidx145 = (3.0f64) as usize;
+            let mut __tmp_arr146: f64 = __gs.colortable[__baidx145];
+            set(__rt, __gs, &mut i, &mut __tmp_num144, &mut __tmp_arr146);
+            __gs.colortable[__baidx145] = __tmp_arr146;
+            let mut __tmp_num147: f64 = (i + 1.0f64);
+            let mut __tmp_num148: f64 = 40.0f64;
+            let __baidx149 = (3.0f64) as usize;
+            let mut __tmp_arr150: f64 = __gs.colortable[__baidx149];
+            set(__rt, __gs, &mut __tmp_num147, &mut __tmp_num148, &mut __tmp_arr150);
+            __gs.colortable[__baidx149] = __tmp_arr150;
+            let mut __tmp_num151: f64 = 50.0f64;
+            let __baidx152 = (3.0f64) as usize;
+            let mut __tmp_arr153: f64 = __gs.colortable[__baidx152];
+            set(__rt, __gs, &mut i, &mut __tmp_num151, &mut __tmp_arr153);
+            __gs.colortable[__baidx152] = __tmp_arr153;
+            let mut __tmp_num154: f64 = (i + 1.0f64);
+            let mut __tmp_num155: f64 = 60.0f64;
+            let __baidx156 = (3.0f64) as usize;
+            let mut __tmp_arr157: f64 = __gs.colortable[__baidx156];
+            set(__rt, __gs, &mut __tmp_num154, &mut __tmp_num155, &mut __tmp_arr157);
+            __gs.colortable[__baidx156] = __tmp_arr157;
+            let mut __tmp_num158: f64 = 70.0f64;
+            let __baidx159 = (3.0f64) as usize;
+            let mut __tmp_arr160: f64 = __gs.colortable[__baidx159];
+            set(__rt, __gs, &mut i, &mut __tmp_num158, &mut __tmp_arr160);
+            __gs.colortable[__baidx159] = __tmp_arr160;
             i += __for_step_i;
         }
-        sammy__row[(1_f64) as usize] = 7_f64;
-        sammy__row[(2_f64) as usize] = 43_f64;
-        sammy__col[(1_f64) as usize] = 65_f64;
-        sammy__col[(2_f64) as usize] = 15_f64;
-        sammy__direction[(1_f64) as usize] = 2_f64;
-        sammy__direction[(2_f64) as usize] = 1_f64;
+        sammy__row[(1.0f64) as usize] = 7.0f64;
+        sammy__row[(2.0f64) as usize] = 43.0f64;
+        sammy__col[(1.0f64) as usize] = 65.0f64;
+        sammy__col[(2.0f64) as usize] = 15.0f64;
+        sammy__direction[(1.0f64) as usize] = 2.0f64;
+        sammy__direction[(2.0f64) as usize] = 1.0f64;
     }
 }
 
 fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, speed: &mut f64, diff_s: &mut String) {
-    let mut startrow1: f64 = 0.0_f64;
-    let mut startcol1: f64 = 0.0_f64;
-    let mut startrow2: f64 = 0.0_f64;
-    let mut startcol2: f64 = 0.0_f64;
-    let mut curspeed: f64 = 0.0_f64;
-    let mut gameover: f64 = 0.0_f64;
-    let mut number: f64 = 0.0_f64;
-    let mut nonum: f64 = 0.0_f64;
-    let mut playerdied: f64 = 0.0_f64;
-    let mut numberrow: f64 = 0.0_f64;
-    let mut numbercol: f64 = 0.0_f64;
-    let mut sisterrow: f64 = 0.0_f64;
-    let mut count: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
+    let mut startrow1: f64 = 0.0;
+    let mut startcol1: f64 = 0.0;
+    let mut startrow2: f64 = 0.0;
+    let mut startcol2: f64 = 0.0;
+    let mut curspeed: f64 = 0.0;
+    let mut gameover: f64 = 0.0;
+    let mut number: f64 = 0.0;
+    let mut nonum: f64 = 0.0;
+    let mut playerdied: f64 = 0.0;
+    let mut numberrow: f64 = 0.0;
+    let mut numbercol: f64 = 0.0;
+    let mut sisterrow: f64 = 0.0;
+    let mut count: f64 = 0.0;
+    let mut a: f64 = 0.0;
     let mut kbd_s: String = String::new();
-    let mut tail: f64 = 0.0_f64;
+    let mut tail: f64 = 0.0;
 
-    let mut sammybody__row: Vec<Vec<f64>> = vec![vec![0.0_f64; (2_f64+1.0) as usize]; ((maxsnakelength - 1_f64)+1.0) as usize];
-    let mut sammybody__col: Vec<Vec<f64>> = vec![vec![0.0_f64; (2_f64+1.0) as usize]; ((maxsnakelength - 1_f64)+1.0) as usize];
-    let mut sammy__head: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__length: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__row: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__col: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__direction: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__lives: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__score: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__scolor: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    let mut sammy__alive: Vec<f64> = vec![0.0_f64; (2_f64+1.0) as usize];
-    sammy__lives[(1_f64) as usize] = 5_f64;
-    sammy__score[(1_f64) as usize] = 0_f64;
-    sammy__scolor[(1_f64) as usize] = __gs.colortable[(1_f64) as usize];
-    sammy__lives[(2_f64) as usize] = 5_f64;
-    sammy__score[(2_f64) as usize] = 0_f64;
-    sammy__scolor[(2_f64) as usize] = __gs.colortable[(2_f64) as usize];
+    let mut sammybody__row: Vec<Vec<f64>> = vec![vec![0.0; (2.0f64+1.0) as usize]; ((maxsnakelength - 1.0f64)+1.0) as usize];
+    let mut sammybody__col: Vec<Vec<f64>> = vec![vec![0.0; (2.0f64+1.0) as usize]; ((maxsnakelength - 1.0f64)+1.0) as usize];
+    let mut sammy__head: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__length: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__row: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__col: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__direction: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__lives: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__score: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__scolor: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    let mut sammy__alive: Vec<f64> = vec![0.0; (2.0f64+1.0) as usize];
+    sammy__lives[(1.0f64) as usize] = 5.0f64;
+    sammy__score[(1.0f64) as usize] = 0.0f64;
+    sammy__scolor[(1.0f64) as usize] = __gs.colortable[(1.0f64) as usize];
+    sammy__lives[(2.0f64) as usize] = 5.0f64;
+    sammy__score[(2.0f64) as usize] = 0.0f64;
+    sammy__scolor[(2.0f64) as usize] = __gs.colortable[(2.0f64) as usize];
     level(__rt, __gs, &mut startover, &mut sammy__head, &mut sammy__length, &mut sammy__row, &mut sammy__col, &mut sammy__direction, &mut sammy__lives, &mut sammy__score, &mut sammy__scolor, &mut sammy__alive);
-    startrow1 = sammy__row[(1_f64) as usize];
-    startcol1 = sammy__col[(1_f64) as usize];
-    startrow2 = sammy__row[(2_f64) as usize];
-    startcol2 = sammy__col[(2_f64) as usize];
+    startrow1 = sammy__row[(1.0f64) as usize];
+    startcol1 = sammy__col[(1.0f64) as usize];
+    startrow2 = sammy__row[(2.0f64) as usize];
+    startcol2 = sammy__col[(2.0f64) as usize];
     curspeed = (*speed);
-    let mut __tmp_str121 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
-    spacepause(__rt, __gs, &mut __tmp_str121);
+    let mut __tmp_str161 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
+    spacepause(__rt, __gs, &mut __tmp_str161);
     gameover = qb_false;
     loop {
-        if qb_bool(qb_from_bool((*numplayers) == 1_f64)) {
-            sammy__row[(2_f64) as usize] = 0_f64;
+        if (*numplayers) == 1.0f64 {
+            sammy__row[(2.0f64) as usize] = 0.0f64;
         }
-        number = 1_f64;
+        number = 1.0f64;
         nonum = qb_true;
         playerdied = qb_false;
-        let mut __tmp_num122: f64 = sammy__score[(1_f64) as usize];
-        let mut __tmp_num123: f64 = sammy__score[(2_f64) as usize];
-        let mut __tmp_num124: f64 = sammy__lives[(1_f64) as usize];
-        let mut __tmp_num125: f64 = sammy__lives[(2_f64) as usize];
-        printscore(__rt, __gs, numplayers, &mut __tmp_num122, &mut __tmp_num123, &mut __tmp_num124, &mut __tmp_num125);
+        let mut __tmp_num162: f64 = sammy__score[(1.0f64) as usize];
+        let mut __tmp_num163: f64 = sammy__score[(2.0f64) as usize];
+        let mut __tmp_num164: f64 = sammy__lives[(1.0f64) as usize];
+        let mut __tmp_num165: f64 = sammy__lives[(2.0f64) as usize];
+        printscore(__rt, __gs, numplayers, &mut __tmp_num162, &mut __tmp_num163, &mut __tmp_num164, &mut __tmp_num165);
         __rt.play(&"T160O1>L20CDEDCDL10ECC");
         loop {
-            if qb_bool(qb_from_bool(nonum == qb_true)) {
+            if nonum == qb_true {
                 loop {
-                    let __tmp126 = __rt.rnd();
-                    numberrow = qb_int(((__tmp126 * 47_f64) + 3_f64));
-                    let __tmp127 = __rt.rnd();
-                    numbercol = qb_int(((__tmp127 * 78_f64) + 2_f64));
+                    let __tmp166 = __rt.rnd_arg(1.0f64);
+                    numberrow = qb_int(((__tmp166 * 47.0f64) + 3.0f64));
+                    let __tmp167 = __rt.rnd_arg(1.0f64);
+                    numbercol = qb_int(((__tmp167 * 78.0f64) + 2.0f64));
                     sisterrow = (numberrow + __gs.arena__sister[(numberrow) as usize][(numbercol) as usize]);
-                    if qb_bool(qb_and(qb_not({ let __fa0 = __gs.colortable[(4_f64) as usize]; pointisthere(__rt, __gs, numberrow, numbercol, __fa0) }), qb_not({ let __fa0 = __gs.colortable[(4_f64) as usize]; pointisthere(__rt, __gs, sisterrow, numbercol, __fa0) }))) { break; }
+                    if qb_bool(qb_and(qb_not({ let __fa0 = __gs.colortable[(4.0f64) as usize]; pointisthere(__rt, __gs, numberrow, numbercol, __fa0) }), qb_not({ let __fa0 = __gs.colortable[(4.0f64) as usize]; pointisthere(__rt, __gs, sisterrow, numbercol, __fa0) }))) { break; }
                 }
                 numberrow = __gs.arena__realrow[(numberrow) as usize][(numbercol) as usize];
                 nonum = qb_false;
-                __rt.color(__gs.colortable[(1_f64) as usize], Some(__gs.colortable[(4_f64) as usize]));
+                __rt.color(__gs.colortable[(1.0f64) as usize], Some(__gs.colortable[(4.0f64) as usize]));
                 __rt.locate(Some(numberrow), Some(numbercol), None);
-                __rt.print(&[qb_str(&(qb_right(&(qb_str_fn(number)), 1_f64)))]);
-                count = 0_f64;
+                __rt.print(&[qb_str(&(qb_right(&(qb_str_fn(number)), 1.0f64)))]);
+                count = 0.0f64;
             }
-            a = 1_f64;
+            a = 1.0f64;
             let __for_to_a: f64 = curspeed;
-            let __for_step_a: f64 = 1.0_f64;
+            let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
                 a += __for_step_a;
             }
-            let __tmp128 = __rt.inkey();
-            kbd_s = (__tmp128).to_string();
+            let __tmp168 = __rt.inkey();
+            kbd_s = (__tmp168).to_string();
             let __sel = kbd_s.clone();
             if __sel == "w".to_string() || __sel == "W".to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(2_f64) as usize] != 2_f64)) {
-                    sammy__direction[(2_f64) as usize] = 1_f64;
+                if sammy__direction[(2.0f64) as usize] != 2.0f64 {
+                    sammy__direction[(2.0f64) as usize] = 1.0f64;
                 }
             } else if __sel == "s".to_string() || __sel == "S".to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(2_f64) as usize] != 1_f64)) {
-                    sammy__direction[(2_f64) as usize] = 2_f64;
+                if sammy__direction[(2.0f64) as usize] != 1.0f64 {
+                    sammy__direction[(2.0f64) as usize] = 2.0f64;
                 }
             } else if __sel == "a".to_string() || __sel == "A".to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(2_f64) as usize] != 4_f64)) {
-                    sammy__direction[(2_f64) as usize] = 3_f64;
+                if sammy__direction[(2.0f64) as usize] != 4.0f64 {
+                    sammy__direction[(2.0f64) as usize] = 3.0f64;
                 }
             } else if __sel == "d".to_string() || __sel == "D".to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(2_f64) as usize] != 3_f64)) {
-                    sammy__direction[(2_f64) as usize] = 4_f64;
+                if sammy__direction[(2.0f64) as usize] != 3.0f64 {
+                    sammy__direction[(2.0f64) as usize] = 4.0f64;
                 }
-            } else if __sel == format!("{}{}" ,qb_chr(0_f64),"H").to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(1_f64) as usize] != 2_f64)) {
-                    sammy__direction[(1_f64) as usize] = 1_f64;
+            } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"H").to_string() {
+                if sammy__direction[(1.0f64) as usize] != 2.0f64 {
+                    sammy__direction[(1.0f64) as usize] = 1.0f64;
                 }
-            } else if __sel == format!("{}{}" ,qb_chr(0_f64),"P").to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(1_f64) as usize] != 1_f64)) {
-                    sammy__direction[(1_f64) as usize] = 2_f64;
+            } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"P").to_string() {
+                if sammy__direction[(1.0f64) as usize] != 1.0f64 {
+                    sammy__direction[(1.0f64) as usize] = 2.0f64;
                 }
-            } else if __sel == format!("{}{}" ,qb_chr(0_f64),"K").to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(1_f64) as usize] != 4_f64)) {
-                    sammy__direction[(1_f64) as usize] = 3_f64;
+            } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"K").to_string() {
+                if sammy__direction[(1.0f64) as usize] != 4.0f64 {
+                    sammy__direction[(1.0f64) as usize] = 3.0f64;
                 }
-            } else if __sel == format!("{}{}" ,qb_chr(0_f64),"M").to_string() {
-                if qb_bool(qb_from_bool(sammy__direction[(1_f64) as usize] != 3_f64)) {
-                    sammy__direction[(1_f64) as usize] = 4_f64;
+            } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"M").to_string() {
+                if sammy__direction[(1.0f64) as usize] != 3.0f64 {
+                    sammy__direction[(1.0f64) as usize] = 4.0f64;
                 }
             } else if __sel == "p".to_string() || __sel == "P".to_string() {
-                let mut __tmp_str129 = (" Game Paused ... Push Space  ").to_string();
-                spacepause(__rt, __gs, &mut __tmp_str129);
+                let mut __tmp_str169 = (" Game Paused ... Push Space  ").to_string();
+                spacepause(__rt, __gs, &mut __tmp_str169);
             } else {
             }
-            a = 1_f64;
+            a = 1.0f64;
             let __for_to_a: f64 = (*numplayers);
-            let __for_step_a: f64 = 1.0_f64;
+            let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
                 let __sel = sammy__direction[(a) as usize];
-                if __sel == 1_f64 {
-                    sammy__row[(a) as usize] = (sammy__row[(a) as usize] - 1_f64);
-                } else if __sel == 2_f64 {
-                    sammy__row[(a) as usize] = (sammy__row[(a) as usize] + 1_f64);
-                } else if __sel == 3_f64 {
-                    sammy__col[(a) as usize] = (sammy__col[(a) as usize] - 1_f64);
-                } else if __sel == 4_f64 {
-                    sammy__col[(a) as usize] = (sammy__col[(a) as usize] + 1_f64);
+                if __sel == 1.0f64 {
+                    sammy__row[(a) as usize] = (sammy__row[(a) as usize] - 1.0f64);
+                } else if __sel == 2.0f64 {
+                    sammy__row[(a) as usize] = (sammy__row[(a) as usize] + 1.0f64);
+                } else if __sel == 3.0f64 {
+                    sammy__col[(a) as usize] = (sammy__col[(a) as usize] - 1.0f64);
+                } else if __sel == 4.0f64 {
+                    sammy__col[(a) as usize] = (sammy__col[(a) as usize] + 1.0f64);
                 }
-                if qb_bool(qb_and(qb_from_bool(numberrow == qb_int(((sammy__row[(a) as usize] + 1_f64) / 2_f64))), qb_from_bool(numbercol == sammy__col[(a) as usize]))) {
+                if qb_bool(qb_and(qb_from_bool(numberrow == qb_int(((sammy__row[(a) as usize] + 1.0f64) / 2.0f64))), qb_from_bool(numbercol == sammy__col[(a) as usize]))) {
                     __rt.play(&"MBO0L16>CCCE");
-                    if qb_bool(qb_from_bool(sammy__length[(a) as usize] < (maxsnakelength - 30_f64))) {
-                        sammy__length[(a) as usize] = (sammy__length[(a) as usize] + (number * 4_f64));
+                    if sammy__length[(a) as usize] < (maxsnakelength - 30.0f64) {
+                        sammy__length[(a) as usize] = (sammy__length[(a) as usize] + (number * 4.0f64));
                     }
                     sammy__score[(a) as usize] = (sammy__score[(a) as usize] + number);
-                    let mut __tmp_num130: f64 = sammy__score[(1_f64) as usize];
-                    let mut __tmp_num131: f64 = sammy__score[(2_f64) as usize];
-                    let mut __tmp_num132: f64 = sammy__lives[(1_f64) as usize];
-                    let mut __tmp_num133: f64 = sammy__lives[(2_f64) as usize];
-                    printscore(__rt, __gs, numplayers, &mut __tmp_num130, &mut __tmp_num131, &mut __tmp_num132, &mut __tmp_num133);
-                    number = (number + 1_f64);
-                    if qb_bool(qb_from_bool(number == 10_f64)) {
-                        let mut __tmp_num134: f64 = 1_f64;
-                        erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut __tmp_num134);
-                        let mut __tmp_num135: f64 = 2_f64;
-                        erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut __tmp_num135);
+                    let mut __tmp_num170: f64 = sammy__score[(1.0f64) as usize];
+                    let mut __tmp_num171: f64 = sammy__score[(2.0f64) as usize];
+                    let mut __tmp_num172: f64 = sammy__lives[(1.0f64) as usize];
+                    let mut __tmp_num173: f64 = sammy__lives[(2.0f64) as usize];
+                    printscore(__rt, __gs, numplayers, &mut __tmp_num170, &mut __tmp_num171, &mut __tmp_num172, &mut __tmp_num173);
+                    number = (number + 1.0f64);
+                    if number == 10.0f64 {
+                        let mut __tmp_num174: f64 = 1.0f64;
+                        erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut __tmp_num174);
+                        let mut __tmp_num175: f64 = 2.0f64;
+                        erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut __tmp_num175);
                         __rt.locate(Some(numberrow), Some(numbercol), None);
                         __rt.println(&[qb_str(&(" "))]);
                         level(__rt, __gs, &mut nextlevel, &mut sammy__head, &mut sammy__length, &mut sammy__row, &mut sammy__col, &mut sammy__direction, &mut sammy__lives, &mut sammy__score, &mut sammy__scolor, &mut sammy__alive);
-                        let mut __tmp_num136: f64 = sammy__score[(1_f64) as usize];
-                        let mut __tmp_num137: f64 = sammy__score[(2_f64) as usize];
-                        let mut __tmp_num138: f64 = sammy__lives[(1_f64) as usize];
-                        let mut __tmp_num139: f64 = sammy__lives[(2_f64) as usize];
-                        printscore(__rt, __gs, numplayers, &mut __tmp_num136, &mut __tmp_num137, &mut __tmp_num138, &mut __tmp_num139);
-                        let mut __tmp_str140 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
-                        spacepause(__rt, __gs, &mut __tmp_str140);
-                        if qb_bool(qb_from_bool((*numplayers) == 1_f64)) {
-                            sammy__row[(2_f64) as usize] = 0_f64;
+                        let mut __tmp_num176: f64 = sammy__score[(1.0f64) as usize];
+                        let mut __tmp_num177: f64 = sammy__score[(2.0f64) as usize];
+                        let mut __tmp_num178: f64 = sammy__lives[(1.0f64) as usize];
+                        let mut __tmp_num179: f64 = sammy__lives[(2.0f64) as usize];
+                        printscore(__rt, __gs, numplayers, &mut __tmp_num176, &mut __tmp_num177, &mut __tmp_num178, &mut __tmp_num179);
+                        let mut __tmp_str180 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
+                        spacepause(__rt, __gs, &mut __tmp_str180);
+                        if (*numplayers) == 1.0f64 {
+                            sammy__row[(2.0f64) as usize] = 0.0f64;
                         }
-                        number = 1_f64;
-                        if qb_bool(qb_from_bool((diff_s).as_str() == "P")) {
-                            (*speed) = ((*speed) - 10_f64);
+                        number = 1.0f64;
+                        if (diff_s).as_str() == "P" {
+                            (*speed) = ((*speed) - 10.0f64);
                             curspeed = (*speed);
                         }
                     }
                     nonum = qb_true;
-                    if qb_bool(qb_from_bool(curspeed < 1_f64)) {
-                        curspeed = 1_f64;
+                    if curspeed < 1.0f64 {
+                        curspeed = 1.0f64;
                     }
                 }
                 a += __for_step_a;
             }
-            a = 1_f64;
+            a = 1.0f64;
             let __for_to_a: f64 = (*numplayers);
-            let __for_step_a: f64 = 1.0_f64;
+            let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                if qb_bool(qb_or({ let __fa0 = __gs.colortable[(4_f64) as usize]; pointisthere(__rt, __gs, sammy__row[(a) as usize], sammy__col[(a) as usize], __fa0) }, qb_and(qb_from_bool(sammy__row[(1_f64) as usize] == sammy__row[(2_f64) as usize]), qb_from_bool(sammy__col[(1_f64) as usize] == sammy__col[(2_f64) as usize])))) {
+                if qb_bool(qb_or({ let __fa0 = __gs.colortable[(4.0f64) as usize]; pointisthere(__rt, __gs, sammy__row[(a) as usize], sammy__col[(a) as usize], __fa0) }, qb_and(qb_from_bool(sammy__row[(1.0f64) as usize] == sammy__row[(2.0f64) as usize]), qb_from_bool(sammy__col[(1.0f64) as usize] == sammy__col[(2.0f64) as usize])))) {
                     __rt.play(&"MBO0L32EFGEFDC");
-                    __rt.color(7.0_f64, Some(__gs.colortable[(4_f64) as usize]));
+                    __rt.color(7.0, Some(__gs.colortable[(4.0f64) as usize]));
                     __rt.locate(Some(numberrow), Some(numbercol), None);
                     __rt.println(&[qb_str(&(" "))]);
                     playerdied = qb_true;
                     sammy__alive[(a) as usize] = qb_false;
-                    sammy__lives[(a) as usize] = (sammy__lives[(a) as usize] - 1_f64);
+                    sammy__lives[(a) as usize] = (sammy__lives[(a) as usize] - 1.0f64);
                 } else {
-                    sammy__head[(a) as usize] = qb_mod((sammy__head[(a) as usize] + 1_f64), maxsnakelength);
+                    sammy__head[(a) as usize] = qb_mod((sammy__head[(a) as usize] + 1.0f64), maxsnakelength);
                     sammybody__row[(sammy__head[(a) as usize]) as usize][(a) as usize] = sammy__row[(a) as usize];
                     sammybody__col[(sammy__head[(a) as usize]) as usize][(a) as usize] = sammy__col[(a) as usize];
                     tail = qb_mod(((sammy__head[(a) as usize] + maxsnakelength) - sammy__length[(a) as usize]), maxsnakelength);
-                    let mut __tmp_num141: f64 = sammybody__row[(tail) as usize][(a) as usize];
-                    let mut __tmp_num142: f64 = sammybody__col[(tail) as usize][(a) as usize];
-                    let mut __tmp_num143: f64 = __gs.colortable[(4_f64) as usize];
-                    set(__rt, __gs, &mut __tmp_num141, &mut __tmp_num142, &mut __tmp_num143);
-                    sammybody__row[(tail) as usize][(a) as usize] = 0_f64;
-                    let mut __tmp_num144: f64 = sammy__row[(a) as usize];
-                    let mut __tmp_num145: f64 = sammy__col[(a) as usize];
-                    let mut __tmp_num146: f64 = sammy__scolor[(a) as usize];
-                    set(__rt, __gs, &mut __tmp_num144, &mut __tmp_num145, &mut __tmp_num146);
+                    let mut __tmp_num181: f64 = sammybody__row[(tail) as usize][(a) as usize];
+                    let mut __tmp_num182: f64 = sammybody__col[(tail) as usize][(a) as usize];
+                    let __baidx183 = (4.0f64) as usize;
+                    let mut __tmp_arr184: f64 = __gs.colortable[__baidx183];
+                    set(__rt, __gs, &mut __tmp_num181, &mut __tmp_num182, &mut __tmp_arr184);
+                    __gs.colortable[__baidx183] = __tmp_arr184;
+                    sammybody__row[(tail) as usize][(a) as usize] = 0.0f64;
+                    let mut __tmp_num185: f64 = sammy__row[(a) as usize];
+                    let mut __tmp_num186: f64 = sammy__col[(a) as usize];
+                    let mut __tmp_num187: f64 = sammy__scolor[(a) as usize];
+                    set(__rt, __gs, &mut __tmp_num185, &mut __tmp_num186, &mut __tmp_num187);
                 }
                 a += __for_step_a;
             }
             if qb_bool(playerdied) { break; }
         }
         curspeed = (*speed);
-        a = 1_f64;
+        a = 1.0f64;
         let __for_to_a: f64 = (*numplayers);
-        let __for_step_a: f64 = 1.0_f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
             erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut a);
-            if qb_bool(qb_from_bool(sammy__alive[(a) as usize] == qb_false)) {
-                sammy__score[(a) as usize] = (sammy__score[(a) as usize] - 10_f64);
-                let mut __tmp_num147: f64 = sammy__score[(1_f64) as usize];
-                let mut __tmp_num148: f64 = sammy__score[(2_f64) as usize];
-                let mut __tmp_num149: f64 = sammy__lives[(1_f64) as usize];
-                let mut __tmp_num150: f64 = sammy__lives[(2_f64) as usize];
-                printscore(__rt, __gs, numplayers, &mut __tmp_num147, &mut __tmp_num148, &mut __tmp_num149, &mut __tmp_num150);
-                if qb_bool(qb_from_bool(a == 1_f64)) {
-                    let mut __tmp_str151 = (" Sammy Dies! Push Space! --->").to_string();
-                    spacepause(__rt, __gs, &mut __tmp_str151);
+            if sammy__alive[(a) as usize] == qb_false {
+                sammy__score[(a) as usize] = (sammy__score[(a) as usize] - 10.0f64);
+                let mut __tmp_num188: f64 = sammy__score[(1.0f64) as usize];
+                let mut __tmp_num189: f64 = sammy__score[(2.0f64) as usize];
+                let mut __tmp_num190: f64 = sammy__lives[(1.0f64) as usize];
+                let mut __tmp_num191: f64 = sammy__lives[(2.0f64) as usize];
+                printscore(__rt, __gs, numplayers, &mut __tmp_num188, &mut __tmp_num189, &mut __tmp_num190, &mut __tmp_num191);
+                if a == 1.0f64 {
+                    let mut __tmp_str192 = (" Sammy Dies! Push Space! --->").to_string();
+                    spacepause(__rt, __gs, &mut __tmp_str192);
                 } else {
-                    let mut __tmp_str152 = (" <---- Jake Dies! Push Space ").to_string();
-                    spacepause(__rt, __gs, &mut __tmp_str152);
+                    let mut __tmp_str193 = (" <---- Jake Dies! Push Space ").to_string();
+                    spacepause(__rt, __gs, &mut __tmp_str193);
                 }
             }
             a += __for_step_a;
         }
         level(__rt, __gs, &mut samelevel, &mut sammy__head, &mut sammy__length, &mut sammy__row, &mut sammy__col, &mut sammy__direction, &mut sammy__lives, &mut sammy__score, &mut sammy__scolor, &mut sammy__alive);
-        let mut __tmp_num153: f64 = sammy__score[(1_f64) as usize];
-        let mut __tmp_num154: f64 = sammy__score[(2_f64) as usize];
-        let mut __tmp_num155: f64 = sammy__lives[(1_f64) as usize];
-        let mut __tmp_num156: f64 = sammy__lives[(2_f64) as usize];
-        printscore(__rt, __gs, numplayers, &mut __tmp_num153, &mut __tmp_num154, &mut __tmp_num155, &mut __tmp_num156);
-        if qb_bool(qb_or(qb_from_bool(sammy__lives[(1_f64) as usize] == 0_f64), qb_from_bool(sammy__lives[(2_f64) as usize] == 0_f64))) { break; }
+        let mut __tmp_num194: f64 = sammy__score[(1.0f64) as usize];
+        let mut __tmp_num195: f64 = sammy__score[(2.0f64) as usize];
+        let mut __tmp_num196: f64 = sammy__lives[(1.0f64) as usize];
+        let mut __tmp_num197: f64 = sammy__lives[(2.0f64) as usize];
+        printscore(__rt, __gs, numplayers, &mut __tmp_num194, &mut __tmp_num195, &mut __tmp_num196, &mut __tmp_num197);
+        if qb_bool(qb_or(qb_from_bool(sammy__lives[(1.0f64) as usize] == 0.0f64), qb_from_bool(sammy__lives[(2.0f64) as usize] == 0.0f64))) { break; }
     }
 }
 
 fn printscore(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, score1: &mut f64, score2: &mut f64, lives1: &mut f64, lives2: &mut f64) {
-    __rt.color(15_f64, Some(__gs.colortable[(4_f64) as usize]));
-    if qb_bool(qb_from_bool((*numplayers) == 2_f64)) {
-        __rt.locate(Some(1_f64), Some(1_f64), None);
-        let __pu157 = qb_print_using(&("#,###,#00  Lives: #  <--JAKE"), &[QbVal::Num((*score2)), QbVal::Num((*lives2))]);
-        __rt.println(&[__pu157]);
+    __rt.color(15.0f64, Some(__gs.colortable[(4.0f64) as usize]));
+    if (*numplayers) == 2.0f64 {
+        __rt.locate(Some(1.0f64), Some(1.0f64), None);
+        let __pu198 = qb_print_using(&("#,###,#00  Lives: #  <--JAKE"), &[QbVal::Num((*score2)), QbVal::Num((*lives2))]);
+        __rt.println(&[__pu198]);
     }
-    __rt.locate(Some(1_f64), Some(49_f64), None);
-    let __pu158 = qb_print_using(&("SAMMY-->  Lives: #     #,###,#00"), &[QbVal::Num((*lives1)), QbVal::Num((*score1))]);
-    __rt.println(&[__pu158]);
+    __rt.locate(Some(1.0f64), Some(49.0f64), None);
+    let __pu199 = qb_print_using(&("SAMMY-->  Lives: #     #,###,#00"), &[QbVal::Num((*lives1)), QbVal::Num((*score1))]);
+    __rt.println(&[__pu199]);
 }
 
 fn set(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, acolor: &mut f64) {
-    let mut realrow: f64 = 0.0_f64;
-    let mut topflag: f64 = 0.0_f64;
-    let mut sisterrow: f64 = 0.0_f64;
-    let mut sistercolor: f64 = 0.0_f64;
+    let mut realrow: f64 = 0.0;
+    let mut topflag: f64 = 0.0;
+    let mut sisterrow: f64 = 0.0;
+    let mut sistercolor: f64 = 0.0;
 
-    if qb_bool(qb_from_bool((*row) != 0_f64)) {
+    if (*row) != 0.0f64 {
         __gs.arena__acolor[((*row)) as usize][((*col)) as usize] = (*acolor);
         realrow = __gs.arena__realrow[((*row)) as usize][((*col)) as usize];
-        topflag = (__gs.arena__sister[((*row)) as usize][((*col)) as usize] + (1_f64 / 2_f64));
+        topflag = (__gs.arena__sister[((*row)) as usize][((*col)) as usize] + (1.0f64 / 2.0f64));
         sisterrow = ((*row) + __gs.arena__sister[((*row)) as usize][((*col)) as usize]);
         sistercolor = __gs.arena__acolor[(sisterrow) as usize][((*col)) as usize];
         __rt.locate(Some(realrow), Some((*col)), None);
-        if qb_bool(qb_from_bool((*acolor) == sistercolor)) {
+        if (*acolor) == sistercolor {
             __rt.color((*acolor), Some((*acolor)));
-            __rt.print(&[qb_str(&(qb_chr(219_f64)))]);
+            __rt.print(&[qb_str(&(qb_chr(219.0f64)))]);
         } else {
             if qb_bool(topflag) {
-                if qb_bool(qb_from_bool((*acolor) > 7_f64)) {
+                if (*acolor) > 7.0f64 {
                     __rt.color((*acolor), Some(sistercolor));
-                    __rt.print(&[qb_str(&(qb_chr(223_f64)))]);
+                    __rt.print(&[qb_str(&(qb_chr(223.0f64)))]);
                 } else {
                     __rt.color(sistercolor, Some((*acolor)));
-                    __rt.print(&[qb_str(&(qb_chr(220_f64)))]);
+                    __rt.print(&[qb_str(&(qb_chr(220.0f64)))]);
                 }
             } else {
-                if qb_bool(qb_from_bool((*acolor) > 7_f64)) {
+                if (*acolor) > 7.0f64 {
                     __rt.color((*acolor), Some(sistercolor));
-                    __rt.print(&[qb_str(&(qb_chr(220_f64)))]);
+                    __rt.print(&[qb_str(&(qb_chr(220.0f64)))]);
                 } else {
                     __rt.color(sistercolor, Some((*acolor)));
-                    __rt.print(&[qb_str(&(qb_chr(223_f64)))]);
+                    __rt.print(&[qb_str(&(qb_chr(223.0f64)))]);
                 }
             }
         }
@@ -805,34 +887,34 @@ fn set(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, a
 }
 
 fn spacepause(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String) {
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
-    __rt.color(__gs.colortable[(5_f64) as usize], Some(__gs.colortable[(6_f64) as usize]));
-    let mut __tmp_num159: f64 = 11_f64;
-    let mut __tmp_str160 = ("\u{DB}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num159, &mut __tmp_str160);
-    let mut __tmp_num161: f64 = 12_f64;
-    let mut __tmp_str162 = (format!("{}{}" ,format!("{}{}" ,"\u{DB} ",qb_left(&(format!("{}{}" ,text_s,qb_space(29_f64))), 29_f64))," \u{DB}")).to_string();
-    center(__rt, __gs, &mut __tmp_num161, &mut __tmp_str162);
-    let mut __tmp_num163: f64 = 13_f64;
-    let mut __tmp_str164 = ("\u{DB}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num163, &mut __tmp_str164);
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    __rt.color(__gs.colortable[(5.0f64) as usize], Some(__gs.colortable[(6.0f64) as usize]));
+    let mut __tmp_num200: f64 = 11.0f64;
+    let mut __tmp_str201 = ("\u{DB}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num200, &mut __tmp_str201);
+    let mut __tmp_num202: f64 = 12.0f64;
+    let mut __tmp_str203 = (format!("{}{}" ,format!("{}{}" ,"\u{DB} ",qb_left(&(format!("{}{}" ,text_s,qb_space(29.0f64))), 29.0f64))," \u{DB}")).to_string();
+    center(__rt, __gs, &mut __tmp_num202, &mut __tmp_str203);
+    let mut __tmp_num204: f64 = 13.0f64;
+    let mut __tmp_str205 = ("\u{DB}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num204, &mut __tmp_str205);
+    while (__rt.inkey()).as_str() != "" {
     }
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != " ")) {
+    while (__rt.inkey()).as_str() != " " {
     }
-    __rt.color(15_f64, Some(__gs.colortable[(4_f64) as usize]));
-    i = 21_f64;
-    let __for_to_i: f64 = 26_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __rt.color(15.0f64, Some(__gs.colortable[(4.0f64) as usize]));
+    i = 21.0f64;
+    let __for_to_i: f64 = 26.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 24_f64;
-        let __for_to_j: f64 = 56_f64;
-        let __for_step_j: f64 = 1.0_f64;
+        j = 24.0f64;
+        let __for_to_j: f64 = 56.0f64;
+        let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            let mut __tmp_num165: f64 = __gs.arena__acolor[(i) as usize][(j) as usize];
-            set(__rt, __gs, &mut i, &mut j, &mut __tmp_num165);
+            let mut __tmp_num206: f64 = __gs.arena__acolor[(i) as usize][(j) as usize];
+            set(__rt, __gs, &mut i, &mut j, &mut __tmp_num206);
             j += __for_step_j;
         }
         i += __for_step_i;
@@ -841,37 +923,37 @@ fn spacepause(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String) {
 
 fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
-    let mut a: f64 = 0.0_f64;
-    let mut b: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
+    let mut b: f64 = 0.0;
+    let mut c: f64 = 0.0;
 
-    __rt.color(4_f64, Some(0_f64));
+    __rt.color(4.0f64, Some(0.0f64));
     a_s = ("*    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    ").to_string();
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    while (__rt.inkey()).as_str() != "" {
     }
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
-        a = 1_f64;
-        let __for_to_a: f64 = 5_f64;
-        let __for_step_a: f64 = 1.0_f64;
+    while (__rt.inkey()).as_str() == "" {
+        a = 1.0f64;
+        let __for_to_a: f64 = 5.0f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-            __rt.locate(Some(1_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80_f64))))]);
-            __rt.locate(Some(22_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6_f64 - a), Some(80_f64))))]);
-            b = 2_f64;
-            let __for_to_b: f64 = 21_f64;
-            let __for_step_b: f64 = 1.0_f64;
+            __rt.locate(Some(1.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80.0f64))))]);
+            __rt.locate(Some(22.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6.0f64 - a), Some(80.0f64))))]);
+            b = 2.0f64;
+            let __for_to_b: f64 = 21.0f64;
+            let __for_step_b: f64 = 1.0;
             while (__for_step_b > 0.0 && b <= __for_to_b) || (__for_step_b < 0.0 && b >= __for_to_b) {
-                c = qb_mod((a + b), 5_f64);
-                if qb_bool(qb_from_bool(c == 1_f64)) {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                c = qb_mod((a + b), 5.0f64);
+                if c == 1.0f64 {
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
                 } else {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
                 }
                 b += __for_step_b;
@@ -883,8 +965,8 @@ fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn pointisthere(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64, mut acolor: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    if qb_bool(qb_from_bool(row != 0_f64)) {
-        if qb_bool(qb_from_bool(__gs.arena__acolor[(row) as usize][(col) as usize] != acolor)) {
+    if row != 0.0f64 {
+        if __gs.arena__acolor[(row) as usize][(col) as usize] != acolor {
             __fn_ret = qb_true;
         } else {
             __fn_ret = qb_false;
@@ -897,78 +979,82 @@ fn stillwantstoplay(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
     let mut __fn_ret: f64 = Default::default();
     let mut kbd_s: String = String::new();
 
-    __rt.color(__gs.colortable[(5_f64) as usize], Some(__gs.colortable[(6_f64) as usize]));
-    let mut __tmp_num166: f64 = 10_f64;
-    let mut __tmp_str167 = ("\u{DB}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num166, &mut __tmp_str167);
-    let mut __tmp_num168: f64 = 11_f64;
-    let mut __tmp_str169 = ("\u{DB}       G A M E   O V E R       \u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num168, &mut __tmp_str169);
-    let mut __tmp_num170: f64 = 12_f64;
-    let mut __tmp_str171 = ("\u{DB}                               \u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num170, &mut __tmp_str171);
-    let mut __tmp_num172: f64 = 13_f64;
-    let mut __tmp_str173 = ("\u{DB}      Play Again?   (Y/N)      \u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num172, &mut __tmp_str173);
-    let mut __tmp_num174: f64 = 14_f64;
-    let mut __tmp_str175 = ("\u{DB}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DB}").to_string();
-    center(__rt, __gs, &mut __tmp_num174, &mut __tmp_str175);
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    __rt.color(__gs.colortable[(5.0f64) as usize], Some(__gs.colortable[(6.0f64) as usize]));
+    let mut __tmp_num207: f64 = 10.0f64;
+    let mut __tmp_str208 = ("\u{DB}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num207, &mut __tmp_str208);
+    let mut __tmp_num209: f64 = 11.0f64;
+    let mut __tmp_str210 = ("\u{DB}       G A M E   O V E R       \u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num209, &mut __tmp_str210);
+    let mut __tmp_num211: f64 = 12.0f64;
+    let mut __tmp_str212 = ("\u{DB}                               \u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num211, &mut __tmp_str212);
+    let mut __tmp_num213: f64 = 13.0f64;
+    let mut __tmp_str214 = ("\u{DB}      Play Again?   (Y/N)      \u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num213, &mut __tmp_str214);
+    let mut __tmp_num215: f64 = 14.0f64;
+    let mut __tmp_str216 = ("\u{DB}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DC}\u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num215, &mut __tmp_str216);
+    while (__rt.inkey()).as_str() != "" {
     }
     loop {
-        let __tmp176 = __rt.inkey();
-        kbd_s = (qb_ucase(&(__tmp176))).to_string();
+        let __tmp217 = __rt.inkey();
+        kbd_s = (qb_ucase(&(__tmp217))).to_string();
         if qb_bool(qb_or(qb_from_bool((kbd_s).as_str() == "Y"), qb_from_bool((kbd_s).as_str() == "N"))) { break; }
     }
-    __rt.color(15_f64, Some(__gs.colortable[(4_f64) as usize]));
-    let mut __tmp_num177: f64 = 10_f64;
-    let mut __tmp_str178 = ("                                 ").to_string();
-    center(__rt, __gs, &mut __tmp_num177, &mut __tmp_str178);
-    let mut __tmp_num179: f64 = 11_f64;
-    let mut __tmp_str180 = ("                                 ").to_string();
-    center(__rt, __gs, &mut __tmp_num179, &mut __tmp_str180);
-    let mut __tmp_num181: f64 = 12_f64;
-    let mut __tmp_str182 = ("                                 ").to_string();
-    center(__rt, __gs, &mut __tmp_num181, &mut __tmp_str182);
-    let mut __tmp_num183: f64 = 13_f64;
-    let mut __tmp_str184 = ("                                 ").to_string();
-    center(__rt, __gs, &mut __tmp_num183, &mut __tmp_str184);
-    let mut __tmp_num185: f64 = 14_f64;
-    let mut __tmp_str186 = ("                                 ").to_string();
-    center(__rt, __gs, &mut __tmp_num185, &mut __tmp_str186);
-    if qb_bool(qb_from_bool((kbd_s).as_str() == "Y")) {
+    __rt.color(15.0f64, Some(__gs.colortable[(4.0f64) as usize]));
+    let mut __tmp_num218: f64 = 10.0f64;
+    let mut __tmp_str219 = ("                                 ").to_string();
+    center(__rt, __gs, &mut __tmp_num218, &mut __tmp_str219);
+    let mut __tmp_num220: f64 = 11.0f64;
+    let mut __tmp_str221 = ("                                 ").to_string();
+    center(__rt, __gs, &mut __tmp_num220, &mut __tmp_str221);
+    let mut __tmp_num222: f64 = 12.0f64;
+    let mut __tmp_str223 = ("                                 ").to_string();
+    center(__rt, __gs, &mut __tmp_num222, &mut __tmp_str223);
+    let mut __tmp_num224: f64 = 13.0f64;
+    let mut __tmp_str225 = ("                                 ").to_string();
+    center(__rt, __gs, &mut __tmp_num224, &mut __tmp_str225);
+    let mut __tmp_num226: f64 = 14.0f64;
+    let mut __tmp_str227 = ("                                 ").to_string();
+    center(__rt, __gs, &mut __tmp_num226, &mut __tmp_str227);
+    if (kbd_s).as_str() == "Y" {
         __fn_ret = qb_true;
     } else {
         __fn_ret = qb_false;
-        __rt.color(7_f64, Some(0_f64));
+        __rt.color(7.0f64, Some(0.0f64));
         __rt.cls(0u8);
     }
     __fn_ret
 }
 
 fn clearkeylocks(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut keyflags: f64 = 0.0_f64;
+    let mut keyflags: f64 = 0.0;
 
-    keyflags = qb_peek(1047_f64);
+    keyflags = __rt.qb_peek(1047.0f64);
+    __rt.qb_poke(1047.0f64, 0.0f64);
     return;
 }
 
 fn restorekeylocks(__rt: &mut Runtime, __gs: &mut GameState) {
+    let keyflags: f64 = 0.0;
+
+    __rt.qb_poke(1047.0f64, keyflags);
     return;
 }
 
 fn setcolors(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut monitor_s: String = String::new();
-    let mut a: f64 = 0.0_f64;
+    let monitor_s: String = String::new();
+    let mut a: f64 = 0.0;
 
-    if qb_bool(qb_from_bool((monitor_s).as_str() == "M")) {
+    if (monitor_s).as_str() == "M" {
         __DATA_PTR.store(0, std::sync::atomic::Ordering::SeqCst);
     } else {
         __DATA_PTR.store(6, std::sync::atomic::Ordering::SeqCst);
     }
-    a = 1_f64;
-    let __for_to_a: f64 = 6_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    a = 1.0f64;
+    let __for_to_a: f64 = 6.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
         __gs.colortable[(a) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
         a += __for_step_a;
@@ -983,15 +1069,15 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut numplayers: f64 = 0.0_f64;
-    let mut speed: f64 = 0.0_f64;
+    let mut numplayers: f64 = 0.0;
+    let mut speed: f64 = 0.0;
     let mut diff_s: String = String::new();
     let mut monitor_s: String = String::new();
 
-    __gs.arena__realrow = vec![vec![0.0_f64; (80_f64+1.0) as usize]; (50_f64+1.0) as usize];
-    __gs.arena__acolor = vec![vec![0.0_f64; (80_f64+1.0) as usize]; (50_f64+1.0) as usize];
-    __gs.arena__sister = vec![vec![0.0_f64; (80_f64+1.0) as usize]; (50_f64+1.0) as usize];
-    __gs.colortable = vec![Default::default(); (10_f64+1.0) as usize];
+    __gs.arena__realrow = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
+    __gs.arena__acolor = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
+    __gs.arena__sister = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
+    __gs.colortable = vec![Default::default(); (10.0f64+1.0) as usize];
     __rt.randomize(qb_timer());
     clearkeylocks(&mut __rt, &mut __gs);
     intro(&mut __rt, &mut __gs);
@@ -1000,10 +1086,10 @@ fn main() {
     drawscreen(&mut __rt, &mut __gs);
     loop {
         playnibbles(&mut __rt, &mut __gs, &mut numplayers, &mut speed, &mut diff_s);
-        if !qb_bool(stillwantstoplay(&mut __rt, &mut __gs)) { break; }
+        if !(qb_bool(stillwantstoplay(&mut __rt, &mut __gs))) { break; }
     }
     restorekeylocks(&mut __rt, &mut __gs);
-    __rt.color(15_f64, Some(0_f64));
+    __rt.color(15.0f64, Some(0.0f64));
     __rt.cls(0u8);
     __rt.quit();
 }

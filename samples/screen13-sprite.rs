@@ -6,46 +6,133 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut y: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
+    let mut y: f64 = 0.0;
+    let mut x: f64 = 0.0;
 
-    __rt.screen(13_f64);
+    __rt.screen(13.0f64);
     __rt.cls(0u8);
-    y = 0_f64;
-    let __for_to_y: f64 = 15_f64;
-    let __for_step_y: f64 = 1.0_f64;
+    y = 0.0f64;
+    let __for_to_y: f64 = 15.0f64;
+    let __for_step_y: f64 = 1.0;
     while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
-        x = 0_f64;
-        let __for_to_x: f64 = 23_f64;
-        let __for_step_x: f64 = 1.0_f64;
+        x = 0.0f64;
+        let __for_to_x: f64 = 23.0f64;
+        let __for_step_x: f64 = 1.0;
         while (__for_step_x > 0.0 && x <= __for_to_x) || (__for_step_x < 0.0 && x >= __for_to_x) {
-            __rt.pset((x + 20_f64), (y + 20_f64), (qb_mod(((x * 11_f64) + (y * 23_f64)), 254_f64) + 1_f64));
+            __rt.pset((x + 2.0f64), (y + 2.0f64), (qb_mod(((x * 11.0f64) + (y * 23.0f64)), 254.0f64) + 1.0f64));
             x += __for_step_x;
         }
         y += __for_step_y;
     }
-    let mut spr: Vec<f64> = vec![Default::default(); (200_f64+1.0) as usize];
-    let __sgx1_0 = 20_f64;
-    let __sgy1_0 = 20_f64;
-    let __sgx2_0 = 43_f64;
-    let __sgy2_0 = 35_f64;
-    __rt.get_sprite(__sgx1_0, __sgy1_0, __sgx2_0, __sgy2_0, &mut spr);
-    let __spx1 = 100_f64;
-    let __spy1 = 50_f64;
-    __rt.put_sprite(&spr, __spx1, __spy1, qbasic_runtime::PutAction::Pset);
-    let __spx2 = 160_f64;
-    let __spy2 = 80_f64;
-    __rt.put_sprite(&spr, __spx2, __spy2, qbasic_runtime::PutAction::Pset);
-    let __spx3 = 60_f64;
-    let __spy3 = 120_f64;
-    __rt.put_sprite(&spr, __spx3, __spy3, qbasic_runtime::PutAction::Pset);
-    let __spx4 = 220_f64;
-    let __spy4 = 120_f64;
-    __rt.put_sprite(&spr, __spx4, __spy4, qbasic_runtime::PutAction::Xor);
-    let __spx5 = 220_f64;
-    let __spy5 = 120_f64;
-    __rt.put_sprite(&spr, __spx5, __spy5, qbasic_runtime::PutAction::Xor);
-    __rt.locate(Some(24_f64), Some(1_f64), None);
-    __rt.print(&[qb_str(&("SCREEN 13 sprite GET/PUT"))]);
+    let mut spra: Vec<f64> = vec![Default::default(); (200.0f64+1.0) as usize];
+    let __sgx1_0 = 2.0f64;
+    let __sgy1_0 = 2.0f64;
+    let __sgx2_0 = 25.0f64;
+    let __sgy2_0 = 17.0f64;
+    __rt.get_sprite(__sgx1_0, __sgy1_0, __sgx2_0, __sgy2_0, &mut spra);
+    __rt.cls(0u8);
+    __rt.pset(2.0f64, 2.0f64, 0.0f64);
+    __rt.pset(3.0f64, 2.0f64, 127.0f64);
+    __rt.pset(4.0f64, 2.0f64, 128.0f64);
+    __rt.pset(5.0f64, 2.0f64, 200.0f64);
+    __rt.pset(6.0f64, 2.0f64, 255.0f64);
+    __rt.pset(2.0f64, 3.0f64, 254.0f64);
+    __rt.pset(3.0f64, 3.0f64, 1.0f64);
+    __rt.pset(4.0f64, 3.0f64, 129.0f64);
+    __rt.pset(5.0f64, 3.0f64, 201.0f64);
+    __rt.pset(6.0f64, 3.0f64, 253.0f64);
+    __rt.pset(2.0f64, 4.0f64, 2.0f64);
+    __rt.pset(3.0f64, 4.0f64, 126.0f64);
+    __rt.pset(4.0f64, 4.0f64, 130.0f64);
+    __rt.pset(5.0f64, 4.0f64, 202.0f64);
+    __rt.pset(6.0f64, 4.0f64, 252.0f64);
+    __rt.pset(2.0f64, 5.0f64, 3.0f64);
+    __rt.pset(3.0f64, 5.0f64, 125.0f64);
+    __rt.pset(4.0f64, 5.0f64, 131.0f64);
+    __rt.pset(5.0f64, 5.0f64, 203.0f64);
+    __rt.pset(6.0f64, 5.0f64, 251.0f64);
+    __rt.pset(2.0f64, 6.0f64, 4.0f64);
+    __rt.pset(3.0f64, 6.0f64, 124.0f64);
+    __rt.pset(4.0f64, 6.0f64, 132.0f64);
+    __rt.pset(5.0f64, 6.0f64, 204.0f64);
+    __rt.pset(6.0f64, 6.0f64, 250.0f64);
+    let mut sprb: Vec<f64> = vec![Default::default(); (30.0f64+1.0) as usize];
+    let __sgx1_1 = 2.0f64;
+    let __sgy1_1 = 2.0f64;
+    let __sgx2_1 = 8.0f64;
+    let __sgy2_1 = 6.0f64;
+    __rt.get_sprite(__sgx1_1, __sgy1_1, __sgx2_1, __sgy2_1, &mut sprb);
+    __rt.cls(0u8);
+    y = 0.0f64;
+    let __for_to_y: f64 = 199.0f64;
+    let __for_step_y: f64 = 1.0;
+    while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
+        x = 0.0f64;
+        let __for_to_x: f64 = 31.0f64;
+        let __for_step_x: f64 = 1.0;
+        while (__for_step_x > 0.0 && x <= __for_to_x) || (__for_step_x < 0.0 && x >= __for_to_x) {
+            __rt.pset((x + 200.0f64), y, qb_mod(((x * 8.0f64) + y), 256.0f64));
+            x += __for_step_x;
+        }
+        y += __for_step_y;
+    }
+    let __spx2 = 10.0f64;
+    let __spy2 = 10.0f64;
+    __rt.put_sprite(&spra, __spx2, __spy2, qbasic_runtime::PutAction::Pset);
+    let __spx3 = 100.0f64;
+    let __spy3 = 80.0f64;
+    __rt.put_sprite(&spra, __spx3, __spy3, qbasic_runtime::PutAction::Pset);
+    y = 50.0f64;
+    let __for_to_y: f64 = 65.0f64;
+    let __for_step_y: f64 = 1.0;
+    while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
+        x = 50.0f64;
+        let __for_to_x: f64 = 73.0f64;
+        let __for_step_x: f64 = 1.0;
+        while (__for_step_x > 0.0 && x <= __for_to_x) || (__for_step_x < 0.0 && x >= __for_to_x) {
+            __rt.pset(x, y, qb_mod(((x * 3.0f64) + (y * 7.0f64)), 256.0f64));
+            x += __for_step_x;
+        }
+        y += __for_step_y;
+    }
+    let __spx4 = 50.0f64;
+    let __spy4 = 50.0f64;
+    __rt.put_sprite(&spra, __spx4, __spy4, qbasic_runtime::PutAction::Xor);
+    let __spx5 = 50.0f64;
+    let __spy5 = 50.0f64;
+    __rt.put_sprite(&spra, __spx5, __spy5, qbasic_runtime::PutAction::Xor);
+    let __spx6 = 10.0f64;
+    let __spy6 = 100.0f64;
+    __rt.put_sprite(&spra, __spx6, __spy6, qbasic_runtime::PutAction::Preset);
+    let __spx7 = 200.0f64;
+    let __spy7 = 10.0f64;
+    __rt.put_sprite(&spra, __spx7, __spy7, qbasic_runtime::PutAction::And);
+    let __spx8 = 200.0f64;
+    let __spy8 = 90.0f64;
+    __rt.put_sprite(&spra, __spx8, __spy8, qbasic_runtime::PutAction::Or);
+    let __spx9 = 150.0f64;
+    let __spy9 = 10.0f64;
+    __rt.put_sprite(&sprb, __spx9, __spy9, qbasic_runtime::PutAction::Pset);
+    let __spx10 = 150.0f64;
+    let __spy10 = 20.0f64;
+    __rt.put_sprite(&sprb, __spx10, __spy10, qbasic_runtime::PutAction::Pset);
+    let __spx11 = 170.0f64;
+    let __spy11 = 10.0f64;
+    __rt.put_sprite(&sprb, __spx11, __spy11, qbasic_runtime::PutAction::Xor);
+    let __spx12 = 170.0f64;
+    let __spy12 = 10.0f64;
+    __rt.put_sprite(&sprb, __spx12, __spy12, qbasic_runtime::PutAction::Xor);
+    let __spx13 = (-4.0f64);
+    let __spy13 = 10.0f64;
+    __rt.put_sprite(&spra, __spx13, __spy13, qbasic_runtime::PutAction::Pset);
+    let __spx14 = 302.0f64;
+    let __spy14 = 10.0f64;
+    __rt.put_sprite(&spra, __spx14, __spy14, qbasic_runtime::PutAction::Pset);
+    let __spx15 = 10.0f64;
+    let __spy15 = (-4.0f64);
+    __rt.put_sprite(&spra, __spx15, __spy15, qbasic_runtime::PutAction::Pset);
+    let __spx16 = 10.0f64;
+    let __spy16 = 188.0f64;
+    __rt.put_sprite(&spra, __spx16, __spy16, qbasic_runtime::PutAction::Pset);
     __rt.quit();
 }

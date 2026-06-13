@@ -6,32 +6,32 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
-    let mut temp: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
+    let mut temp: f64 = 0.0;
 
     __rt.cls(0u8);
-    let mut numbers: Vec<f64> = vec![Default::default(); (10_f64+1.0) as usize];
+    let mut numbers: Vec<f64> = vec![Default::default(); (10.0f64+1.0) as usize];
     __rt.println(&[qb_str(&("Enter 10 numbers:"))]);
-    i = 1_f64;
-    let __for_to_i: f64 = 10_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 10.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        numbers[(i) as usize] = __rt.input_line().parse().unwrap_or_default();
+        numbers[(i) as usize] = __rt.input_line().trim().parse().unwrap_or_default();
         i += __for_step_i;
     }
-    i = 1_f64;
-    let __for_to_i: f64 = 9_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 9.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        j = 1_f64;
-        let __for_to_j: f64 = (10_f64 - i);
-        let __for_step_j: f64 = 1.0_f64;
+        j = 1.0f64;
+        let __for_to_j: f64 = (10.0f64 - i);
+        let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if qb_bool(qb_from_bool(numbers[(j) as usize] > numbers[((j + 1_f64)) as usize])) {
+            if numbers[(j) as usize] > numbers[((j + 1.0f64)) as usize] {
                 temp = numbers[(j) as usize];
-                numbers[(j) as usize] = numbers[((j + 1_f64)) as usize];
-                numbers[((j + 1_f64)) as usize] = temp;
+                numbers[(j) as usize] = numbers[((j + 1.0f64)) as usize];
+                numbers[((j + 1.0f64)) as usize] = temp;
             }
             j += __for_step_j;
         }
@@ -39,9 +39,9 @@ fn main() {
     }
     __rt.println(&[]);
     __rt.println(&[qb_str(&("Sorted numbers:"))]);
-    i = 1_f64;
-    let __for_to_i: f64 = 10_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    i = 1.0f64;
+    let __for_to_i: f64 = 10.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __rt.println(&[qb_print_num(numbers[(i) as usize])]);
         i += __for_step_i;

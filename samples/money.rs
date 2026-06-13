@@ -7,8 +7,8 @@ use qbasic_runtime::*;
 static __DATA: &[&str] = &["0", "7", "15", "7", "0", "7", "0", "15", "0", "0", "1", "9", "12", "3", "0", "1", "15", "0", "7", "0", "3", "15", "13", "1", "14", "3", "15", "0", "7", "0", "7", "12", "15", "4", "14", "0", "15", "15", "1", "0", "184", "1", "6", "185", "1", "4", "186", "78", "22", "183", "0", "205", "16", "203", "184", "1", "7", "185", "1", "4", "186", "78", "22", "183", "0", "205", "16", "203"];
 static __DATA_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-const qb_true: f64 = -1_f64;
-const qb_false: f64 = 0_f64;
+const qb_true: f64 = -1.0f64;
+const qb_false: f64 = 0.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -23,76 +23,76 @@ struct GameState {
 }
 
 fn qb_box(__rt: &mut Runtime, __gs: &mut GameState, row1: &mut f64, col1: &mut f64, row2: &mut f64, col2: &mut f64) {
-    let mut boxwidth: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
+    let mut boxwidth: f64 = 0.0;
+    let mut a: f64 = 0.0;
 
-    boxwidth = (((*col2) - (*col1)) + 1_f64);
+    boxwidth = (((*col2) - (*col1)) + 1.0f64);
     __rt.locate(Some((*row1)), Some((*col1)), None);
-    __rt.print(&[qb_str(&("\u{C3}\u{9A}")), qb_str(&(qb_string_s((boxwidth - 2_f64), "\u{C3}\u{84}"))), qb_str(&("\u{C2}\u{BF}"))]);
-    a = ((*row1) + 1_f64);
-    let __for_to_a: f64 = ((*row2) - 1_f64);
-    let __for_step_a: f64 = 1.0_f64;
+    __rt.print(&[qb_str(&("\u{DA}")), qb_str(&(qb_string_s((boxwidth - 2.0f64), "\u{C4}"))), qb_str(&("\u{BF}"))]);
+    a = ((*row1) + 1.0f64);
+    let __for_to_a: f64 = ((*row2) - 1.0f64);
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
         __rt.locate(Some(a), Some((*col1)), None);
-        __rt.print(&[qb_str(&("\u{C2}\u{B3}")), qb_str(&(qb_space((boxwidth - 2_f64)))), qb_str(&("\u{C2}\u{B3}"))]);
+        __rt.print(&[qb_str(&("\u{B3}")), qb_str(&(qb_space((boxwidth - 2.0f64)))), qb_str(&("\u{B3}"))]);
         a += __for_step_a;
     }
     __rt.locate(Some((*row2)), Some((*col1)), None);
-    __rt.print(&[qb_str(&("\u{C3}\u{80}")), qb_str(&(qb_string_s((boxwidth - 2_f64), "\u{C3}\u{84}"))), qb_str(&("\u{C3}\u{99}"))]);
+    __rt.print(&[qb_str(&("\u{C0}")), qb_str(&(qb_string_s((boxwidth - 2.0f64), "\u{C4}"))), qb_str(&("\u{D9}"))]);
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, text_s: &mut String) {
-    __rt.locate(Some((*row)), Some((41_f64 - (qb_len(&(text_s)) / 2_f64))), None);
+    __rt.locate(Some((*row)), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
 fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut u_s: String = String::new();
-    let mut a: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut finished: f64 = 0.0_f64;
-    let mut currrow: f64 = 0.0_f64;
-    let mut currcol: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut finished: f64 = 0.0;
+    let mut currrow: f64 = 0.0;
+    let mut currcol: f64 = 0.0;
     let mut kbd_s: String = String::new();
-    let mut save: f64 = 0.0_f64;
-    let mut ok: f64 = 0.0_f64;
+    let mut save: f64 = 0.0;
+    let mut ok: f64 = 0.0;
     let mut start_s: String = String::new();
-    let mut end_s: String = String::new();
+    let end_s: String = String::new();
     let mut x_s: String = String::new();
 
     let mut help_s: Vec<String> = Vec::new();
-    help_s.resize((4_f64+1.0) as usize, String::new());
+    help_s.resize((4.0f64+1.0) as usize, String::new());
     let mut col: Vec<f64> = Vec::new();
-    col.resize((4_f64+1.0) as usize, Default::default());
+    col.resize((4.0f64+1.0) as usize, Default::default());
     let mut vis: Vec<f64> = Vec::new();
-    vis.resize((4_f64+1.0) as usize, Default::default());
+    vis.resize((4.0f64+1.0) as usize, Default::default());
     let mut max: Vec<f64> = Vec::new();
-    max.resize((4_f64+1.0) as usize, Default::default());
+    max.resize((4.0f64+1.0) as usize, Default::default());
     let mut edit_s: Vec<Vec<String>> = Vec::new();
-    edit_s.resize((19_f64+1.0) as usize, vec![String::new(); (3_f64+1.0) as usize]);
-    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    let mut __tmp_num0: f64 = 2_f64;
-    let mut __tmp_num1: f64 = 1_f64;
-    let mut __tmp_num2: f64 = 24_f64;
-    let mut __tmp_num3: f64 = 80_f64;
+    edit_s.resize((19.0f64+1.0) as usize, vec![String::new(); (3.0f64+1.0) as usize]);
+    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    let mut __tmp_num0: f64 = 2.0f64;
+    let mut __tmp_num1: f64 = 1.0f64;
+    let mut __tmp_num2: f64 = 24.0f64;
+    let mut __tmp_num3: f64 = 80.0f64;
     qb_box(__rt, __gs, &mut __tmp_num0, &mut __tmp_num1, &mut __tmp_num2, &mut __tmp_num3);
-    __rt.color(__gs.colors[(5_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    __rt.locate(Some(1_f64), Some(1_f64), None);
-    __rt.println(&[qb_str(&(qb_space(80_f64)))]);
-    __rt.locate(Some(1_f64), Some(4_f64), None);
+    __rt.color(__gs.colors[(5.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    __rt.locate(Some(1.0f64), Some(1.0f64), None);
+    __rt.println(&[qb_str(&(qb_space(80.0f64)))]);
+    __rt.locate(Some(1.0f64), Some(4.0f64), None);
     __rt.print(&[qb_str(&("Account Editor"))]);
-    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    __rt.locate(Some(3_f64), Some(2_f64), None);
-    __rt.println(&[qb_str(&("No\u{C2}\u{B3} Account Title      \u{C2}\u{B3} Description                                      \u{C2}\u{B3}A/L"))]);
-    __rt.locate(Some(4_f64), Some(2_f64), None);
-    __rt.println(&[qb_str(&("\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}"))]);
-    u_s = ("##\u{C2}\u{B3}\\                  \\\u{C2}\u{B3}\\                                                \\\u{C2}\u{B3} ! ").to_string();
-    a = 5_f64;
-    let __for_to_a: f64 = 23_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    __rt.locate(Some(3.0f64), Some(2.0f64), None);
+    __rt.println(&[qb_str(&("No\u{B3} Account Title      \u{B3} Description                                      \u{B3}A/L"))]);
+    __rt.locate(Some(4.0f64), Some(2.0f64), None);
+    __rt.println(&[qb_str(&("\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}"))]);
+    u_s = ("##\u{B3}\\                  \\\u{B3}\\                                                \\\u{B3} ! ").to_string();
+    a = 5.0f64;
+    let __for_to_a: f64 = 23.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        __rt.locate(Some(a), Some(2_f64), None);
-        x = (a - 4_f64);
+        __rt.locate(Some(a), Some(2.0f64), None);
+        x = (a - 4.0f64);
         let __pu_s4 = (__gs.account__title[(x) as usize]).to_string();
         let __pu_s5 = (__gs.account__desc[(x) as usize]).to_string();
         let __pu_s6 = (__gs.account__atype[(x) as usize]).to_string();
@@ -100,62 +100,64 @@ fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
         __rt.print(&[__pu7]);
         a += __for_step_a;
     }
-    help_s[(1_f64) as usize] = ("  Account name                             | <F2=Save and Exit> <Escape=Abort>").to_string();
-    help_s[(2_f64) as usize] = ("  Account description                      | <F2=Save and Exit> <Escape=Abort>").to_string();
-    help_s[(3_f64) as usize] = ("  Account type (A = Asset, L = Liability)  | <F2=Save and Exit> <Escape=Abort>").to_string();
-    col[(1_f64) as usize] = 5_f64;
-    col[(2_f64) as usize] = 26_f64;
-    col[(3_f64) as usize] = 78_f64;
-    vis[(1_f64) as usize] = 20_f64;
-    vis[(2_f64) as usize] = 50_f64;
-    vis[(3_f64) as usize] = 1_f64;
-    max[(1_f64) as usize] = 20_f64;
-    max[(2_f64) as usize] = 50_f64;
-    max[(3_f64) as usize] = 1_f64;
-    a = 1_f64;
-    let __for_to_a: f64 = 19_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    help_s[(1.0f64) as usize] = ("  Account name                             | <F2=Save and Exit> <Escape=Abort>").to_string();
+    help_s[(2.0f64) as usize] = ("  Account description                      | <F2=Save and Exit> <Escape=Abort>").to_string();
+    help_s[(3.0f64) as usize] = ("  Account type (A = Asset, L = Liability)  | <F2=Save and Exit> <Escape=Abort>").to_string();
+    col[(1.0f64) as usize] = 5.0f64;
+    col[(2.0f64) as usize] = 26.0f64;
+    col[(3.0f64) as usize] = 78.0f64;
+    vis[(1.0f64) as usize] = 20.0f64;
+    vis[(2.0f64) as usize] = 50.0f64;
+    vis[(3.0f64) as usize] = 1.0f64;
+    max[(1.0f64) as usize] = 20.0f64;
+    max[(2.0f64) as usize] = 50.0f64;
+    max[(3.0f64) as usize] = 1.0f64;
+    a = 1.0f64;
+    let __for_to_a: f64 = 19.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        edit_s[(a) as usize][(1_f64) as usize] = (__gs.account__title[(a) as usize]).to_string();
-        edit_s[(a) as usize][(2_f64) as usize] = (__gs.account__desc[(a) as usize]).to_string();
-        edit_s[(a) as usize][(3_f64) as usize] = (__gs.account__atype[(a) as usize]).to_string();
+        edit_s[(a) as usize][(1.0f64) as usize] = (__gs.account__title[(a) as usize]).to_string();
+        edit_s[(a) as usize][(2.0f64) as usize] = (__gs.account__desc[(a) as usize]).to_string();
+        edit_s[(a) as usize][(3.0f64) as usize] = (__gs.account__atype[(a) as usize]).to_string();
         a += __for_step_a;
     }
     finished = qb_false;
-    currrow = 1_f64;
-    currcol = 1_f64;
-    let mut __tmp_str8 = (help_s[(currcol) as usize]).to_string();
-    printhelpline(__rt, __gs, &mut __tmp_str8);
+    currrow = 1.0f64;
+    currcol = 1.0f64;
+    let __baidx8 = (currcol) as usize;
+    let mut __tmp_arrs9: String = help_s[__baidx8].clone();
+    printhelpline(__rt, __gs, &mut __tmp_arrs9);
+    help_s[__baidx8] = __tmp_arrs9.clone();
     loop {
         '__gosub_editaccountsshowcursor: loop {
-            __rt.color(__gs.colors[(8_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9_f64) as usize][(__gs.colorpref) as usize]));
-            __rt.locate(Some((currrow + 4_f64)), Some(col[(currcol) as usize]), None);
+            __rt.color(__gs.colors[(8.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9.0f64) as usize][(__gs.colorpref) as usize]));
+            __rt.locate(Some((currrow + 4.0f64)), Some(col[(currcol) as usize]), None);
             __rt.print(&[qb_str(&(qb_left(&(edit_s[(currrow) as usize][(currcol) as usize]), vis[(currcol) as usize])))]);
             break '__gosub_editaccountsshowcursor;
             break '__gosub_editaccountsshowcursor;
         }
         loop {
-            let __tmp9 = __rt.inkey();
-            kbd_s = (__tmp9).to_string();
-            if qb_bool(qb_from_bool((kbd_s).as_str() != "")) { break; }
+            let __tmp10 = __rt.inkey();
+            kbd_s = (__tmp10).to_string();
+            if (kbd_s).as_str() != "" { break; }
         }
         if qb_bool(qb_and(qb_from_bool((kbd_s).as_str() >= " "), qb_from_bool((kbd_s).as_str() < "~"))) {
             '__gosub_editaccountsedititem: loop {
-                __rt.color(__gs.colors[(8_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9_f64) as usize][(__gs.colorpref) as usize]));
+                __rt.color(__gs.colors[(8.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9.0f64) as usize][(__gs.colorpref) as usize]));
                 ok = qb_false;
                 start_s = (kbd_s).to_string();
                 loop {
-                    let mut __tmp_s10: String = (start_s).clone();
-                    let mut __tmp_s11: String = (end_s).clone();
-                    let __tmp12 = getstring_s(__rt, __gs, (currrow + 4_f64), col[(currcol) as usize], &mut __tmp_s10, &mut __tmp_s11, vis[(currcol) as usize], max[(currcol) as usize]);
-                    kbd_s = (__tmp12).to_string();
+                    let mut __tmp_s11: String = (start_s).clone();
+                    let mut __tmp_s12: String = (end_s).clone();
+                    let __tmp13 = getstring_s(__rt, __gs, (currrow + 4.0f64), col[(currcol) as usize], &mut __tmp_s11, &mut __tmp_s12, vis[(currcol) as usize], max[(currcol) as usize]);
+                    kbd_s = (__tmp13).to_string();
                     edit_s[(currrow) as usize][(currcol) as usize] = (qb_left(&(format!("{}{}" ,end_s,qb_space(max[(currcol) as usize]))), max[(currcol) as usize])).to_string();
                     start_s = ("").to_string();
-                    if qb_bool(qb_from_bool(currcol == 3_f64)) {
+                    if currcol == 3.0f64 {
                         x_s = (qb_ucase(&(end_s))).to_string();
                         if qb_bool(qb_or(qb_or(qb_or(qb_from_bool((x_s).as_str() == "A"), qb_from_bool((x_s).as_str() == "L")), qb_from_bool((x_s).as_str() == "")), qb_from_bool((x_s).as_str() == " "))) {
                             ok = qb_true;
-                            if qb_bool(qb_from_bool((x_s).as_str() == "")) {
+                            if (x_s).as_str() == "" {
                                 x_s = (" ").to_string();
                             }
                             edit_s[(currrow) as usize][(currcol) as usize] = (x_s).to_string();
@@ -172,32 +174,36 @@ fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
             }
         }
         '__gosub_editaccountshidecursor: loop {
-            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-            __rt.locate(Some((currrow + 4_f64)), Some(col[(currcol) as usize]), None);
+            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+            __rt.locate(Some((currrow + 4.0f64)), Some(col[(currcol) as usize]), None);
             __rt.print(&[qb_str(&(qb_left(&(edit_s[(currrow) as usize][(currcol) as usize]), vis[(currcol) as usize])))]);
             break '__gosub_editaccountshidecursor;
             break '__gosub_editaccountshidecursor;
         }
         let __sel = kbd_s.clone();
-        if __sel == format!("{}{}" ,qb_chr(0_f64),"H").to_string() {
-            currrow = (qb_mod((currrow + 17_f64), 19_f64) + 1_f64);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"P").to_string() {
-            currrow = (qb_mod(currrow, 19_f64) + 1_f64);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"K").to_string() || __sel == format!("{}{}" ,qb_chr(0_f64),qb_chr(15_f64)).to_string() {
-            currcol = (qb_mod((currcol + 1_f64), 3_f64) + 1_f64);
-            let mut __tmp_str13 = (help_s[(currcol) as usize]).to_string();
-            printhelpline(__rt, __gs, &mut __tmp_str13);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"M").to_string() || __sel == qb_chr(9_f64).to_string() {
-            currcol = (qb_mod(currcol, 3_f64) + 1_f64);
-            let mut __tmp_str14 = (help_s[(currcol) as usize]).to_string();
-            printhelpline(__rt, __gs, &mut __tmp_str14);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"<").to_string() {
+        if __sel == format!("{}{}" ,qb_chr(0.0f64),"H").to_string() {
+            currrow = (qb_mod((currrow + 17.0f64), 19.0f64) + 1.0f64);
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"P").to_string() {
+            currrow = (qb_mod(currrow, 19.0f64) + 1.0f64);
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"K").to_string() || __sel == format!("{}{}" ,qb_chr(0.0f64),qb_chr(15.0f64)).to_string() {
+            currcol = (qb_mod((currcol + 1.0f64), 3.0f64) + 1.0f64);
+            let __baidx14 = (currcol) as usize;
+            let mut __tmp_arrs15: String = help_s[__baidx14].clone();
+            printhelpline(__rt, __gs, &mut __tmp_arrs15);
+            help_s[__baidx14] = __tmp_arrs15.clone();
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"M").to_string() || __sel == qb_chr(9.0f64).to_string() {
+            currcol = (qb_mod(currcol, 3.0f64) + 1.0f64);
+            let __baidx16 = (currcol) as usize;
+            let mut __tmp_arrs17: String = help_s[__baidx16].clone();
+            printhelpline(__rt, __gs, &mut __tmp_arrs17);
+            help_s[__baidx16] = __tmp_arrs17.clone();
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"<").to_string() {
             finished = qb_true;
             save = qb_true;
-        } else if __sel == qb_chr(27_f64).to_string() {
+        } else if __sel == qb_chr(27.0f64).to_string() {
             finished = qb_true;
             save = qb_false;
-        } else if __sel == qb_chr(13_f64).to_string() {
+        } else if __sel == qb_chr(13.0f64).to_string() {
         } else {
             __rt.beep();
         }
@@ -205,13 +211,13 @@ fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
     }
     if qb_bool(save) {
         '__gosub_editaccountssavedata: loop {
-            a = 1_f64;
-            let __for_to_a: f64 = 19_f64;
-            let __for_step_a: f64 = 1.0_f64;
+            a = 1.0f64;
+            let __for_to_a: f64 = 19.0f64;
+            let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                __gs.account__title[(a) as usize] = (edit_s[(a) as usize][(1_f64) as usize]).to_string();
-                __gs.account__desc[(a) as usize] = (edit_s[(a) as usize][(2_f64) as usize]).to_string();
-                __gs.account__atype[(a) as usize] = (edit_s[(a) as usize][(3_f64) as usize]).to_string();
+                __gs.account__title[(a) as usize] = (edit_s[(a) as usize][(1.0f64) as usize]).to_string();
+                __gs.account__desc[(a) as usize] = (edit_s[(a) as usize][(2.0f64) as usize]).to_string();
+                __gs.account__atype[(a) as usize] = (edit_s[(a) as usize][(3.0f64) as usize]).to_string();
                 a += __for_step_a;
             }
             savestate(__rt, __gs);
@@ -224,175 +230,206 @@ fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
     let mut file_s: String = String::new();
-    let mut valid_s: String = String::new();
     let mut iodate_s: String = String::new();
     let mut ioref_s: String = String::new();
     let mut iodesc_s: String = String::new();
     let mut iofig1_s: String = String::new();
     let mut iofig2_s: String = String::new();
+    let mut valid_s: String = String::new();
     let mut iomaxrecord_s: String = String::new();
     let mut iobalance_s: String = String::new();
-    let mut maxrecord: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
+    let mut maxrecord: f64 = 0.0;
+    let mut a: f64 = 0.0;
     let mut u_s: String = String::new();
     let mut u1_s: String = String::new();
     let mut u1x_s: String = String::new();
     let mut u2_s: String = String::new();
     let mut u3_s: String = String::new();
     let mut u4_s: String = String::new();
-    let mut currtopline: f64 = 0.0_f64;
-    let mut currrow: f64 = 0.0_f64;
-    let mut currcol: f64 = 0.0_f64;
-    let mut finished: f64 = 0.0_f64;
+    let mut currtopline: f64 = 0.0;
+    let mut currrow: f64 = 0.0;
+    let mut currcol: f64 = 0.0;
+    let mut finished: f64 = 0.0;
     let mut kbd_s: String = String::new();
-    let mut currrecord: f64 = 0.0_f64;
-    let mut new_s: String = String::new();
+    let mut currrecord: f64 = 0.0;
+    let new_s: String = String::new();
     let mut start_s: String = String::new();
-    let mut new4: f64 = 0.0_f64;
-    let mut new5: f64 = 0.0_f64;
-    let mut temp: f64 = 0.0_f64;
+    let mut new4: f64 = 0.0;
+    let mut new5: f64 = 0.0;
+    let mut temp: f64 = 0.0;
 
     let mut help_s: Vec<String> = Vec::new();
-    help_s.resize((6_f64+1.0) as usize, String::new());
+    help_s.resize((6.0f64+1.0) as usize, String::new());
     let mut col: Vec<f64> = Vec::new();
-    col.resize((6_f64+1.0) as usize, Default::default());
+    col.resize((6.0f64+1.0) as usize, Default::default());
     let mut vis: Vec<f64> = Vec::new();
-    vis.resize((6_f64+1.0) as usize, Default::default());
+    vis.resize((6.0f64+1.0) as usize, Default::default());
     let mut max: Vec<f64> = Vec::new();
-    max.resize((6_f64+1.0) as usize, Default::default());
+    max.resize((6.0f64+1.0) as usize, Default::default());
     let mut currstring_s: Vec<String> = Vec::new();
-    currstring_s.resize((3_f64+1.0) as usize, String::new());
+    currstring_s.resize((3.0f64+1.0) as usize, String::new());
     let mut currfig: Vec<f64> = Vec::new();
-    currfig.resize((5_f64+1.0) as usize, Default::default());
+    currfig.resize((5.0f64+1.0) as usize, Default::default());
     let mut balance: Vec<f64> = Vec::new();
-    balance.resize((1000_f64+1.0) as usize, Default::default());
-    let __tmp15 = cvit_s(__rt, __gs, (*item));
-    file_s = (format!("{}{}" ,"money.",__tmp15)).to_string();
-    __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
-    currstring_s[(1_f64) as usize] = ("").to_string();
-    currstring_s[(2_f64) as usize] = ("").to_string();
-    currstring_s[(3_f64) as usize] = ("").to_string();
-    currfig[(4_f64) as usize] = 0_f64;
-    currfig[(5_f64) as usize] = 0_f64;
-    let __file_buf16 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-    if qb_bool(qb_from_bool((valid_s).as_str() != "THISISVALID")) {
+    balance.resize((1000.0f64+1.0) as usize, Default::default());
+    let __tmp18 = cvit_s(__rt, __gs, (*item));
+    file_s = (format!("{}{}" ,"money.",__tmp18)).to_string();
+    __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
+    iodate_s = " ".repeat((8.0f64) as usize);
+    ioref_s = " ".repeat((10.0f64) as usize);
+    iodesc_s = " ".repeat((50.0f64) as usize);
+    iofig1_s = " ".repeat((8.0f64) as usize);
+    iofig2_s = " ".repeat((8.0f64) as usize);
+    __rt.set_field((1.0f64) as u8, 84);
+    valid_s = " ".repeat((11.0f64) as usize);
+    iomaxrecord_s = " ".repeat((5.0f64) as usize);
+    iobalance_s = " ".repeat((8.0f64) as usize);
+    __rt.set_field((1.0f64) as u8, 24);
+    currstring_s[(1.0f64) as usize] = ("").to_string();
+    currstring_s[(2.0f64) as usize] = ("").to_string();
+    currstring_s[(3.0f64) as usize] = ("").to_string();
+    currfig[(4.0f64) as usize] = 0.0f64;
+    currfig[(5.0f64) as usize] = 0.0f64;
+    let __file_buf19 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+    valid_s = qb_field_get(&__file_buf19, 0, 11);
+    iomaxrecord_s = qb_field_get(&__file_buf19, 11, 5);
+    iobalance_s = qb_field_get(&__file_buf19, 16, 8);
+    if (valid_s).as_str() != "THISISVALID" {
         iodate_s = qb_lset(&iodate_s, &("").to_string());
         ioref_s = qb_lset(&ioref_s, &("").to_string());
         iodesc_s = qb_lset(&iodesc_s, &("").to_string());
-        iofig1_s = qb_lset(&iofig1_s, &(MKD(0_f64)).to_string());
-        iofig2_s = qb_lset(&iofig2_s, &(MKD(0_f64)).to_string());
-        let mut __put_buf17 = vec![b' '; 0];
-        __rt.write_record((1_f64) as u8, Some((2_f64) as i64 - 1), &__put_buf17);
+        iofig1_s = qb_lset(&iofig1_s, &(MKD(0.0f64)).to_string());
+        iofig2_s = qb_lset(&iofig2_s, &(MKD(0.0f64)).to_string());
+        let mut __put_buf20 = vec![b' '; 24];
+        qb_field_put(&mut __put_buf20, 0, &valid_s, 11);
+        qb_field_put(&mut __put_buf20, 11, &iomaxrecord_s, 5);
+        qb_field_put(&mut __put_buf20, 16, &iobalance_s, 8);
+        __rt.write_record((1.0f64) as u8, Some((2.0f64) as i64 - 1), &__put_buf20);
         valid_s = qb_lset(&valid_s, &("THISISVALID").to_string());
         iomaxrecord_s = qb_lset(&iomaxrecord_s, &("1").to_string());
-        iobalance_s = qb_lset(&iobalance_s, &(MKD(0_f64)).to_string());
-        let mut __put_buf18 = vec![b' '; 0];
-        __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf18);
+        iobalance_s = qb_lset(&iobalance_s, &(MKD(0.0f64)).to_string());
+        let mut __put_buf21 = vec![b' '; 24];
+        qb_field_put(&mut __put_buf21, 0, &valid_s, 11);
+        qb_field_put(&mut __put_buf21, 11, &iomaxrecord_s, 5);
+        qb_field_put(&mut __put_buf21, 16, &iobalance_s, 8);
+        __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf21);
     }
     maxrecord = qb_val(&(iomaxrecord_s));
-    balance[(0_f64) as usize] = 0_f64;
-    a = 1_f64;
-    while qb_bool(qb_from_bool(a <= maxrecord)) {
-        let __file_buf19 = __rt.read_record((1_f64) as u8, Some(((a + 1_f64)) as i64 - 1));
-        balance[(a) as usize] = ((balance[((a - 1_f64)) as usize] + CVD(&(iofig1_s))) - CVD(&(iofig2_s)));
-        a = (a + 1_f64);
+    balance[(0.0f64) as usize] = 0.0f64;
+    a = 1.0f64;
+    while a <= maxrecord {
+        let __file_buf22 = __rt.read_record((1.0f64) as u8, Some(((a + 1.0f64)) as i64 - 1));
+        valid_s = qb_field_get(&__file_buf22, 0, 11);
+        iomaxrecord_s = qb_field_get(&__file_buf22, 11, 5);
+        iobalance_s = qb_field_get(&__file_buf22, 16, 8);
+        balance[(a) as usize] = ((balance[((a - 1.0f64)) as usize] + CVD(&(iofig1_s))) - CVD(&(iofig2_s)));
+        a = (a + 1.0f64);
     }
     '__gosub_edittranswritebalance: loop {
-        let __file_buf20 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
+        let __file_buf23 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+        valid_s = qb_field_get(&__file_buf23, 0, 11);
+        iomaxrecord_s = qb_field_get(&__file_buf23, 11, 5);
+        iobalance_s = qb_field_get(&__file_buf23, 16, 8);
         iobalance_s = qb_lset(&iobalance_s, &(MKD(balance[(maxrecord) as usize])).to_string());
-        let mut __put_buf21 = vec![b' '; 0];
-        __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf21);
+        let mut __put_buf24 = vec![b' '; 24];
+        qb_field_put(&mut __put_buf24, 0, &valid_s, 11);
+        qb_field_put(&mut __put_buf24, 11, &iomaxrecord_s, 5);
+        qb_field_put(&mut __put_buf24, 16, &iobalance_s, 8);
+        __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf24);
         break '__gosub_edittranswritebalance;
         break '__gosub_edittranswritebalance;
     }
-    help_s[(1_f64) as usize] = ("Date of transaction (mm/dd/yy) ").to_string();
-    help_s[(2_f64) as usize] = ("Transaction reference number   ").to_string();
-    help_s[(3_f64) as usize] = ("Transaction description        ").to_string();
-    help_s[(4_f64) as usize] = ("Increase asset or debt value   ").to_string();
-    help_s[(5_f64) as usize] = ("Decrease asset or debt value   ").to_string();
-    col[(1_f64) as usize] = 2_f64;
-    col[(2_f64) as usize] = 11_f64;
-    col[(3_f64) as usize] = 18_f64;
-    col[(4_f64) as usize] = 44_f64;
-    col[(5_f64) as usize] = 55_f64;
-    vis[(1_f64) as usize] = 8_f64;
-    vis[(2_f64) as usize] = 6_f64;
-    vis[(3_f64) as usize] = 25_f64;
-    vis[(4_f64) as usize] = 10_f64;
-    vis[(5_f64) as usize] = 10_f64;
-    max[(1_f64) as usize] = 8_f64;
-    max[(2_f64) as usize] = 6_f64;
-    max[(3_f64) as usize] = 25_f64;
-    max[(4_f64) as usize] = 10_f64;
-    max[(5_f64) as usize] = 10_f64;
-    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    let mut __tmp_num22: f64 = 2_f64;
-    let mut __tmp_num23: f64 = 1_f64;
-    let mut __tmp_num24: f64 = 24_f64;
-    let mut __tmp_num25: f64 = 80_f64;
-    qb_box(__rt, __gs, &mut __tmp_num22, &mut __tmp_num23, &mut __tmp_num24, &mut __tmp_num25);
-    __rt.color(__gs.colors[(5_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    __rt.locate(Some(1_f64), Some(1_f64), None);
-    __rt.print(&[qb_str(&(qb_space(80_f64)))]);
-    __rt.locate(Some(1_f64), Some(4_f64), None);
-    let mut __tmp_s26: String = (__gs.account__title[((*item)) as usize]).to_string();
-    let __tmp27 = trim_s(__rt, __gs, &mut __tmp_s26);
-    __rt.print(&[qb_str(&(format!("{}{}" ,"Transaction Editor: ",__tmp27)))]);
-    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    __rt.locate(Some(3_f64), Some(2_f64), None);
-    __rt.println(&[qb_str(&("  Date  \u{C2}\u{B3} Ref# \u{C2}\u{B3} Description             \u{C2}\u{B3} Increase \u{C2}\u{B3} Decrease \u{C2}\u{B3}   Balance    "))]);
-    __rt.locate(Some(4_f64), Some(2_f64), None);
-    __rt.println(&[qb_str(&("\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{85}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}\u{C3}\u{84}"))]);
-    u_s = ("\\      \\\u{C2}\u{B3}\\    \\\u{C2}\u{B3}\\                       \\\u{C2}\u{B3}").to_string();
-    u1_s = ("        \u{C2}\u{B3}      \u{C2}\u{B3}                         \u{C2}\u{B3}          \u{C2}\u{B3}          \u{C2}\u{B3}              ").to_string();
-    u1x_s = ("\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C2}\u{B3}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C2}\u{B3}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C2}\u{B3}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C2}\u{B3}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C2}\u{B3}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}").to_string();
+    help_s[(1.0f64) as usize] = ("Date of transaction (mm/dd/yy) ").to_string();
+    help_s[(2.0f64) as usize] = ("Transaction reference number   ").to_string();
+    help_s[(3.0f64) as usize] = ("Transaction description        ").to_string();
+    help_s[(4.0f64) as usize] = ("Increase asset or debt value   ").to_string();
+    help_s[(5.0f64) as usize] = ("Decrease asset or debt value   ").to_string();
+    col[(1.0f64) as usize] = 2.0f64;
+    col[(2.0f64) as usize] = 11.0f64;
+    col[(3.0f64) as usize] = 18.0f64;
+    col[(4.0f64) as usize] = 44.0f64;
+    col[(5.0f64) as usize] = 55.0f64;
+    vis[(1.0f64) as usize] = 8.0f64;
+    vis[(2.0f64) as usize] = 6.0f64;
+    vis[(3.0f64) as usize] = 25.0f64;
+    vis[(4.0f64) as usize] = 10.0f64;
+    vis[(5.0f64) as usize] = 10.0f64;
+    max[(1.0f64) as usize] = 8.0f64;
+    max[(2.0f64) as usize] = 6.0f64;
+    max[(3.0f64) as usize] = 25.0f64;
+    max[(4.0f64) as usize] = 10.0f64;
+    max[(5.0f64) as usize] = 10.0f64;
+    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    let mut __tmp_num25: f64 = 2.0f64;
+    let mut __tmp_num26: f64 = 1.0f64;
+    let mut __tmp_num27: f64 = 24.0f64;
+    let mut __tmp_num28: f64 = 80.0f64;
+    qb_box(__rt, __gs, &mut __tmp_num25, &mut __tmp_num26, &mut __tmp_num27, &mut __tmp_num28);
+    __rt.color(__gs.colors[(5.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    __rt.locate(Some(1.0f64), Some(1.0f64), None);
+    __rt.print(&[qb_str(&(qb_space(80.0f64)))]);
+    __rt.locate(Some(1.0f64), Some(4.0f64), None);
+    let mut __tmp_s29: String = (__gs.account__title[((*item)) as usize]).to_string();
+    let __tmp30 = trim_s(__rt, __gs, &mut __tmp_s29);
+    __rt.print(&[qb_str(&(format!("{}{}" ,"Transaction Editor: ",__tmp30)))]);
+    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    __rt.locate(Some(3.0f64), Some(2.0f64), None);
+    __rt.println(&[qb_str(&("  Date  \u{B3} Ref# \u{B3} Description             \u{B3} Increase \u{B3} Decrease \u{B3}   Balance    "))]);
+    __rt.locate(Some(4.0f64), Some(2.0f64), None);
+    __rt.println(&[qb_str(&("\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C5}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}\u{C4}"))]);
+    u_s = ("\\      \\\u{B3}\\    \\\u{B3}\\                       \\\u{B3}").to_string();
+    u1_s = ("        \u{B3}      \u{B3}                         \u{B3}          \u{B3}          \u{B3}              ").to_string();
+    u1x_s = ("\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{B3}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{B3}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{B3}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{B3}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{B3}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}\u{DF}").to_string();
     u2_s = ("###,###.##").to_string();
     u3_s = ("###,###,###.##").to_string();
     u4_s = ("          ").to_string();
-    currtopline = 1_f64;
+    currtopline = 1.0f64;
     '__gosub_edittransprintwholescreen: loop {
         temp = currrow;
-        currrow = 1_f64;
-        let __for_to_currrow: f64 = 19_f64;
-        let __for_step_currrow: f64 = 1.0_f64;
+        currrow = 1.0f64;
+        let __for_to_currrow: f64 = 19.0f64;
+        let __for_step_currrow: f64 = 1.0;
         while (__for_step_currrow > 0.0 && currrow <= __for_to_currrow) || (__for_step_currrow < 0.0 && currrow >= __for_to_currrow) {
-            currrecord = ((currtopline + currrow) - 1_f64);
-            if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
+            currrecord = ((currtopline + currrow) - 1.0f64);
+            if currrecord <= maxrecord {
                 '__gosub_edittransgetline: loop {
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    let __file_buf28 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                    currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                    currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                    currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                    currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                    currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    let __file_buf31 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                    valid_s = qb_field_get(&__file_buf31, 0, 11);
+                    iomaxrecord_s = qb_field_get(&__file_buf31, 11, 5);
+                    iobalance_s = qb_field_get(&__file_buf31, 16, 8);
+                    currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                    currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                    currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                    currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                    currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                     break '__gosub_edittransgetline;
                     break '__gosub_edittransgetline;
                 }
             }
             '__gosub_edittransprintline: loop {
-                __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                currrecord = ((currtopline + currrow) - 1_f64);
-                __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                currrecord = ((currtopline + currrow) - 1.0f64);
+                __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                if currrecord == (maxrecord + 1.0f64) {
                     __rt.print(&[qb_str(&(u1x_s))]);
-                } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                } else if currrecord > maxrecord {
                     __rt.print(&[qb_str(&(u1_s))]);
                 } else {
-                    let __pu_s29 = (currstring_s[(1_f64) as usize]).to_string();
-                    let __pu_s30 = (currstring_s[(2_f64) as usize]).to_string();
-                    let __pu_s31 = (currstring_s[(3_f64) as usize]).to_string();
-                    let __pu32 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s29), QbVal::Str(&__pu_s30), QbVal::Str(&__pu_s31)]);
-                    __rt.print(&[__pu32]);
-                    if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                        let __pu33 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                        __rt.println(&[__pu33]);
-                    } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                        let __pu34 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                        __rt.println(&[__pu34]);
+                    let __pu_s32 = (currstring_s[(1.0f64) as usize]).to_string();
+                    let __pu_s33 = (currstring_s[(2.0f64) as usize]).to_string();
+                    let __pu_s34 = (currstring_s[(3.0f64) as usize]).to_string();
+                    let __pu35 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s32), QbVal::Str(&__pu_s33), QbVal::Str(&__pu_s34)]);
+                    __rt.print(&[__pu35]);
+                    if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                        let __pu36 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                        __rt.println(&[__pu36]);
+                    } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                        let __pu37 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                        __rt.println(&[__pu37]);
                     } else {
-                        let __pu35 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                        __rt.println(&[__pu35]);
+                        let __pu38 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                        __rt.println(&[__pu38]);
                     }
                 }
                 break '__gosub_edittransprintline;
@@ -404,40 +441,43 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
         break '__gosub_edittransprintwholescreen;
         break '__gosub_edittransprintwholescreen;
     }
-    currrow = 1_f64;
-    currcol = 1_f64;
-    let mut __tmp_str36 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
-    printhelpline(__rt, __gs, &mut __tmp_str36);
+    currrow = 1.0f64;
+    currcol = 1.0f64;
+    let mut __tmp_str39 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
+    printhelpline(__rt, __gs, &mut __tmp_str39);
     '__gosub_edittransgetline: loop {
-        currrecord = ((currtopline + currrow) - 1_f64);
-        let __file_buf37 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+        currrecord = ((currtopline + currrow) - 1.0f64);
+        let __file_buf40 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+        valid_s = qb_field_get(&__file_buf40, 0, 11);
+        iomaxrecord_s = qb_field_get(&__file_buf40, 11, 5);
+        iobalance_s = qb_field_get(&__file_buf40, 16, 8);
+        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
         break '__gosub_edittransgetline;
         break '__gosub_edittransgetline;
     }
     finished = qb_false;
     loop {
         '__gosub_edittransshowcursor: loop {
-            __rt.color(__gs.colors[(8_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9_f64) as usize][(__gs.colorpref) as usize]));
-            __rt.locate(Some((currrow + 4_f64)), Some(col[(currcol) as usize]), None);
+            __rt.color(__gs.colors[(8.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9.0f64) as usize][(__gs.colorpref) as usize]));
+            __rt.locate(Some((currrow + 4.0f64)), Some(col[(currcol) as usize]), None);
             let __sel = currcol;
-            if __sel == 1_f64 || __sel == 2_f64 || __sel == 3_f64 {
+            if __sel == 1.0f64 || __sel == 2.0f64 || __sel == 3.0f64 {
                 __rt.print(&[qb_str(&(qb_left(&(currstring_s[(currcol) as usize]), vis[(currcol) as usize])))]);
-            } else if __sel == 4_f64 {
-                if qb_bool(qb_from_bool(currfig[(4_f64) as usize] != 0_f64)) {
-                    let __pu38 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(4_f64) as usize])]);
-                    __rt.print(&[__pu38]);
+            } else if __sel == 4.0f64 {
+                if currfig[(4.0f64) as usize] != 0.0f64 {
+                    let __pu41 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(4.0f64) as usize])]);
+                    __rt.print(&[__pu41]);
                 } else {
                     __rt.print(&[qb_str(&(qb_space(vis[(currcol) as usize])))]);
                 }
-            } else if __sel == 5_f64 {
-                if qb_bool(qb_from_bool(currfig[(5_f64) as usize] != 0_f64)) {
-                    let __pu39 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(5_f64) as usize])]);
-                    __rt.print(&[__pu39]);
+            } else if __sel == 5.0f64 {
+                if currfig[(5.0f64) as usize] != 0.0f64 {
+                    let __pu42 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(5.0f64) as usize])]);
+                    __rt.print(&[__pu42]);
                 } else {
                     __rt.print(&[qb_str(&(qb_space(vis[(currcol) as usize])))]);
                 }
@@ -446,27 +486,27 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
             break '__gosub_edittransshowcursor;
         }
         loop {
-            let __tmp40 = __rt.inkey();
-            kbd_s = (__tmp40).to_string();
-            if qb_bool(qb_from_bool((kbd_s).as_str() != "")) { break; }
+            let __tmp43 = __rt.inkey();
+            kbd_s = (__tmp43).to_string();
+            if (kbd_s).as_str() != "" { break; }
         }
         '__gosub_edittranshidecursor: loop {
-            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-            __rt.locate(Some((currrow + 4_f64)), Some(col[(currcol) as usize]), None);
+            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+            __rt.locate(Some((currrow + 4.0f64)), Some(col[(currcol) as usize]), None);
             let __sel = currcol;
-            if __sel == 1_f64 || __sel == 2_f64 || __sel == 3_f64 {
+            if __sel == 1.0f64 || __sel == 2.0f64 || __sel == 3.0f64 {
                 __rt.print(&[qb_str(&(qb_left(&(currstring_s[(currcol) as usize]), vis[(currcol) as usize])))]);
-            } else if __sel == 4_f64 {
-                if qb_bool(qb_from_bool(currfig[(4_f64) as usize] != 0_f64)) {
-                    let __pu41 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(4_f64) as usize])]);
-                    __rt.print(&[__pu41]);
+            } else if __sel == 4.0f64 {
+                if currfig[(4.0f64) as usize] != 0.0f64 {
+                    let __pu44 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(4.0f64) as usize])]);
+                    __rt.print(&[__pu44]);
                 } else {
                     __rt.print(&[qb_str(&(qb_space(vis[(currcol) as usize])))]);
                 }
-            } else if __sel == 5_f64 {
-                if qb_bool(qb_from_bool(currfig[(5_f64) as usize] != 0_f64)) {
-                    let __pu42 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(5_f64) as usize])]);
-                    __rt.print(&[__pu42]);
+            } else if __sel == 5.0f64 {
+                if currfig[(5.0f64) as usize] != 0.0f64 {
+                    let __pu45 = qb_print_using(&(u2_s), &[QbVal::Num(currfig[(5.0f64) as usize])]);
+                    __rt.print(&[__pu45]);
                 } else {
                     __rt.print(&[qb_str(&(qb_space(vis[(currcol) as usize])))]);
                 }
@@ -474,92 +514,104 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
             break '__gosub_edittranshidecursor;
             break '__gosub_edittranshidecursor;
         }
-        if qb_bool(qb_or(qb_and(qb_from_bool((kbd_s).as_str() >= " "), qb_from_bool((kbd_s).as_str() < "~")), qb_from_bool((kbd_s).as_str() == (qb_chr(8_f64)).as_str()))) {
+        if qb_bool(qb_or(qb_and(qb_from_bool((kbd_s).as_str() >= " "), qb_from_bool((kbd_s).as_str() < "~")), qb_from_bool((kbd_s).as_str() == (qb_chr(8.0f64)).as_str()))) {
             '__gosub_edittransedititem: loop {
-                currrecord = ((currtopline + currrow) - 1_f64);
-                __rt.color(__gs.colors[(8_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9_f64) as usize][(__gs.colorpref) as usize]));
+                currrecord = ((currtopline + currrow) - 1.0f64);
+                __rt.color(__gs.colors[(8.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9.0f64) as usize][(__gs.colorpref) as usize]));
                 let __sel = currcol;
-                if __sel == 1_f64 || __sel == 2_f64 || __sel == 3_f64 {
-                    let mut __tmp_s43: String = (kbd_s).clone();
-                    let mut __tmp_s44: String = (new_s).clone();
-                    let __tmp45 = getstring_s(__rt, __gs, (currrow + 4_f64), col[(currcol) as usize], &mut __tmp_s43, &mut __tmp_s44, vis[(currcol) as usize], max[(currcol) as usize]);
-                    kbd_s = (__tmp45).to_string();
+                if __sel == 1.0f64 || __sel == 2.0f64 || __sel == 3.0f64 {
+                    let mut __tmp_s46: String = (kbd_s).clone();
+                    let mut __tmp_s47: String = (new_s).clone();
+                    let __tmp48 = getstring_s(__rt, __gs, (currrow + 4.0f64), col[(currcol) as usize], &mut __tmp_s46, &mut __tmp_s47, vis[(currcol) as usize], max[(currcol) as usize]);
+                    kbd_s = (__tmp48).to_string();
                     currstring_s[(currcol) as usize] = (new_s).to_string();
                     '__gosub_edittransputline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1_f64) as usize]).to_string());
-                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2_f64) as usize]).to_string());
-                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3_f64) as usize]).to_string());
-                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4_f64) as usize])).to_string());
-                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5_f64) as usize])).to_string());
-                        let mut __put_buf46 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1), &__put_buf46);
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1.0f64) as usize]).to_string());
+                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2.0f64) as usize]).to_string());
+                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3.0f64) as usize]).to_string());
+                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4.0f64) as usize])).to_string());
+                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5.0f64) as usize])).to_string());
+                        let mut __put_buf49 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf49, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf49, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf49, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1), &__put_buf49);
                         break '__gosub_edittransputline;
                         break '__gosub_edittransputline;
                     }
                     '__gosub_edittransgetline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        let __file_buf47 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        let __file_buf50 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf50, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf50, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf50, 16, 8);
+                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                         break '__gosub_edittransgetline;
                         break '__gosub_edittransgetline;
                     }
-                } else if __sel == 4_f64 {
+                } else if __sel == 4.0f64 {
                     start_s = (kbd_s).to_string();
                     loop {
-                        let mut __tmp_s48: String = (start_s).clone();
-                        let mut __tmp_s49: String = (new_s).clone();
-                        let __tmp50 = getstring_s(__rt, __gs, (currrow + 4_f64), col[(4_f64) as usize], &mut __tmp_s48, &mut __tmp_s49, vis[(4_f64) as usize], max[(4_f64) as usize]);
-                        kbd_s = (__tmp50).to_string();
+                        let mut __tmp_s51: String = (start_s).clone();
+                        let mut __tmp_s52: String = (new_s).clone();
+                        let __tmp53 = getstring_s(__rt, __gs, (currrow + 4.0f64), col[(4.0f64) as usize], &mut __tmp_s51, &mut __tmp_s52, vis[(4.0f64) as usize], max[(4.0f64) as usize]);
+                        kbd_s = (__tmp53).to_string();
                         new4 = qb_val(&(new_s));
                         start_s = ("").to_string();
-                        if !qb_bool(qb_or(qb_from_bool(new4 >= 999999.99_f64), qb_from_bool(new4 < 0_f64))) { break; }
+                        if !(qb_bool(qb_or(qb_from_bool(new4 >= 999999.99f64), qb_from_bool(new4 < 0.0f64)))) { break; }
                     }
                     a = currrecord;
-                    while qb_bool(qb_from_bool(a <= maxrecord)) {
-                        balance[(a) as usize] = (((balance[(a) as usize] + new4) - currfig[(4_f64) as usize]) + currfig[(5_f64) as usize]);
-                        a = (a + 1_f64);
+                    while a <= maxrecord {
+                        balance[(a) as usize] = (((balance[(a) as usize] + new4) - currfig[(4.0f64) as usize]) + currfig[(5.0f64) as usize]);
+                        a = (a + 1.0f64);
                     }
-                    currfig[(4_f64) as usize] = new4;
-                    currfig[(5_f64) as usize] = 0_f64;
+                    currfig[(4.0f64) as usize] = new4;
+                    currfig[(5.0f64) as usize] = 0.0f64;
                     '__gosub_edittransputline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1_f64) as usize]).to_string());
-                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2_f64) as usize]).to_string());
-                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3_f64) as usize]).to_string());
-                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4_f64) as usize])).to_string());
-                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5_f64) as usize])).to_string());
-                        let mut __put_buf51 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1), &__put_buf51);
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1.0f64) as usize]).to_string());
+                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2.0f64) as usize]).to_string());
+                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3.0f64) as usize]).to_string());
+                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4.0f64) as usize])).to_string());
+                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5.0f64) as usize])).to_string());
+                        let mut __put_buf54 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf54, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf54, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf54, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1), &__put_buf54);
                         break '__gosub_edittransputline;
                         break '__gosub_edittransputline;
                     }
                     '__gosub_edittransgetline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        let __file_buf52 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        let __file_buf55 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf55, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf55, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf55, 16, 8);
+                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                         break '__gosub_edittransgetline;
                         break '__gosub_edittransgetline;
                     }
                     '__gosub_edittransprintbalances: loop {
-                        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                        a = 1_f64;
-                        let __for_to_a: f64 = 19_f64;
-                        let __for_step_a: f64 = 1.0_f64;
+                        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                        a = 1.0f64;
+                        let __for_to_a: f64 = 19.0f64;
+                        let __for_step_a: f64 = 1.0;
                         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                            currrecord = ((currtopline + a) - 1_f64);
-                            if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
-                                __rt.locate(Some((4_f64 + a)), Some(66_f64), None);
-                                let __pu53 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1_f64)) as usize])]);
-                                __rt.print(&[__pu53]);
+                            currrecord = ((currtopline + a) - 1.0f64);
+                            if currrecord <= maxrecord {
+                                __rt.locate(Some((4.0f64 + a)), Some(66.0f64), None);
+                                let __pu56 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1.0f64)) as usize])]);
+                                __rt.print(&[__pu56]);
                             }
                             a += __for_step_a;
                         }
@@ -567,65 +619,77 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         break '__gosub_edittransprintbalances;
                     }
                     '__gosub_edittranswritebalance: loop {
-                        let __file_buf54 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
+                        let __file_buf57 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf57, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf57, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf57, 16, 8);
                         iobalance_s = qb_lset(&iobalance_s, &(MKD(balance[(maxrecord) as usize])).to_string());
-                        let mut __put_buf55 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf55);
+                        let mut __put_buf58 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf58, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf58, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf58, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf58);
                         break '__gosub_edittranswritebalance;
                         break '__gosub_edittranswritebalance;
                     }
-                } else if __sel == 5_f64 {
+                } else if __sel == 5.0f64 {
                     start_s = (kbd_s).to_string();
                     loop {
-                        let mut __tmp_s56: String = (start_s).clone();
-                        let mut __tmp_s57: String = (new_s).clone();
-                        let __tmp58 = getstring_s(__rt, __gs, (currrow + 4_f64), col[(5_f64) as usize], &mut __tmp_s56, &mut __tmp_s57, vis[(5_f64) as usize], max[(5_f64) as usize]);
-                        kbd_s = (__tmp58).to_string();
+                        let mut __tmp_s59: String = (start_s).clone();
+                        let mut __tmp_s60: String = (new_s).clone();
+                        let __tmp61 = getstring_s(__rt, __gs, (currrow + 4.0f64), col[(5.0f64) as usize], &mut __tmp_s59, &mut __tmp_s60, vis[(5.0f64) as usize], max[(5.0f64) as usize]);
+                        kbd_s = (__tmp61).to_string();
                         new5 = qb_val(&(new_s));
                         start_s = ("").to_string();
-                        if !qb_bool(qb_or(qb_from_bool(new5 >= 999999.99_f64), qb_from_bool(new5 < 0_f64))) { break; }
+                        if !(qb_bool(qb_or(qb_from_bool(new5 >= 999999.99f64), qb_from_bool(new5 < 0.0f64)))) { break; }
                     }
                     a = currrecord;
-                    while qb_bool(qb_from_bool(a <= maxrecord)) {
-                        balance[(a) as usize] = (((balance[(a) as usize] - new5) + currfig[(5_f64) as usize]) - currfig[(4_f64) as usize]);
-                        a = (a + 1_f64);
+                    while a <= maxrecord {
+                        balance[(a) as usize] = (((balance[(a) as usize] - new5) + currfig[(5.0f64) as usize]) - currfig[(4.0f64) as usize]);
+                        a = (a + 1.0f64);
                     }
-                    currfig[(4_f64) as usize] = 0_f64;
-                    currfig[(5_f64) as usize] = new5;
+                    currfig[(4.0f64) as usize] = 0.0f64;
+                    currfig[(5.0f64) as usize] = new5;
                     '__gosub_edittransputline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1_f64) as usize]).to_string());
-                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2_f64) as usize]).to_string());
-                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3_f64) as usize]).to_string());
-                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4_f64) as usize])).to_string());
-                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5_f64) as usize])).to_string());
-                        let mut __put_buf59 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1), &__put_buf59);
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        iodate_s = qb_lset(&iodate_s, &(currstring_s[(1.0f64) as usize]).to_string());
+                        ioref_s = qb_lset(&ioref_s, &(currstring_s[(2.0f64) as usize]).to_string());
+                        iodesc_s = qb_lset(&iodesc_s, &(currstring_s[(3.0f64) as usize]).to_string());
+                        iofig1_s = qb_lset(&iofig1_s, &(MKD(currfig[(4.0f64) as usize])).to_string());
+                        iofig2_s = qb_lset(&iofig2_s, &(MKD(currfig[(5.0f64) as usize])).to_string());
+                        let mut __put_buf62 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf62, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf62, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf62, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1), &__put_buf62);
                         break '__gosub_edittransputline;
                         break '__gosub_edittransputline;
                     }
                     '__gosub_edittransgetline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        let __file_buf60 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        let __file_buf63 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf63, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf63, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf63, 16, 8);
+                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                         break '__gosub_edittransgetline;
                         break '__gosub_edittransgetline;
                     }
                     '__gosub_edittransprintbalances: loop {
-                        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                        a = 1_f64;
-                        let __for_to_a: f64 = 19_f64;
-                        let __for_step_a: f64 = 1.0_f64;
+                        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                        a = 1.0f64;
+                        let __for_to_a: f64 = 19.0f64;
+                        let __for_step_a: f64 = 1.0;
                         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                            currrecord = ((currtopline + a) - 1_f64);
-                            if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
-                                __rt.locate(Some((4_f64 + a)), Some(66_f64), None);
-                                let __pu61 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1_f64)) as usize])]);
-                                __rt.print(&[__pu61]);
+                            currrecord = ((currtopline + a) - 1.0f64);
+                            if currrecord <= maxrecord {
+                                __rt.locate(Some((4.0f64 + a)), Some(66.0f64), None);
+                                let __pu64 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1.0f64)) as usize])]);
+                                __rt.print(&[__pu64]);
                             }
                             a += __for_step_a;
                         }
@@ -633,38 +697,44 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         break '__gosub_edittransprintbalances;
                     }
                     '__gosub_edittranswritebalance: loop {
-                        let __file_buf62 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
+                        let __file_buf65 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf65, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf65, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf65, 16, 8);
                         iobalance_s = qb_lset(&iobalance_s, &(MKD(balance[(maxrecord) as usize])).to_string());
-                        let mut __put_buf63 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf63);
+                        let mut __put_buf66 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf66, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf66, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf66, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf66);
                         break '__gosub_edittranswritebalance;
                         break '__gosub_edittranswritebalance;
                     }
                 } else {
                 }
                 '__gosub_edittransprintline: loop {
-                    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                    if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                    if currrecord == (maxrecord + 1.0f64) {
                         __rt.print(&[qb_str(&(u1x_s))]);
-                    } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                    } else if currrecord > maxrecord {
                         __rt.print(&[qb_str(&(u1_s))]);
                     } else {
-                        let __pu_s64 = (currstring_s[(1_f64) as usize]).to_string();
-                        let __pu_s65 = (currstring_s[(2_f64) as usize]).to_string();
-                        let __pu_s66 = (currstring_s[(3_f64) as usize]).to_string();
-                        let __pu67 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s64), QbVal::Str(&__pu_s65), QbVal::Str(&__pu_s66)]);
-                        __rt.print(&[__pu67]);
-                        if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                            let __pu68 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                            __rt.println(&[__pu68]);
-                        } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                            let __pu69 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                            __rt.println(&[__pu69]);
+                        let __pu_s67 = (currstring_s[(1.0f64) as usize]).to_string();
+                        let __pu_s68 = (currstring_s[(2.0f64) as usize]).to_string();
+                        let __pu_s69 = (currstring_s[(3.0f64) as usize]).to_string();
+                        let __pu70 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s67), QbVal::Str(&__pu_s68), QbVal::Str(&__pu_s69)]);
+                        __rt.print(&[__pu70]);
+                        if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                            let __pu71 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                            __rt.println(&[__pu71]);
+                        } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                            let __pu72 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                            __rt.println(&[__pu72]);
                         } else {
-                            let __pu70 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                            __rt.println(&[__pu70]);
+                            let __pu73 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                            __rt.println(&[__pu73]);
                         }
                     }
                     break '__gosub_edittransprintline;
@@ -675,48 +745,51 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
             }
         }
         let __sel = kbd_s.clone();
-        if __sel == format!("{}{}" ,qb_chr(0_f64),"H").to_string() {
+        if __sel == format!("{}{}" ,qb_chr(0.0f64),"H").to_string() {
             '__gosub_edittransmoveup: loop {
-                if qb_bool(qb_from_bool(currrow == 1_f64)) {
-                    if qb_bool(qb_from_bool(currtopline == 1_f64)) {
+                if currrow == 1.0f64 {
+                    if currtopline == 1.0f64 {
                         __rt.beep();
                     } else {
                         scrolldown(__rt, __gs);
-                        currtopline = (currtopline - 1_f64);
+                        currtopline = (currtopline - 1.0f64);
                         '__gosub_edittransgetline: loop {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            let __file_buf71 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                            currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                            currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                            currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                            currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                            currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            let __file_buf74 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf74, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf74, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf74, 16, 8);
+                            currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                            currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                            currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                            currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                            currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                             break '__gosub_edittransgetline;
                             break '__gosub_edittransgetline;
                         }
                         '__gosub_edittransprintline: loop {
-                            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                            if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                            if currrecord == (maxrecord + 1.0f64) {
                                 __rt.print(&[qb_str(&(u1x_s))]);
-                            } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                            } else if currrecord > maxrecord {
                                 __rt.print(&[qb_str(&(u1_s))]);
                             } else {
-                                let __pu_s72 = (currstring_s[(1_f64) as usize]).to_string();
-                                let __pu_s73 = (currstring_s[(2_f64) as usize]).to_string();
-                                let __pu_s74 = (currstring_s[(3_f64) as usize]).to_string();
-                                let __pu75 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s72), QbVal::Str(&__pu_s73), QbVal::Str(&__pu_s74)]);
-                                __rt.print(&[__pu75]);
-                                if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                    let __pu76 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu76]);
-                                } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                    let __pu77 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu77]);
+                                let __pu_s75 = (currstring_s[(1.0f64) as usize]).to_string();
+                                let __pu_s76 = (currstring_s[(2.0f64) as usize]).to_string();
+                                let __pu_s77 = (currstring_s[(3.0f64) as usize]).to_string();
+                                let __pu78 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s75), QbVal::Str(&__pu_s76), QbVal::Str(&__pu_s77)]);
+                                __rt.print(&[__pu78]);
+                                if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                    let __pu79 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu79]);
+                                } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                    let __pu80 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu80]);
                                 } else {
-                                    let __pu78 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu78]);
+                                    let __pu81 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu81]);
                                 }
                             }
                             break '__gosub_edittransprintline;
@@ -724,15 +797,18 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         }
                     }
                 } else {
-                    currrow = (currrow - 1_f64);
+                    currrow = (currrow - 1.0f64);
                     '__gosub_edittransgetline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        let __file_buf79 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        let __file_buf82 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf82, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf82, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf82, 16, 8);
+                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                         break '__gosub_edittransgetline;
                         break '__gosub_edittransgetline;
                     }
@@ -740,63 +816,69 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                 break '__gosub_edittransmoveup;
                 break '__gosub_edittransmoveup;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"P").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"P").to_string() {
             '__gosub_edittransmovedown: loop {
-                if qb_bool(qb_from_bool(((currrow + currtopline) - 1_f64) >= maxrecord)) {
+                if ((currrow + currtopline) - 1.0f64) >= maxrecord {
                     __rt.beep();
                 } else {
-                    if qb_bool(qb_from_bool(currrow == 19_f64)) {
+                    if currrow == 19.0f64 {
                         scrollup(__rt, __gs);
-                        currtopline = (currtopline + 1_f64);
+                        currtopline = (currtopline + 1.0f64);
                         '__gosub_edittransgetline: loop {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            let __file_buf80 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                            currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                            currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                            currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                            currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                            currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            let __file_buf83 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf83, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf83, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf83, 16, 8);
+                            currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                            currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                            currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                            currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                            currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                             break '__gosub_edittransgetline;
                             break '__gosub_edittransgetline;
                         }
                         '__gosub_edittransprintline: loop {
-                            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                            if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                            if currrecord == (maxrecord + 1.0f64) {
                                 __rt.print(&[qb_str(&(u1x_s))]);
-                            } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                            } else if currrecord > maxrecord {
                                 __rt.print(&[qb_str(&(u1_s))]);
                             } else {
-                                let __pu_s81 = (currstring_s[(1_f64) as usize]).to_string();
-                                let __pu_s82 = (currstring_s[(2_f64) as usize]).to_string();
-                                let __pu_s83 = (currstring_s[(3_f64) as usize]).to_string();
-                                let __pu84 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s81), QbVal::Str(&__pu_s82), QbVal::Str(&__pu_s83)]);
-                                __rt.print(&[__pu84]);
-                                if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                    let __pu85 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu85]);
-                                } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                    let __pu86 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu86]);
+                                let __pu_s84 = (currstring_s[(1.0f64) as usize]).to_string();
+                                let __pu_s85 = (currstring_s[(2.0f64) as usize]).to_string();
+                                let __pu_s86 = (currstring_s[(3.0f64) as usize]).to_string();
+                                let __pu87 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s84), QbVal::Str(&__pu_s85), QbVal::Str(&__pu_s86)]);
+                                __rt.print(&[__pu87]);
+                                if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                    let __pu88 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu88]);
+                                } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                    let __pu89 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu89]);
                                 } else {
-                                    let __pu87 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu87]);
+                                    let __pu90 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu90]);
                                 }
                             }
                             break '__gosub_edittransprintline;
                             break '__gosub_edittransprintline;
                         }
                     } else {
-                        currrow = (currrow + 1_f64);
+                        currrow = (currrow + 1.0f64);
                         '__gosub_edittransgetline: loop {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            let __file_buf88 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                            currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                            currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                            currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                            currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                            currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            let __file_buf91 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf91, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf91, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf91, 16, 8);
+                            currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                            currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                            currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                            currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                            currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                             break '__gosub_edittransgetline;
                             break '__gosub_edittransgetline;
                         }
@@ -805,67 +887,70 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                 break '__gosub_edittransmovedown;
                 break '__gosub_edittransmovedown;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"K").to_string() || __sel == format!("{}{}" ,qb_chr(0_f64),qb_chr(15_f64)).to_string() {
-            currcol = (qb_mod((currcol + 3_f64), 5_f64) + 1_f64);
-            let mut __tmp_str89 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
-            printhelpline(__rt, __gs, &mut __tmp_str89);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"M").to_string() || __sel == qb_chr(9_f64).to_string() {
-            currcol = (qb_mod(currcol, 5_f64) + 1_f64);
-            let mut __tmp_str90 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
-            printhelpline(__rt, __gs, &mut __tmp_str90);
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"G").to_string() {
-            currcol = 1_f64;
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"O").to_string() {
-            currcol = 5_f64;
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"I").to_string() {
-            currrow = 1_f64;
-            currtopline = (currtopline - 19_f64);
-            if qb_bool(qb_from_bool(currtopline < 1_f64)) {
-                currtopline = 1_f64;
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"K").to_string() || __sel == format!("{}{}" ,qb_chr(0.0f64),qb_chr(15.0f64)).to_string() {
+            currcol = (qb_mod((currcol + 3.0f64), 5.0f64) + 1.0f64);
+            let mut __tmp_str92 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
+            printhelpline(__rt, __gs, &mut __tmp_str92);
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"M").to_string() || __sel == qb_chr(9.0f64).to_string() {
+            currcol = (qb_mod(currcol, 5.0f64) + 1.0f64);
+            let mut __tmp_str93 = (format!("{}{}" ,help_s[(currcol) as usize],"|  <F2=Save and Exit> <F9=Insert> <F10=Delete>")).to_string();
+            printhelpline(__rt, __gs, &mut __tmp_str93);
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"G").to_string() {
+            currcol = 1.0f64;
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"O").to_string() {
+            currcol = 5.0f64;
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"I").to_string() {
+            currrow = 1.0f64;
+            currtopline = (currtopline - 19.0f64);
+            if currtopline < 1.0f64 {
+                currtopline = 1.0f64;
             }
             '__gosub_edittransprintwholescreen: loop {
                 temp = currrow;
-                currrow = 1_f64;
-                let __for_to_currrow: f64 = 19_f64;
-                let __for_step_currrow: f64 = 1.0_f64;
+                currrow = 1.0f64;
+                let __for_to_currrow: f64 = 19.0f64;
+                let __for_step_currrow: f64 = 1.0;
                 while (__for_step_currrow > 0.0 && currrow <= __for_to_currrow) || (__for_step_currrow < 0.0 && currrow >= __for_to_currrow) {
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    if currrecord <= maxrecord {
                         '__gosub_edittransgetline: loop {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            let __file_buf91 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                            currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                            currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                            currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                            currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                            currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            let __file_buf94 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf94, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf94, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf94, 16, 8);
+                            currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                            currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                            currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                            currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                            currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                             break '__gosub_edittransgetline;
                             break '__gosub_edittransgetline;
                         }
                     }
                     '__gosub_edittransprintline: loop {
-                        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                        if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                        if currrecord == (maxrecord + 1.0f64) {
                             __rt.print(&[qb_str(&(u1x_s))]);
-                        } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                        } else if currrecord > maxrecord {
                             __rt.print(&[qb_str(&(u1_s))]);
                         } else {
-                            let __pu_s92 = (currstring_s[(1_f64) as usize]).to_string();
-                            let __pu_s93 = (currstring_s[(2_f64) as usize]).to_string();
-                            let __pu_s94 = (currstring_s[(3_f64) as usize]).to_string();
-                            let __pu95 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s92), QbVal::Str(&__pu_s93), QbVal::Str(&__pu_s94)]);
-                            __rt.print(&[__pu95]);
-                            if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                let __pu96 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu96]);
-                            } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                let __pu97 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu97]);
+                            let __pu_s95 = (currstring_s[(1.0f64) as usize]).to_string();
+                            let __pu_s96 = (currstring_s[(2.0f64) as usize]).to_string();
+                            let __pu_s97 = (currstring_s[(3.0f64) as usize]).to_string();
+                            let __pu98 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s95), QbVal::Str(&__pu_s96), QbVal::Str(&__pu_s97)]);
+                            __rt.print(&[__pu98]);
+                            if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                let __pu99 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu99]);
+                            } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                let __pu100 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu100]);
                             } else {
-                                let __pu98 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu98]);
+                                let __pu101 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu101]);
                             }
                         }
                         break '__gosub_edittransprintline;
@@ -878,65 +963,71 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                 break '__gosub_edittransprintwholescreen;
             }
             '__gosub_edittransgetline: loop {
-                currrecord = ((currtopline + currrow) - 1_f64);
-                let __file_buf99 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                currrecord = ((currtopline + currrow) - 1.0f64);
+                let __file_buf102 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                valid_s = qb_field_get(&__file_buf102, 0, 11);
+                iomaxrecord_s = qb_field_get(&__file_buf102, 11, 5);
+                iobalance_s = qb_field_get(&__file_buf102, 16, 8);
+                currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                 break '__gosub_edittransgetline;
                 break '__gosub_edittransgetline;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"Q").to_string() {
-            currrow = 1_f64;
-            currtopline = (currtopline + 19_f64);
-            if qb_bool(qb_from_bool(currtopline > maxrecord)) {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"Q").to_string() {
+            currrow = 1.0f64;
+            currtopline = (currtopline + 19.0f64);
+            if currtopline > maxrecord {
                 currtopline = maxrecord;
             }
             '__gosub_edittransprintwholescreen: loop {
                 temp = currrow;
-                currrow = 1_f64;
-                let __for_to_currrow: f64 = 19_f64;
-                let __for_step_currrow: f64 = 1.0_f64;
+                currrow = 1.0f64;
+                let __for_to_currrow: f64 = 19.0f64;
+                let __for_step_currrow: f64 = 1.0;
                 while (__for_step_currrow > 0.0 && currrow <= __for_to_currrow) || (__for_step_currrow < 0.0 && currrow >= __for_to_currrow) {
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    if currrecord <= maxrecord {
                         '__gosub_edittransgetline: loop {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            let __file_buf100 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                            currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                            currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                            currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                            currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                            currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            let __file_buf103 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf103, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf103, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf103, 16, 8);
+                            currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                            currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                            currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                            currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                            currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                             break '__gosub_edittransgetline;
                             break '__gosub_edittransgetline;
                         }
                     }
                     '__gosub_edittransprintline: loop {
-                        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                        if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                        if currrecord == (maxrecord + 1.0f64) {
                             __rt.print(&[qb_str(&(u1x_s))]);
-                        } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                        } else if currrecord > maxrecord {
                             __rt.print(&[qb_str(&(u1_s))]);
                         } else {
-                            let __pu_s101 = (currstring_s[(1_f64) as usize]).to_string();
-                            let __pu_s102 = (currstring_s[(2_f64) as usize]).to_string();
-                            let __pu_s103 = (currstring_s[(3_f64) as usize]).to_string();
-                            let __pu104 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s101), QbVal::Str(&__pu_s102), QbVal::Str(&__pu_s103)]);
-                            __rt.print(&[__pu104]);
-                            if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                let __pu105 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu105]);
-                            } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                let __pu106 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu106]);
+                            let __pu_s104 = (currstring_s[(1.0f64) as usize]).to_string();
+                            let __pu_s105 = (currstring_s[(2.0f64) as usize]).to_string();
+                            let __pu_s106 = (currstring_s[(3.0f64) as usize]).to_string();
+                            let __pu107 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s104), QbVal::Str(&__pu_s105), QbVal::Str(&__pu_s106)]);
+                            __rt.print(&[__pu107]);
+                            if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                let __pu108 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu108]);
+                            } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                let __pu109 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu109]);
                             } else {
-                                let __pu107 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                __rt.println(&[__pu107]);
+                                let __pu110 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                __rt.println(&[__pu110]);
                             }
                         }
                         break '__gosub_edittransprintline;
@@ -949,85 +1040,103 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                 break '__gosub_edittransprintwholescreen;
             }
             '__gosub_edittransgetline: loop {
-                currrecord = ((currtopline + currrow) - 1_f64);
-                let __file_buf108 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                currrecord = ((currtopline + currrow) - 1.0f64);
+                let __file_buf111 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                valid_s = qb_field_get(&__file_buf111, 0, 11);
+                iomaxrecord_s = qb_field_get(&__file_buf111, 11, 5);
+                iobalance_s = qb_field_get(&__file_buf111, 16, 8);
+                currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                 break '__gosub_edittransgetline;
                 break '__gosub_edittransgetline;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"<").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"<").to_string() {
             finished = qb_true;
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"C").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"C").to_string() {
             '__gosub_edittransaddrecord: loop {
-                currrecord = ((currtopline + currrow) - 1_f64);
+                currrecord = ((currtopline + currrow) - 1.0f64);
                 a = maxrecord;
-                while qb_bool(qb_from_bool(a > currrecord)) {
-                    let __file_buf109 = __rt.read_record((1_f64) as u8, Some(((a + 1_f64)) as i64 - 1));
-                    let mut __put_buf110 = vec![b' '; 0];
-                    __rt.write_record((1_f64) as u8, Some(((a + 2_f64)) as i64 - 1), &__put_buf110);
-                    balance[((a + 1_f64)) as usize] = balance[(a) as usize];
-                    a = (a - 1_f64);
+                while a > currrecord {
+                    let __file_buf112 = __rt.read_record((1.0f64) as u8, Some(((a + 1.0f64)) as i64 - 1));
+                    valid_s = qb_field_get(&__file_buf112, 0, 11);
+                    iomaxrecord_s = qb_field_get(&__file_buf112, 11, 5);
+                    iobalance_s = qb_field_get(&__file_buf112, 16, 8);
+                    let mut __put_buf113 = vec![b' '; 24];
+                    qb_field_put(&mut __put_buf113, 0, &valid_s, 11);
+                    qb_field_put(&mut __put_buf113, 11, &iomaxrecord_s, 5);
+                    qb_field_put(&mut __put_buf113, 16, &iobalance_s, 8);
+                    __rt.write_record((1.0f64) as u8, Some(((a + 2.0f64)) as i64 - 1), &__put_buf113);
+                    balance[((a + 1.0f64)) as usize] = balance[(a) as usize];
+                    a = (a - 1.0f64);
                 }
-                balance[((currrecord + 1_f64)) as usize] = balance[(currrecord) as usize];
-                maxrecord = (maxrecord + 1_f64);
+                balance[((currrecord + 1.0f64)) as usize] = balance[(currrecord) as usize];
+                maxrecord = (maxrecord + 1.0f64);
                 iodate_s = qb_lset(&iodate_s, &("").to_string());
                 ioref_s = qb_lset(&ioref_s, &("").to_string());
                 iodesc_s = qb_lset(&iodesc_s, &("").to_string());
-                iofig1_s = qb_lset(&iofig1_s, &(MKD(0_f64)).to_string());
-                iofig2_s = qb_lset(&iofig2_s, &(MKD(0_f64)).to_string());
-                let mut __put_buf111 = vec![b' '; 0];
-                __rt.write_record((1_f64) as u8, Some(((currrecord + 2_f64)) as i64 - 1), &__put_buf111);
+                iofig1_s = qb_lset(&iofig1_s, &(MKD(0.0f64)).to_string());
+                iofig2_s = qb_lset(&iofig2_s, &(MKD(0.0f64)).to_string());
+                let mut __put_buf114 = vec![b' '; 24];
+                qb_field_put(&mut __put_buf114, 0, &valid_s, 11);
+                qb_field_put(&mut __put_buf114, 11, &iomaxrecord_s, 5);
+                qb_field_put(&mut __put_buf114, 16, &iobalance_s, 8);
+                __rt.write_record((1.0f64) as u8, Some(((currrecord + 2.0f64)) as i64 - 1), &__put_buf114);
                 valid_s = qb_lset(&valid_s, &("THISISVALID").to_string());
                 iomaxrecord_s = qb_lset(&iomaxrecord_s, &(cvit_s(__rt, __gs, maxrecord)).to_string());
-                let mut __put_buf112 = vec![b' '; 0];
-                __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf112);
+                let mut __put_buf115 = vec![b' '; 24];
+                qb_field_put(&mut __put_buf115, 0, &valid_s, 11);
+                qb_field_put(&mut __put_buf115, 11, &iomaxrecord_s, 5);
+                qb_field_put(&mut __put_buf115, 16, &iobalance_s, 8);
+                __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf115);
                 '__gosub_edittransprintwholescreen: loop {
                     temp = currrow;
-                    currrow = 1_f64;
-                    let __for_to_currrow: f64 = 19_f64;
-                    let __for_step_currrow: f64 = 1.0_f64;
+                    currrow = 1.0f64;
+                    let __for_to_currrow: f64 = 19.0f64;
+                    let __for_step_currrow: f64 = 1.0;
                     while (__for_step_currrow > 0.0 && currrow <= __for_to_currrow) || (__for_step_currrow < 0.0 && currrow >= __for_to_currrow) {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        if currrecord <= maxrecord {
                             '__gosub_edittransgetline: loop {
-                                currrecord = ((currtopline + currrow) - 1_f64);
-                                let __file_buf113 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                                currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                                currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                                currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                                currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                                currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                                currrecord = ((currtopline + currrow) - 1.0f64);
+                                let __file_buf116 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                                valid_s = qb_field_get(&__file_buf116, 0, 11);
+                                iomaxrecord_s = qb_field_get(&__file_buf116, 11, 5);
+                                iobalance_s = qb_field_get(&__file_buf116, 16, 8);
+                                currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                                currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                                currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                                currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                                currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                                 break '__gosub_edittransgetline;
                                 break '__gosub_edittransgetline;
                             }
                         }
                         '__gosub_edittransprintline: loop {
-                            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                            if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                            if currrecord == (maxrecord + 1.0f64) {
                                 __rt.print(&[qb_str(&(u1x_s))]);
-                            } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                            } else if currrecord > maxrecord {
                                 __rt.print(&[qb_str(&(u1_s))]);
                             } else {
-                                let __pu_s114 = (currstring_s[(1_f64) as usize]).to_string();
-                                let __pu_s115 = (currstring_s[(2_f64) as usize]).to_string();
-                                let __pu_s116 = (currstring_s[(3_f64) as usize]).to_string();
-                                let __pu117 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s114), QbVal::Str(&__pu_s115), QbVal::Str(&__pu_s116)]);
-                                __rt.print(&[__pu117]);
-                                if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                    let __pu118 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu118]);
-                                } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                    let __pu119 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu119]);
+                                let __pu_s117 = (currstring_s[(1.0f64) as usize]).to_string();
+                                let __pu_s118 = (currstring_s[(2.0f64) as usize]).to_string();
+                                let __pu_s119 = (currstring_s[(3.0f64) as usize]).to_string();
+                                let __pu120 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s117), QbVal::Str(&__pu_s118), QbVal::Str(&__pu_s119)]);
+                                __rt.print(&[__pu120]);
+                                if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                    let __pu121 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu121]);
+                                } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                    let __pu122 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu122]);
                                 } else {
-                                    let __pu120 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                    __rt.println(&[__pu120]);
+                                    let __pu123 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                    __rt.println(&[__pu123]);
                                 }
                             }
                             break '__gosub_edittransprintline;
@@ -1040,81 +1149,96 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                     break '__gosub_edittransprintwholescreen;
                 }
                 '__gosub_edittransgetline: loop {
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    let __file_buf121 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                    currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                    currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                    currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                    currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                    currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    let __file_buf124 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                    valid_s = qb_field_get(&__file_buf124, 0, 11);
+                    iomaxrecord_s = qb_field_get(&__file_buf124, 11, 5);
+                    iobalance_s = qb_field_get(&__file_buf124, 16, 8);
+                    currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                    currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                    currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                    currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                    currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                     break '__gosub_edittransgetline;
                     break '__gosub_edittransgetline;
                 }
                 break '__gosub_edittransaddrecord;
                 break '__gosub_edittransaddrecord;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"D").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"D").to_string() {
             '__gosub_edittransdeleterecord: loop {
-                if qb_bool(qb_from_bool(maxrecord == 1_f64)) {
+                if maxrecord == 1.0f64 {
                     __rt.beep();
                 } else {
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    maxrecord = (maxrecord - 1_f64);
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    maxrecord = (maxrecord - 1.0f64);
                     a = currrecord;
-                    while qb_bool(qb_from_bool(a <= maxrecord)) {
-                        let __file_buf122 = __rt.read_record((1_f64) as u8, Some(((a + 2_f64)) as i64 - 1));
-                        let mut __put_buf123 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some(((a + 1_f64)) as i64 - 1), &__put_buf123);
-                        balance[(a) as usize] = ((balance[((a + 1_f64)) as usize] - currfig[(4_f64) as usize]) + currfig[(5_f64) as usize]);
-                        a = (a + 1_f64);
+                    while a <= maxrecord {
+                        let __file_buf125 = __rt.read_record((1.0f64) as u8, Some(((a + 2.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf125, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf125, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf125, 16, 8);
+                        let mut __put_buf126 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf126, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf126, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf126, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some(((a + 1.0f64)) as i64 - 1), &__put_buf126);
+                        balance[(a) as usize] = ((balance[((a + 1.0f64)) as usize] - currfig[(4.0f64) as usize]) + currfig[(5.0f64) as usize]);
+                        a = (a + 1.0f64);
                     }
                     valid_s = qb_lset(&valid_s, &("THISISVALID").to_string());
                     iomaxrecord_s = qb_lset(&iomaxrecord_s, &(cvit_s(__rt, __gs, maxrecord)).to_string());
-                    let mut __put_buf124 = vec![b' '; 0];
-                    __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf124);
+                    let mut __put_buf127 = vec![b' '; 24];
+                    qb_field_put(&mut __put_buf127, 0, &valid_s, 11);
+                    qb_field_put(&mut __put_buf127, 11, &iomaxrecord_s, 5);
+                    qb_field_put(&mut __put_buf127, 16, &iobalance_s, 8);
+                    __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf127);
                     '__gosub_edittransprintwholescreen: loop {
                         temp = currrow;
-                        currrow = 1_f64;
-                        let __for_to_currrow: f64 = 19_f64;
-                        let __for_step_currrow: f64 = 1.0_f64;
+                        currrow = 1.0f64;
+                        let __for_to_currrow: f64 = 19.0f64;
+                        let __for_step_currrow: f64 = 1.0;
                         while (__for_step_currrow > 0.0 && currrow <= __for_to_currrow) || (__for_step_currrow < 0.0 && currrow >= __for_to_currrow) {
-                            currrecord = ((currtopline + currrow) - 1_f64);
-                            if qb_bool(qb_from_bool(currrecord <= maxrecord)) {
+                            currrecord = ((currtopline + currrow) - 1.0f64);
+                            if currrecord <= maxrecord {
                                 '__gosub_edittransgetline: loop {
-                                    currrecord = ((currtopline + currrow) - 1_f64);
-                                    let __file_buf125 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                                    currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                                    currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                                    currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                                    currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                                    currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                                    currrecord = ((currtopline + currrow) - 1.0f64);
+                                    let __file_buf128 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                                    valid_s = qb_field_get(&__file_buf128, 0, 11);
+                                    iomaxrecord_s = qb_field_get(&__file_buf128, 11, 5);
+                                    iobalance_s = qb_field_get(&__file_buf128, 16, 8);
+                                    currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                                    currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                                    currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                                    currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                                    currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                                     break '__gosub_edittransgetline;
                                     break '__gosub_edittransgetline;
                                 }
                             }
                             '__gosub_edittransprintline: loop {
-                                __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                                currrecord = ((currtopline + currrow) - 1_f64);
-                                __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                                if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                                __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                                currrecord = ((currtopline + currrow) - 1.0f64);
+                                __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                                if currrecord == (maxrecord + 1.0f64) {
                                     __rt.print(&[qb_str(&(u1x_s))]);
-                                } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                                } else if currrecord > maxrecord {
                                     __rt.print(&[qb_str(&(u1_s))]);
                                 } else {
-                                    let __pu_s126 = (currstring_s[(1_f64) as usize]).to_string();
-                                    let __pu_s127 = (currstring_s[(2_f64) as usize]).to_string();
-                                    let __pu_s128 = (currstring_s[(3_f64) as usize]).to_string();
-                                    let __pu129 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s126), QbVal::Str(&__pu_s127), QbVal::Str(&__pu_s128)]);
-                                    __rt.print(&[__pu129]);
-                                    if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                        let __pu130 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                        __rt.println(&[__pu130]);
-                                    } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                        let __pu131 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                        __rt.println(&[__pu131]);
+                                    let __pu_s129 = (currstring_s[(1.0f64) as usize]).to_string();
+                                    let __pu_s130 = (currstring_s[(2.0f64) as usize]).to_string();
+                                    let __pu_s131 = (currstring_s[(3.0f64) as usize]).to_string();
+                                    let __pu132 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s129), QbVal::Str(&__pu_s130), QbVal::Str(&__pu_s131)]);
+                                    __rt.print(&[__pu132]);
+                                    if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                        let __pu133 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                        __rt.println(&[__pu133]);
+                                    } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                        let __pu134 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                        __rt.println(&[__pu134]);
                                     } else {
-                                        let __pu132 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                        __rt.println(&[__pu132]);
+                                        let __pu135 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                        __rt.println(&[__pu135]);
                                     }
                                 }
                                 break '__gosub_edittransprintline;
@@ -1126,49 +1250,52 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         break '__gosub_edittransprintwholescreen;
                         break '__gosub_edittransprintwholescreen;
                     }
-                    currrecord = ((currtopline + currrow) - 1_f64);
-                    if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                    currrecord = ((currtopline + currrow) - 1.0f64);
+                    if currrecord > maxrecord {
                         '__gosub_edittransmoveup: loop {
-                            if qb_bool(qb_from_bool(currrow == 1_f64)) {
-                                if qb_bool(qb_from_bool(currtopline == 1_f64)) {
+                            if currrow == 1.0f64 {
+                                if currtopline == 1.0f64 {
                                     __rt.beep();
                                 } else {
                                     scrolldown(__rt, __gs);
-                                    currtopline = (currtopline - 1_f64);
+                                    currtopline = (currtopline - 1.0f64);
                                     '__gosub_edittransgetline: loop {
-                                        currrecord = ((currtopline + currrow) - 1_f64);
-                                        let __file_buf133 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                                        currrecord = ((currtopline + currrow) - 1.0f64);
+                                        let __file_buf136 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                                        valid_s = qb_field_get(&__file_buf136, 0, 11);
+                                        iomaxrecord_s = qb_field_get(&__file_buf136, 11, 5);
+                                        iobalance_s = qb_field_get(&__file_buf136, 16, 8);
+                                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                                         break '__gosub_edittransgetline;
                                         break '__gosub_edittransgetline;
                                     }
                                     '__gosub_edittransprintline: loop {
-                                        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-                                        currrecord = ((currtopline + currrow) - 1_f64);
-                                        __rt.locate(Some((currrow + 4_f64)), Some(2_f64), None);
-                                        if qb_bool(qb_from_bool(currrecord == (maxrecord + 1_f64))) {
+                                        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+                                        currrecord = ((currtopline + currrow) - 1.0f64);
+                                        __rt.locate(Some((currrow + 4.0f64)), Some(2.0f64), None);
+                                        if currrecord == (maxrecord + 1.0f64) {
                                             __rt.print(&[qb_str(&(u1x_s))]);
-                                        } else if qb_bool(qb_from_bool(currrecord > maxrecord)) {
+                                        } else if currrecord > maxrecord {
                                             __rt.print(&[qb_str(&(u1_s))]);
                                         } else {
-                                            let __pu_s134 = (currstring_s[(1_f64) as usize]).to_string();
-                                            let __pu_s135 = (currstring_s[(2_f64) as usize]).to_string();
-                                            let __pu_s136 = (currstring_s[(3_f64) as usize]).to_string();
-                                            let __pu137 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s134), QbVal::Str(&__pu_s135), QbVal::Str(&__pu_s136)]);
-                                            __rt.print(&[__pu137]);
-                                            if qb_bool(qb_and(qb_from_bool(currfig[(4_f64) as usize] == 0_f64), qb_from_bool(currfig[(5_f64) as usize] == 0_f64))) {
-                                                let __pu138 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
-                                                __rt.println(&[__pu138]);
-                                            } else if qb_bool(qb_from_bool(currfig[(5_f64) as usize] == 0_f64)) {
-                                                let __pu139 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{C2}\u{B3}"),u4_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                                __rt.println(&[__pu139]);
+                                            let __pu_s137 = (currstring_s[(1.0f64) as usize]).to_string();
+                                            let __pu_s138 = (currstring_s[(2.0f64) as usize]).to_string();
+                                            let __pu_s139 = (currstring_s[(3.0f64) as usize]).to_string();
+                                            let __pu140 = qb_print_using(&(u_s), &[QbVal::Str(&__pu_s137), QbVal::Str(&__pu_s138), QbVal::Str(&__pu_s139)]);
+                                            __rt.print(&[__pu140]);
+                                            if qb_bool(qb_and(qb_from_bool(currfig[(4.0f64) as usize] == 0.0f64), qb_from_bool(currfig[(5.0f64) as usize] == 0.0f64))) {
+                                                let __pu141 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(balance[(currrecord) as usize])]);
+                                                __rt.println(&[__pu141]);
+                                            } else if currfig[(5.0f64) as usize] == 0.0f64 {
+                                                let __pu142 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"\u{B3}"),u4_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(4.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                                __rt.println(&[__pu142]);
                                             } else {
-                                                let __pu140 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{C2}\u{B3}"),u2_s),"\u{C2}\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5_f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
-                                                __rt.println(&[__pu140]);
+                                                let __pu143 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"\u{B3}"),u2_s),"\u{B3}"),u3_s)), &[QbVal::Num(currfig[(5.0f64) as usize]), QbVal::Num(balance[(currrecord) as usize])]);
+                                                __rt.println(&[__pu143]);
                                             }
                                         }
                                         break '__gosub_edittransprintline;
@@ -1176,15 +1303,18 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                                     }
                                 }
                             } else {
-                                currrow = (currrow - 1_f64);
+                                currrow = (currrow - 1.0f64);
                                 '__gosub_edittransgetline: loop {
-                                    currrecord = ((currtopline + currrow) - 1_f64);
-                                    let __file_buf141 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                                    currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                                    currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                                    currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                                    currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                                    currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                                    currrecord = ((currtopline + currrow) - 1.0f64);
+                                    let __file_buf144 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                                    valid_s = qb_field_get(&__file_buf144, 0, 11);
+                                    iomaxrecord_s = qb_field_get(&__file_buf144, 11, 5);
+                                    iobalance_s = qb_field_get(&__file_buf144, 16, 8);
+                                    currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                                    currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                                    currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                                    currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                                    currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                                     break '__gosub_edittransgetline;
                                     break '__gosub_edittransgetline;
                                 }
@@ -1194,21 +1324,30 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         }
                     }
                     '__gosub_edittransgetline: loop {
-                        currrecord = ((currtopline + currrow) - 1_f64);
-                        let __file_buf142 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
-                        currstring_s[(1_f64) as usize] = (iodate_s).to_string();
-                        currstring_s[(2_f64) as usize] = (ioref_s).to_string();
-                        currstring_s[(3_f64) as usize] = (iodesc_s).to_string();
-                        currfig[(4_f64) as usize] = CVD(&(iofig1_s));
-                        currfig[(5_f64) as usize] = CVD(&(iofig2_s));
+                        currrecord = ((currtopline + currrow) - 1.0f64);
+                        let __file_buf145 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf145, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf145, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf145, 16, 8);
+                        currstring_s[(1.0f64) as usize] = (iodate_s).to_string();
+                        currstring_s[(2.0f64) as usize] = (ioref_s).to_string();
+                        currstring_s[(3.0f64) as usize] = (iodesc_s).to_string();
+                        currfig[(4.0f64) as usize] = CVD(&(iofig1_s));
+                        currfig[(5.0f64) as usize] = CVD(&(iofig2_s));
                         break '__gosub_edittransgetline;
                         break '__gosub_edittransgetline;
                     }
                     '__gosub_edittranswritebalance: loop {
-                        let __file_buf143 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
+                        let __file_buf146 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+                        valid_s = qb_field_get(&__file_buf146, 0, 11);
+                        iomaxrecord_s = qb_field_get(&__file_buf146, 11, 5);
+                        iobalance_s = qb_field_get(&__file_buf146, 16, 8);
                         iobalance_s = qb_lset(&iobalance_s, &(MKD(balance[(maxrecord) as usize])).to_string());
-                        let mut __put_buf144 = vec![b' '; 0];
-                        __rt.write_record((1_f64) as u8, Some((1_f64) as i64 - 1), &__put_buf144);
+                        let mut __put_buf147 = vec![b' '; 24];
+                        qb_field_put(&mut __put_buf147, 0, &valid_s, 11);
+                        qb_field_put(&mut __put_buf147, 11, &iomaxrecord_s, 5);
+                        qb_field_put(&mut __put_buf147, 16, &iobalance_s, 8);
+                        __rt.write_record((1.0f64) as u8, Some((1.0f64) as i64 - 1), &__put_buf147);
                         break '__gosub_edittranswritebalance;
                         break '__gosub_edittranswritebalance;
                     }
@@ -1216,7 +1355,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                 break '__gosub_edittransdeleterecord;
                 break '__gosub_edittransdeleterecord;
             }
-        } else if __sel == qb_chr(13_f64).to_string() {
+        } else if __sel == qb_chr(13.0f64).to_string() {
         } else {
             __rt.beep();
         }
@@ -1227,41 +1366,41 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
 }
 
 fn fancycls(__rt: &mut Runtime, __gs: &mut GameState, dots: &mut f64, background: &mut f64) {
-    let mut a: f64 = 0.0_f64;
-    let mut row: f64 = 0.0_f64;
-    let mut col: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
+    let mut row: f64 = 0.0;
+    let mut col: f64 = 0.0;
 
-    __rt.view_print(Some(2_f64), Some(24_f64));
+    __rt.view_print(Some(2.0f64), Some(24.0f64));
     __rt.color((*dots), Some((*background)));
-    __rt.cls((2_f64) as u8);
-    a = 95_f64;
-    let __for_to_a: f64 = 1820_f64;
-    let __for_step_a: f64 = 45_f64;
+    __rt.cls((2.0f64) as u8);
+    a = 95.0f64;
+    let __for_to_a: f64 = 1820.0f64;
+    let __for_step_a: f64 = 45.0f64;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        row = ((a / 80_f64) + 1_f64);
-        col = (qb_mod(a, 80_f64) + 1_f64);
+        row = ((a / 80.0f64) + 1.0f64);
+        col = (qb_mod(a, 80.0f64) + 1.0f64);
         __rt.locate(Some(row), Some(col), None);
-        __rt.print(&[qb_str(&(qb_chr(250_f64)))]);
+        __rt.print(&[qb_str(&(qb_chr(250.0f64)))]);
         a += __for_step_a;
     }
     __rt.view_print(None, None);
 }
 
 fn initialize(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut colorset: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut p: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut colorset: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut p: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
     __rt.view_print(None, None);
-    colorset = 1_f64;
-    let __for_to_colorset: f64 = 4_f64;
-    let __for_step_colorset: f64 = 1.0_f64;
+    colorset = 1.0f64;
+    let __for_to_colorset: f64 = 4.0f64;
+    let __for_step_colorset: f64 = 1.0;
     while (__for_step_colorset > 0.0 && colorset <= __for_to_colorset) || (__for_step_colorset < 0.0 && colorset >= __for_to_colorset) {
-        x = 1_f64;
-        let __for_to_x: f64 = 10_f64;
-        let __for_step_x: f64 = 1.0_f64;
+        x = 1.0f64;
+        let __for_to_x: f64 = 10.0f64;
+        let __for_step_x: f64 = 1.0;
         while (__for_step_x > 0.0 && x <= __for_to_x) || (__for_step_x < 0.0 && x >= __for_to_x) {
             __gs.colors[(x) as usize][(colorset) as usize] = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
             x += __for_step_x;
@@ -1269,254 +1408,256 @@ fn initialize(__rt: &mut Runtime, __gs: &mut GameState) {
         colorset += __for_step_colorset;
     }
     loadstate(__rt, __gs);
-    p = varptr(__gs.scrollupasm[(1_f64) as usize]);
-    i = 0_f64;
-    let __for_to_i: f64 = 13_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    p = varptr(__gs.scrollupasm[(1.0f64) as usize]);
+    i = 0.0f64;
+    let __for_to_i: f64 = 13.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         j = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
+        __rt.qb_poke((p + i), j);
         i += __for_step_i;
     }
-    p = varptr(__gs.scrolldownasm[(1_f64) as usize]);
-    i = 0_f64;
-    let __for_to_i: f64 = 13_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    p = varptr(__gs.scrolldownasm[(1.0f64) as usize]);
+    i = 0.0f64;
+    let __for_to_i: f64 = 13.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         j = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
+        __rt.qb_poke((p + i), j);
         i += __for_step_i;
     }
 }
 
 fn intro(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.screen(0_f64);
-    __rt.color(7_f64, Some(0_f64));
+    __rt.screen(0.0f64);
+    __rt.color(7.0f64, Some(0.0f64));
     __rt.cls(0u8);
-    let mut __tmp_num145: f64 = 4_f64;
-    let mut __tmp_str146 = ("Q B a s i c").to_string();
-    center(__rt, __gs, &mut __tmp_num145, &mut __tmp_str146);
-    __rt.color(15_f64, None);
-    let mut __tmp_num147: f64 = 5_f64;
-    let mut __tmp_str148 = ("\u{C3}\u{9C}     \u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}   \u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}   \u{C3}\u{9C}      \u{C3}\u{9C}     \u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}   \u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}").to_string();
-    center(__rt, __gs, &mut __tmp_num147, &mut __tmp_str148);
-    let mut __tmp_num149: f64 = 6_f64;
-    let mut __tmp_str150 = ("\u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9F}\u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}  \u{C3}\u{9B} \u{C3}\u{9B}    \u{C3}\u{9B}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9B}      \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9C} \u{C3}\u{9C}\u{C3}\u{9F}\u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}  \u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B}     \u{C3}\u{9B}    \u{C3}\u{9B}   \u{C3}\u{9B}").to_string();
-    center(__rt, __gs, &mut __tmp_num149, &mut __tmp_str150);
-    let mut __tmp_num151: f64 = 7_f64;
-    let mut __tmp_str152 = ("\u{C3}\u{9B}  \u{C3}\u{9F}  \u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B} \u{C3}\u{9F}\u{C3}\u{9C}\u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F}   \u{C3}\u{9B}        \u{C3}\u{9B}  \u{C3}\u{9F}  \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9B} \u{C3}\u{9B} \u{C3}\u{9F}\u{C3}\u{9C}\u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9B} \u{C3}\u{9B} \u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9F}\u{C3}\u{9F} \u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9B}\u{C3}\u{9F}\u{C3}\u{9F}").to_string();
-    center(__rt, __gs, &mut __tmp_num151, &mut __tmp_str152);
-    let mut __tmp_num153: f64 = 8_f64;
-    let mut __tmp_str154 = ("\u{C3}\u{9B}     \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9B} \u{C3}\u{9B}   \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}   \u{C3}\u{9B}        \u{C3}\u{9B}     \u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B}   \u{C3}\u{9B} \u{C3}\u{9B}  \u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9B} \u{C3}\u{9B}\u{C3}\u{9C}\u{C3}\u{9C}\u{C3}\u{9C} \u{C3}\u{9B}  \u{C3}\u{9F}\u{C3}\u{9C}").to_string();
-    center(__rt, __gs, &mut __tmp_num153, &mut __tmp_str154);
-    __rt.color(7_f64, None);
-    let mut __tmp_num155: f64 = 11_f64;
-    let mut __tmp_str156 = ("A Personal Finance Manager written in").to_string();
-    center(__rt, __gs, &mut __tmp_num155, &mut __tmp_str156);
-    let mut __tmp_num157: f64 = 12_f64;
-    let mut __tmp_str158 = ("MS-DOS QBasic").to_string();
-    center(__rt, __gs, &mut __tmp_num157, &mut __tmp_str158);
-    let mut __tmp_num159: f64 = 24_f64;
-    let mut __tmp_str160 = ("Press any key to continue").to_string();
-    center(__rt, __gs, &mut __tmp_num159, &mut __tmp_str160);
+    let mut __tmp_num148: f64 = 4.0f64;
+    let mut __tmp_str149 = ("Q B a s i c").to_string();
+    center(__rt, __gs, &mut __tmp_num148, &mut __tmp_str149);
+    __rt.color(15.0f64, None);
+    let mut __tmp_num150: f64 = 5.0f64;
+    let mut __tmp_str151 = ("\u{DC}     \u{DC} \u{DC}\u{DC}\u{DC}\u{DC} \u{DC}   \u{DC} \u{DC}\u{DC}\u{DC}\u{DC} \u{DC}   \u{DC}      \u{DC}     \u{DC} \u{DC}\u{DC}\u{DC}\u{DC} \u{DC}   \u{DC} \u{DC}\u{DC}\u{DC}\u{DC} \u{DC}\u{DC}\u{DC}\u{DC}\u{DC} \u{DC}\u{DC}\u{DC}\u{DC} \u{DC}\u{DC}\u{DC}\u{DC}\u{DC}").to_string();
+    center(__rt, __gs, &mut __tmp_num150, &mut __tmp_str151);
+    let mut __tmp_num152: f64 = 6.0f64;
+    let mut __tmp_str153 = ("\u{DB}\u{DF}\u{DC} \u{DC}\u{DF}\u{DB} \u{DB}  \u{DB} \u{DB}\u{DC}  \u{DB} \u{DB}    \u{DB}\u{DC}\u{DC}\u{DC}\u{DB}      \u{DB}\u{DF}\u{DC} \u{DC}\u{DF}\u{DB} \u{DB}  \u{DB} \u{DB}\u{DC}  \u{DB} \u{DB}  \u{DB} \u{DB}     \u{DB}    \u{DB}   \u{DB}").to_string();
+    center(__rt, __gs, &mut __tmp_num152, &mut __tmp_str153);
+    let mut __tmp_num154: f64 = 7.0f64;
+    let mut __tmp_str155 = ("\u{DB}  \u{DF}  \u{DB} \u{DB}  \u{DB} \u{DB} \u{DF}\u{DC}\u{DB} \u{DB}\u{DF}\u{DF}\u{DF}   \u{DB}        \u{DB}  \u{DF}  \u{DB} \u{DB}\u{DF}\u{DF}\u{DB} \u{DB} \u{DF}\u{DC}\u{DB} \u{DB}\u{DF}\u{DF}\u{DB} \u{DB} \u{DF}\u{DF}\u{DB} \u{DB}\u{DF}\u{DF}\u{DF} \u{DB}\u{DF}\u{DB}\u{DF}\u{DF}").to_string();
+    center(__rt, __gs, &mut __tmp_num154, &mut __tmp_str155);
+    let mut __tmp_num156: f64 = 8.0f64;
+    let mut __tmp_str157 = ("\u{DB}     \u{DB} \u{DB}\u{DC}\u{DC}\u{DB} \u{DB}   \u{DB} \u{DB}\u{DC}\u{DC}\u{DC}   \u{DB}        \u{DB}     \u{DB} \u{DB}  \u{DB} \u{DB}   \u{DB} \u{DB}  \u{DB} \u{DB}\u{DC}\u{DC}\u{DC}\u{DB} \u{DB}\u{DC}\u{DC}\u{DC} \u{DB}  \u{DF}\u{DC}").to_string();
+    center(__rt, __gs, &mut __tmp_num156, &mut __tmp_str157);
+    __rt.color(7.0f64, None);
+    let mut __tmp_num158: f64 = 11.0f64;
+    let mut __tmp_str159 = ("A Personal Finance Manager written in").to_string();
+    center(__rt, __gs, &mut __tmp_num158, &mut __tmp_str159);
+    let mut __tmp_num160: f64 = 12.0f64;
+    let mut __tmp_str161 = ("MS-DOS QBasic").to_string();
+    center(__rt, __gs, &mut __tmp_num160, &mut __tmp_str161);
+    let mut __tmp_num162: f64 = 24.0f64;
+    let mut __tmp_str163 = ("Press any key to continue").to_string();
+    center(__rt, __gs, &mut __tmp_num162, &mut __tmp_str163);
     sparklepause(__rt, __gs);
 }
 
 fn lcenter(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String) {
-    let __tmp161 = __rt.tab((41_f64 - (qb_len(&(text_s)) / 2_f64)));
-    __rt.println(&[__tmp161, qb_str(&(text_s))]);
+    let __tmp164 = __rt.tab((41.0f64 - (qb_len(&(text_s)) / 2.0f64)));
+    __rt.println(&[__tmp164, qb_str(&(text_s))]);
 }
 
 fn loadstate(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut a: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
 
-    __rt.open_seq(&("money.dat").to_string(), "input", (1_f64) as u8);
-    let __file_line162 = __rt.read_file_line((1_f64) as u8);
-    __gs.colorpref = __file_line162.parse().unwrap_or_default();
-    a = 1_f64;
-    let __for_to_a: f64 = 19_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    __rt.open_seq(&("money.dat").to_string(), "input", (1.0f64) as u8);
+    let __file_line165 = __rt.read_file_line((1.0f64) as u8);
+    __gs.colorpref = __file_line165.trim().parse().unwrap_or_default();
+    a = 1.0f64;
+    let __for_to_a: f64 = 19.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        __gs.account__title[(a) as usize] = __rt.read_file_line((1_f64) as u8);
-        __gs.account__atype[(a) as usize] = __rt.read_file_line((1_f64) as u8);
-        __gs.account__desc[(a) as usize] = __rt.read_file_line((1_f64) as u8);
+        __gs.account__title[(a) as usize] = __rt.read_file_line((1.0f64) as u8);
+        __gs.account__atype[(a) as usize] = __rt.read_file_line((1.0f64) as u8);
+        __gs.account__desc[(a) as usize] = __rt.read_file_line((1.0f64) as u8);
         a += __for_step_a;
     }
     __rt.close_all();
 }
 
 fn menusystem(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut choice: f64 = 0.0_f64;
-    let mut finished: f64 = 0.0_f64;
-    let mut subchoice: f64 = 0.0_f64;
-    let mut newchoice: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
+    let mut choice: f64 = 0.0;
+    let mut finished: f64 = 0.0;
+    let mut subchoice: f64 = 0.0;
+    let mut newchoice: f64 = 0.0;
+    let mut a: f64 = 0.0;
 
-    let mut choice_s: Vec<String> = vec![Default::default(); (20_f64+1.0) as usize];
-    let mut menurow: Vec<f64> = vec![Default::default(); (20_f64+1.0) as usize];
-    let mut menucol: Vec<f64> = vec![Default::default(); (20_f64+1.0) as usize];
-    let mut help_s: Vec<String> = vec![Default::default(); (20_f64+1.0) as usize];
-    __rt.locate(None, None, Some(0_f64));
-    choice = 1_f64;
+    let mut choice_s: Vec<String> = vec![Default::default(); (20.0f64+1.0) as usize];
+    let mut menurow: Vec<f64> = vec![Default::default(); (20.0f64+1.0) as usize];
+    let mut menucol: Vec<f64> = vec![Default::default(); (20.0f64+1.0) as usize];
+    let mut help_s: Vec<String> = vec![Default::default(); (20.0f64+1.0) as usize];
+    __rt.locate(None, None, Some(0.0f64));
+    choice = 1.0f64;
     finished = qb_false;
     while qb_bool(qb_not(finished)) {
         '__gosub_menusystemmain: loop {
-            let mut __tmp_num163: f64 = __gs.colors[(2_f64) as usize][(__gs.colorpref) as usize];
-            let mut __tmp_num164: f64 = __gs.colors[(1_f64) as usize][(__gs.colorpref) as usize];
-            fancycls(__rt, __gs, &mut __tmp_num163, &mut __tmp_num164);
-            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-            let mut __tmp_num165: f64 = 9_f64;
-            let mut __tmp_num166: f64 = 19_f64;
-            let mut __tmp_num167: f64 = 14_f64;
-            let mut __tmp_num168: f64 = 61_f64;
-            qb_box(__rt, __gs, &mut __tmp_num165, &mut __tmp_num166, &mut __tmp_num167, &mut __tmp_num168);
-            let mut __tmp_num169: f64 = 11_f64;
-            let mut __tmp_str170 = ("Use arrow keys to navigate menu system").to_string();
-            center(__rt, __gs, &mut __tmp_num169, &mut __tmp_str170);
-            let mut __tmp_num171: f64 = 12_f64;
-            let mut __tmp_str172 = ("Press Enter to select a menu item").to_string();
-            center(__rt, __gs, &mut __tmp_num171, &mut __tmp_str172);
-            choice_s[(1_f64) as usize] = (" File ").to_string();
-            choice_s[(2_f64) as usize] = (" Accounts ").to_string();
-            choice_s[(3_f64) as usize] = (" Transactions ").to_string();
-            choice_s[(4_f64) as usize] = (" Reports ").to_string();
-            choice_s[(5_f64) as usize] = (" Colors ").to_string();
-            menurow[(1_f64) as usize] = 1_f64;
-            menucol[(1_f64) as usize] = 2_f64;
-            menurow[(2_f64) as usize] = 1_f64;
-            menucol[(2_f64) as usize] = 8_f64;
-            menurow[(3_f64) as usize] = 1_f64;
-            menucol[(3_f64) as usize] = 18_f64;
-            menurow[(4_f64) as usize] = 1_f64;
-            menucol[(4_f64) as usize] = 32_f64;
-            menurow[(5_f64) as usize] = 1_f64;
-            menucol[(5_f64) as usize] = 41_f64;
-            help_s[(1_f64) as usize] = ("Exit the Money Manager").to_string();
-            help_s[(2_f64) as usize] = ("Add/edit/delete accounts").to_string();
-            help_s[(3_f64) as usize] = ("Add/edit/delete account transactions").to_string();
-            help_s[(4_f64) as usize] = ("View and print reports").to_string();
-            help_s[(5_f64) as usize] = ("Set screen colors").to_string();
+            let __baidx166 = (2.0f64) as usize;
+            let __baidx167 = (__gs.colorpref) as usize;
+            let mut __tmp_arr168: f64 = __gs.colors[__baidx166][__baidx167];
+            let __baidx169 = (1.0f64) as usize;
+            let __baidx170 = (__gs.colorpref) as usize;
+            let mut __tmp_arr171: f64 = __gs.colors[__baidx169][__baidx170];
+            fancycls(__rt, __gs, &mut __tmp_arr168, &mut __tmp_arr171);
+            __gs.colors[__baidx166][__baidx167] = __tmp_arr168;
+            __gs.colors[__baidx169][__baidx170] = __tmp_arr171;
+            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+            let mut __tmp_num172: f64 = 9.0f64;
+            let mut __tmp_num173: f64 = 19.0f64;
+            let mut __tmp_num174: f64 = 14.0f64;
+            let mut __tmp_num175: f64 = 61.0f64;
+            qb_box(__rt, __gs, &mut __tmp_num172, &mut __tmp_num173, &mut __tmp_num174, &mut __tmp_num175);
+            let mut __tmp_num176: f64 = 11.0f64;
+            let mut __tmp_str177 = ("Use arrow keys to navigate menu system").to_string();
+            center(__rt, __gs, &mut __tmp_num176, &mut __tmp_str177);
+            let mut __tmp_num178: f64 = 12.0f64;
+            let mut __tmp_str179 = ("Press Enter to select a menu item").to_string();
+            center(__rt, __gs, &mut __tmp_num178, &mut __tmp_str179);
+            choice_s[(1.0f64) as usize] = (" File ").to_string();
+            choice_s[(2.0f64) as usize] = (" Accounts ").to_string();
+            choice_s[(3.0f64) as usize] = (" Transactions ").to_string();
+            choice_s[(4.0f64) as usize] = (" Reports ").to_string();
+            choice_s[(5.0f64) as usize] = (" Colors ").to_string();
+            menurow[(1.0f64) as usize] = 1.0f64;
+            menucol[(1.0f64) as usize] = 2.0f64;
+            menurow[(2.0f64) as usize] = 1.0f64;
+            menucol[(2.0f64) as usize] = 8.0f64;
+            menurow[(3.0f64) as usize] = 1.0f64;
+            menucol[(3.0f64) as usize] = 18.0f64;
+            menurow[(4.0f64) as usize] = 1.0f64;
+            menucol[(4.0f64) as usize] = 32.0f64;
+            menurow[(5.0f64) as usize] = 1.0f64;
+            menucol[(5.0f64) as usize] = 41.0f64;
+            help_s[(1.0f64) as usize] = ("Exit the Money Manager").to_string();
+            help_s[(2.0f64) as usize] = ("Add/edit/delete accounts").to_string();
+            help_s[(3.0f64) as usize] = ("Add/edit/delete account transactions").to_string();
+            help_s[(4.0f64) as usize] = ("View and print reports").to_string();
+            help_s[(5.0f64) as usize] = ("Set screen colors").to_string();
             loop {
-                let __tmp173 = menu(__rt, __gs, choice, 5_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_true);
-                newchoice = __tmp173;
-                if !qb_bool(qb_from_bool(newchoice == 0_f64)) { break; }
+                newchoice = menu(__rt, __gs, choice, 5.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_true);
+                if !(newchoice == 0.0f64) { break; }
             }
             choice = newchoice;
             break '__gosub_menusystemmain;
             break '__gosub_menusystemmain;
         }
-        subchoice = (-1_f64);
-        while qb_bool(qb_from_bool(subchoice < 0_f64)) {
+        subchoice = (-1.0f64);
+        while subchoice < 0.0f64 {
             let __sel = choice;
-            if __sel == 1_f64 {
+            if __sel == 1.0f64 {
                 '__gosub_menusystemfile: loop {
-                    choice_s[(1_f64) as usize] = (" Exit           ").to_string();
-                    menurow[(1_f64) as usize] = 3_f64;
-                    menucol[(1_f64) as usize] = 2_f64;
-                    help_s[(1_f64) as usize] = ("Exit the Money Manager").to_string();
-                    let __tmp174 = menu(__rt, __gs, 1_f64, 1_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
-                    subchoice = __tmp174;
+                    choice_s[(1.0f64) as usize] = (" Exit           ").to_string();
+                    menurow[(1.0f64) as usize] = 3.0f64;
+                    menucol[(1.0f64) as usize] = 2.0f64;
+                    help_s[(1.0f64) as usize] = ("Exit the Money Manager").to_string();
+                    subchoice = menu(__rt, __gs, 1.0f64, 1.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
                     let __sel = subchoice;
-                    if __sel == 1_f64 {
+                    if __sel == 1.0f64 {
                         finished = qb_true;
                     } else {
                     }
                     break '__gosub_menusystemfile;
                     break '__gosub_menusystemfile;
                 }
-            } else if __sel == 2_f64 {
+            } else if __sel == 2.0f64 {
                 '__gosub_menusystemedit: loop {
-                    choice_s[(1_f64) as usize] = (" Edit Account Titles ").to_string();
-                    menurow[(1_f64) as usize] = 3_f64;
-                    menucol[(1_f64) as usize] = 8_f64;
-                    help_s[(1_f64) as usize] = ("Add/edit/delete accounts").to_string();
-                    let __tmp175 = menu(__rt, __gs, 1_f64, 1_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
-                    subchoice = __tmp175;
+                    choice_s[(1.0f64) as usize] = (" Edit Account Titles ").to_string();
+                    menurow[(1.0f64) as usize] = 3.0f64;
+                    menucol[(1.0f64) as usize] = 8.0f64;
+                    help_s[(1.0f64) as usize] = ("Add/edit/delete accounts").to_string();
+                    subchoice = menu(__rt, __gs, 1.0f64, 1.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
                     let __sel = subchoice;
-                    if __sel == 1_f64 {
+                    if __sel == 1.0f64 {
                         editaccounts(__rt, __gs);
                     } else {
                     }
                     break '__gosub_menusystemedit;
                     break '__gosub_menusystemedit;
                 }
-            } else if __sel == 3_f64 {
+            } else if __sel == 3.0f64 {
                 '__gosub_menusystemaccount: loop {
-                    a = 1_f64;
-                    let __for_to_a: f64 = 19_f64;
-                    let __for_step_a: f64 = 1.0_f64;
+                    a = 1.0f64;
+                    let __for_to_a: f64 = 19.0f64;
+                    let __for_step_a: f64 = 1.0;
                     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                        if qb_bool(qb_from_bool(({ let mut __fn_s0: String = (__gs.account__title[(a) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) }).as_str() == "")) {
-                            choice_s[(a) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2_f64),". ------------------- ")).to_string();
+                        if ({ let mut __fn_s0: String = (__gs.account__title[(a) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) }).as_str() == "" {
+                            choice_s[(a) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". ------------------- ")).to_string();
                         } else {
-                            choice_s[(a) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2_f64),". "),__gs.account__title[(a) as usize])).to_string();
+                            choice_s[(a) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". "),__gs.account__title[(a) as usize])).to_string();
                         }
-                        menurow[(a) as usize] = (a + 2_f64);
-                        menucol[(a) as usize] = 19_f64;
+                        menurow[(a) as usize] = (a + 2.0f64);
+                        menucol[(a) as usize] = 19.0f64;
                         help_s[(a) as usize] = (qb_rtrim(&(__gs.account__desc[(a) as usize]))).to_string();
                         a += __for_step_a;
                     }
-                    let __tmp176 = menu(__rt, __gs, 1_f64, 19_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
-                    subchoice = __tmp176;
-                    if qb_bool(qb_from_bool(subchoice > 0_f64)) {
+                    subchoice = menu(__rt, __gs, 1.0f64, 19.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
+                    if subchoice > 0.0f64 {
                         edittrans(__rt, __gs, &mut subchoice);
                     }
                     break '__gosub_menusystemaccount;
                     break '__gosub_menusystemaccount;
                 }
-            } else if __sel == 4_f64 {
+            } else if __sel == 4.0f64 {
                 '__gosub_menusystemreport: loop {
-                    choice_s[(1_f64) as usize] = (" Net Worth Report       ").to_string();
-                    menurow[(1_f64) as usize] = 3_f64;
-                    menucol[(1_f64) as usize] = 32_f64;
-                    help_s[(1_f64) as usize] = ("View and print net worth report").to_string();
-                    a = 1_f64;
-                    let __for_to_a: f64 = 19_f64;
-                    let __for_step_a: f64 = 1.0_f64;
+                    choice_s[(1.0f64) as usize] = (" Net Worth Report       ").to_string();
+                    menurow[(1.0f64) as usize] = 3.0f64;
+                    menucol[(1.0f64) as usize] = 32.0f64;
+                    help_s[(1.0f64) as usize] = ("View and print net worth report").to_string();
+                    a = 1.0f64;
+                    let __for_to_a: f64 = 19.0f64;
+                    let __for_step_a: f64 = 1.0;
                     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-                        if qb_bool(qb_from_bool(({ let mut __fn_s0: String = (__gs.account__title[(a) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) }).as_str() == "")) {
-                            choice_s[((a + 1_f64)) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2_f64),". ------------------- ")).to_string();
+                        if ({ let mut __fn_s0: String = (__gs.account__title[(a) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) }).as_str() == "" {
+                            choice_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". ------------------- ")).to_string();
                         } else {
-                            choice_s[((a + 1_f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2_f64),". "),__gs.account__title[(a) as usize])).to_string();
+                            choice_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". "),__gs.account__title[(a) as usize])).to_string();
                         }
-                        menurow[((a + 1_f64)) as usize] = (a + 3_f64);
-                        menucol[((a + 1_f64)) as usize] = 32_f64;
-                        help_s[((a + 1_f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,"Print ",qb_rtrim(&(__gs.account__title[(a) as usize])))," transaction summary")).to_string();
+                        menurow[((a + 1.0f64)) as usize] = (a + 3.0f64);
+                        menucol[((a + 1.0f64)) as usize] = 32.0f64;
+                        help_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,"Print ",qb_rtrim(&(__gs.account__title[(a) as usize])))," transaction summary")).to_string();
                         a += __for_step_a;
                     }
-                    let __tmp177 = menu(__rt, __gs, 1_f64, 20_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
-                    subchoice = __tmp177;
+                    subchoice = menu(__rt, __gs, 1.0f64, 20.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
                     let __sel = subchoice;
-                    if __sel == 1_f64 {
+                    if __sel == 1.0f64 {
                         networthreport(__rt, __gs);
-                    } else if (__sel >= 2_f64 && __sel <= 20_f64) {
-                        let mut __tmp_num178: f64 = (subchoice - 1_f64);
-                        transactionsummary(__rt, __gs, &mut __tmp_num178);
+                    } else if (__sel >= 2.0f64 && __sel <= 20.0f64) {
+                        let mut __tmp_num185: f64 = (subchoice - 1.0f64);
+                        transactionsummary(__rt, __gs, &mut __tmp_num185);
                     } else {
                     }
                     break '__gosub_menusystemreport;
                     break '__gosub_menusystemreport;
                 }
-            } else if __sel == 5_f64 {
+            } else if __sel == 5.0f64 {
                 '__gosub_menusystemcolors: loop {
-                    choice_s[(1_f64) as usize] = (" Monochrome Scheme ").to_string();
-                    choice_s[(2_f64) as usize] = (" Cyan/Blue Scheme  ").to_string();
-                    choice_s[(3_f64) as usize] = (" Blue/Cyan Scheme  ").to_string();
-                    choice_s[(4_f64) as usize] = (" Red/Grey Scheme   ").to_string();
-                    menurow[(1_f64) as usize] = 3_f64;
-                    menucol[(1_f64) as usize] = 41_f64;
-                    menurow[(2_f64) as usize] = 4_f64;
-                    menucol[(2_f64) as usize] = 41_f64;
-                    menurow[(3_f64) as usize] = 5_f64;
-                    menucol[(3_f64) as usize] = 41_f64;
-                    menurow[(4_f64) as usize] = 6_f64;
-                    menucol[(4_f64) as usize] = 41_f64;
-                    help_s[(1_f64) as usize] = ("Color scheme for monochrome and LCD displays").to_string();
-                    help_s[(2_f64) as usize] = ("Color scheme featuring cyan").to_string();
-                    help_s[(3_f64) as usize] = ("Color scheme featuring blue").to_string();
-                    help_s[(4_f64) as usize] = ("Color scheme featuring red").to_string();
-                    let __tmp179 = menu(__rt, __gs, 1_f64, 4_f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
-                    subchoice = __tmp179;
+                    choice_s[(1.0f64) as usize] = (" Monochrome Scheme ").to_string();
+                    choice_s[(2.0f64) as usize] = (" Cyan/Blue Scheme  ").to_string();
+                    choice_s[(3.0f64) as usize] = (" Blue/Cyan Scheme  ").to_string();
+                    choice_s[(4.0f64) as usize] = (" Red/Grey Scheme   ").to_string();
+                    menurow[(1.0f64) as usize] = 3.0f64;
+                    menucol[(1.0f64) as usize] = 41.0f64;
+                    menurow[(2.0f64) as usize] = 4.0f64;
+                    menucol[(2.0f64) as usize] = 41.0f64;
+                    menurow[(3.0f64) as usize] = 5.0f64;
+                    menucol[(3.0f64) as usize] = 41.0f64;
+                    menurow[(4.0f64) as usize] = 6.0f64;
+                    menucol[(4.0f64) as usize] = 41.0f64;
+                    help_s[(1.0f64) as usize] = ("Color scheme for monochrome and LCD displays").to_string();
+                    help_s[(2.0f64) as usize] = ("Color scheme featuring cyan").to_string();
+                    help_s[(3.0f64) as usize] = ("Color scheme featuring blue").to_string();
+                    help_s[(4.0f64) as usize] = ("Color scheme featuring red").to_string();
+                    subchoice = menu(__rt, __gs, 1.0f64, 4.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
                     let __sel = subchoice;
-                    if (__sel >= 1_f64 && __sel <= 4_f64) {
+                    if (__sel >= 1.0f64 && __sel <= 4.0f64) {
                         __gs.colorpref = subchoice;
                         savestate(__rt, __gs);
                     } else {
@@ -1525,14 +1666,20 @@ fn menusystem(__rt: &mut Runtime, __gs: &mut GameState) {
                     break '__gosub_menusystemcolors;
                 }
             }
-            let mut __tmp_num180: f64 = __gs.colors[(2_f64) as usize][(__gs.colorpref) as usize];
-            let mut __tmp_num181: f64 = __gs.colors[(1_f64) as usize][(__gs.colorpref) as usize];
-            fancycls(__rt, __gs, &mut __tmp_num180, &mut __tmp_num181);
+            let __baidx187 = (2.0f64) as usize;
+            let __baidx188 = (__gs.colorpref) as usize;
+            let mut __tmp_arr189: f64 = __gs.colors[__baidx187][__baidx188];
+            let __baidx190 = (1.0f64) as usize;
+            let __baidx191 = (__gs.colorpref) as usize;
+            let mut __tmp_arr192: f64 = __gs.colors[__baidx190][__baidx191];
+            fancycls(__rt, __gs, &mut __tmp_arr189, &mut __tmp_arr192);
+            __gs.colors[__baidx187][__baidx188] = __tmp_arr189;
+            __gs.colors[__baidx190][__baidx191] = __tmp_arr192;
             let __sel = subchoice;
-            if __sel == (-2_f64) {
-                choice = (qb_mod((choice + 3_f64), 5_f64) + 1_f64);
-            } else if __sel == (-3_f64) {
-                choice = (qb_mod(choice, 5_f64) + 1_f64);
+            if __sel == (-2.0f64) {
+                choice = (qb_mod((choice + 3.0f64), 5.0f64) + 1.0f64);
+            } else if __sel == (-3.0f64) {
+                choice = (qb_mod(choice, 5.0f64) + 1.0f64);
             }
         }
     }
@@ -1540,38 +1687,39 @@ fn menusystem(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn networthreport(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut maxasset: f64 = 0.0_f64;
-    let mut maxliability: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
-    let mut finished: f64 = 0.0_f64;
+    let mut maxasset: f64 = 0.0;
+    let mut maxliability: f64 = 0.0;
+    let mut a: f64 = 0.0;
+    let mut finished: f64 = 0.0;
     let mut u1_s: String = String::new();
     let mut u2_s: String = String::new();
-    let mut date_s: String = String::new();
-    let mut assettotal: f64 = 0.0_f64;
-    let mut count1: f64 = 0.0_f64;
+    let date_s: String = String::new();
+    let mut assettotal: f64 = 0.0;
+    let mut count1: f64 = 0.0;
     let mut file_s: String = String::new();
     let mut valid_s: String = String::new();
+    let mut iomaxrecord_s: String = String::new();
     let mut iobalance_s: String = String::new();
-    let mut liabilitytotal: f64 = 0.0_f64;
-    let mut count2: f64 = 0.0_f64;
+    let mut liabilitytotal: f64 = 0.0;
+    let mut count2: f64 = 0.0;
     let mut kbd_s: String = String::new();
     let mut u0_s: String = String::new();
     let mut u3_s: String = String::new();
     let mut u4_s: String = String::new();
 
-    let mut assetindex: Vec<f64> = vec![Default::default(); (19_f64+1.0) as usize];
-    let mut liabilityindex: Vec<f64> = vec![Default::default(); (19_f64+1.0) as usize];
-    maxasset = 0_f64;
-    maxliability = 0_f64;
-    a = 1_f64;
-    let __for_to_a: f64 = 19_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    let mut assetindex: Vec<f64> = vec![Default::default(); (19.0f64+1.0) as usize];
+    let mut liabilityindex: Vec<f64> = vec![Default::default(); (19.0f64+1.0) as usize];
+    maxasset = 0.0f64;
+    maxliability = 0.0f64;
+    a = 1.0f64;
+    let __for_to_a: f64 = 19.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        if qb_bool(qb_from_bool(__gs.account__atype[(a) as usize] == "A")) {
-            maxasset = (maxasset + 1_f64);
+        if __gs.account__atype[(a) as usize] == "A" {
+            maxasset = (maxasset + 1.0f64);
             assetindex[(maxasset) as usize] = a;
-        } else if qb_bool(qb_from_bool(__gs.account__atype[(a) as usize] == "L")) {
-            maxliability = (maxliability + 1_f64);
+        } else if __gs.account__atype[(a) as usize] == "L" {
+            maxliability = (maxliability + 1.0f64);
             liabilityindex[(maxliability) as usize] = a;
         }
         a += __for_step_a;
@@ -1580,123 +1728,137 @@ fn networthreport(__rt: &mut Runtime, __gs: &mut GameState) {
     loop {
         u1_s = ("\\                  \\$$###,###,###.##").to_string();
         u2_s = ("\\               \\+$$#,###,###,###.##").to_string();
-        __rt.color(__gs.colors[(5_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-        __rt.locate(Some(1_f64), Some(1_f64), None);
-        __rt.print(&[qb_str(&(qb_space(80_f64)))]);
-        __rt.locate(Some(1_f64), Some(4_f64), None);
+        __rt.color(__gs.colors[(5.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+        __rt.locate(Some(1.0f64), Some(1.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(80.0f64)))]);
+        __rt.locate(Some(1.0f64), Some(4.0f64), None);
         __rt.print(&[qb_str(&(format!("{}{}" ,"Net Worth Report: ",date_s)))]);
-        let mut __tmp_str182 = ("<F2=Exit>    <F3=Print Report>").to_string();
-        printhelpline(__rt, __gs, &mut __tmp_str182);
-        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-        let mut __tmp_num183: f64 = 2_f64;
-        let mut __tmp_num184: f64 = 1_f64;
-        let mut __tmp_num185: f64 = 24_f64;
-        let mut __tmp_num186: f64 = 40_f64;
-        qb_box(__rt, __gs, &mut __tmp_num183, &mut __tmp_num184, &mut __tmp_num185, &mut __tmp_num186);
-        let mut __tmp_num187: f64 = 2_f64;
-        let mut __tmp_num188: f64 = 41_f64;
-        let mut __tmp_num189: f64 = 24_f64;
-        let mut __tmp_num190: f64 = 80_f64;
-        qb_box(__rt, __gs, &mut __tmp_num187, &mut __tmp_num188, &mut __tmp_num189, &mut __tmp_num190);
-        __rt.locate(Some(2_f64), Some(16_f64), None);
+        let mut __tmp_str193 = ("<F2=Exit>    <F3=Print Report>").to_string();
+        printhelpline(__rt, __gs, &mut __tmp_str193);
+        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+        let mut __tmp_num194: f64 = 2.0f64;
+        let mut __tmp_num195: f64 = 1.0f64;
+        let mut __tmp_num196: f64 = 24.0f64;
+        let mut __tmp_num197: f64 = 40.0f64;
+        qb_box(__rt, __gs, &mut __tmp_num194, &mut __tmp_num195, &mut __tmp_num196, &mut __tmp_num197);
+        let mut __tmp_num198: f64 = 2.0f64;
+        let mut __tmp_num199: f64 = 41.0f64;
+        let mut __tmp_num200: f64 = 24.0f64;
+        let mut __tmp_num201: f64 = 80.0f64;
+        qb_box(__rt, __gs, &mut __tmp_num198, &mut __tmp_num199, &mut __tmp_num200, &mut __tmp_num201);
+        __rt.locate(Some(2.0f64), Some(16.0f64), None);
         __rt.println(&[qb_str(&(" ASSETS "))]);
-        assettotal = 0_f64;
-        a = 1_f64;
-        count1 = 1_f64;
-        while qb_bool(qb_from_bool(a <= maxasset)) {
-            let __tmp191 = cvit_s(__rt, __gs, assetindex[(a) as usize]);
-            file_s = (format!("{}{}" ,"money.",__tmp191)).to_string();
-            __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
-            let __file_buf192 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-            if qb_bool(qb_from_bool((valid_s).as_str() == "THISISVALID")) {
-                __rt.locate(Some((2_f64 + count1)), Some(3_f64), None);
-                let __pu_s193 = (__gs.account__title[(assetindex[(a) as usize]) as usize]).to_string();
-                let __pu194 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s193), QbVal::Num(CVD(&(iobalance_s)))]);
-                __rt.println(&[__pu194]);
+        assettotal = 0.0f64;
+        a = 1.0f64;
+        count1 = 1.0f64;
+        while a <= maxasset {
+            let __tmp202 = cvit_s(__rt, __gs, assetindex[(a) as usize]);
+            file_s = (format!("{}{}" ,"money.",__tmp202)).to_string();
+            __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
+            valid_s = " ".repeat((11.0f64) as usize);
+            iomaxrecord_s = " ".repeat((5.0f64) as usize);
+            iobalance_s = " ".repeat((8.0f64) as usize);
+            __rt.set_field((1.0f64) as u8, 24);
+            let __file_buf203 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+            valid_s = qb_field_get(&__file_buf203, 0, 11);
+            iomaxrecord_s = qb_field_get(&__file_buf203, 11, 5);
+            iobalance_s = qb_field_get(&__file_buf203, 16, 8);
+            if (valid_s).as_str() == "THISISVALID" {
+                __rt.locate(Some((2.0f64 + count1)), Some(3.0f64), None);
+                let __pu_s204 = (__gs.account__title[(assetindex[(a) as usize]) as usize]).to_string();
+                let __pu205 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s204), QbVal::Num(CVD(&(iobalance_s)))]);
+                __rt.println(&[__pu205]);
                 assettotal = (assettotal + CVD(&(iobalance_s)));
-                count1 = (count1 + 1_f64);
+                count1 = (count1 + 1.0f64);
             }
             __rt.close_all();
-            a = (a + 1_f64);
+            a = (a + 1.0f64);
         }
-        __rt.locate(Some(2_f64), Some(55_f64), None);
+        __rt.locate(Some(2.0f64), Some(55.0f64), None);
         __rt.println(&[qb_str(&(" LIABILITIES "))]);
-        liabilitytotal = 0_f64;
-        a = 1_f64;
-        count2 = 1_f64;
-        while qb_bool(qb_from_bool(a <= maxliability)) {
-            let __tmp195 = cvit_s(__rt, __gs, liabilityindex[(a) as usize]);
-            file_s = (format!("{}{}" ,"money.",__tmp195)).to_string();
-            __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
-            let __file_buf196 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-            if qb_bool(qb_from_bool((valid_s).as_str() == "THISISVALID")) {
-                __rt.locate(Some((2_f64 + count2)), Some(43_f64), None);
-                let __pu_s197 = (__gs.account__title[(liabilityindex[(a) as usize]) as usize]).to_string();
-                let __pu198 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s197), QbVal::Num(CVD(&(iobalance_s)))]);
-                __rt.println(&[__pu198]);
+        liabilitytotal = 0.0f64;
+        a = 1.0f64;
+        count2 = 1.0f64;
+        while a <= maxliability {
+            let __tmp206 = cvit_s(__rt, __gs, liabilityindex[(a) as usize]);
+            file_s = (format!("{}{}" ,"money.",__tmp206)).to_string();
+            __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
+            valid_s = " ".repeat((11.0f64) as usize);
+            iomaxrecord_s = " ".repeat((5.0f64) as usize);
+            iobalance_s = " ".repeat((8.0f64) as usize);
+            __rt.set_field((1.0f64) as u8, 24);
+            let __file_buf207 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+            valid_s = qb_field_get(&__file_buf207, 0, 11);
+            iomaxrecord_s = qb_field_get(&__file_buf207, 11, 5);
+            iobalance_s = qb_field_get(&__file_buf207, 16, 8);
+            if (valid_s).as_str() == "THISISVALID" {
+                __rt.locate(Some((2.0f64 + count2)), Some(43.0f64), None);
+                let __pu_s208 = (__gs.account__title[(liabilityindex[(a) as usize]) as usize]).to_string();
+                let __pu209 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s208), QbVal::Num(CVD(&(iobalance_s)))]);
+                __rt.println(&[__pu209]);
                 liabilitytotal = (liabilitytotal + CVD(&(iobalance_s)));
-                count2 = (count2 + 1_f64);
+                count2 = (count2 + 1.0f64);
             }
             __rt.close_all();
-            a = (a + 1_f64);
+            a = (a + 1.0f64);
         }
-        if qb_bool(qb_from_bool(count2 > count1)) {
+        if count2 > count1 {
             count1 = count2;
         }
-        __rt.locate(Some((2_f64 + count1)), Some(25_f64), None);
+        __rt.locate(Some((2.0f64 + count1)), Some(25.0f64), None);
         __rt.println(&[qb_str(&("--------------"))]);
-        __rt.locate(Some((2_f64 + count1)), Some(65_f64), None);
+        __rt.locate(Some((2.0f64 + count1)), Some(65.0f64), None);
         __rt.println(&[qb_str(&("--------------"))]);
-        __rt.locate(Some((3_f64 + count1)), Some(3_f64), None);
-        let __pu_s199 = ("Total assets").to_string();
-        let __pu200 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s199), QbVal::Num(assettotal)]);
-        __rt.print(&[__pu200]);
-        __rt.locate(Some((3_f64 + count1)), Some(43_f64), None);
-        let __pu_s201 = ("Total liabilities").to_string();
-        let __pu202 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s201), QbVal::Num(liabilitytotal)]);
-        __rt.println(&[__pu202]);
-        __rt.color(__gs.colors[(5_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-        __rt.locate(Some(1_f64), Some(43_f64), None);
-        let __pu_s203 = ("    NET WORTH:").to_string();
-        let __pu204 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s203), QbVal::Num((assettotal - liabilitytotal))]);
-        __rt.println(&[__pu204]);
+        __rt.locate(Some((3.0f64 + count1)), Some(3.0f64), None);
+        let __pu_s210 = ("Total assets").to_string();
+        let __pu211 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s210), QbVal::Num(assettotal)]);
+        __rt.print(&[__pu211]);
+        __rt.locate(Some((3.0f64 + count1)), Some(43.0f64), None);
+        let __pu_s212 = ("Total liabilities").to_string();
+        let __pu213 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s212), QbVal::Num(liabilitytotal)]);
+        __rt.println(&[__pu213]);
+        __rt.color(__gs.colors[(5.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+        __rt.locate(Some(1.0f64), Some(43.0f64), None);
+        let __pu_s214 = ("    NET WORTH:").to_string();
+        let __pu215 = qb_print_using(&(u2_s), &[QbVal::Str(&__pu_s214), QbVal::Num((assettotal - liabilitytotal))]);
+        __rt.println(&[__pu215]);
         loop {
-            let __tmp205 = __rt.inkey();
-            kbd_s = (__tmp205).to_string();
-            if qb_bool(qb_from_bool((kbd_s).as_str() != "")) { break; }
+            let __tmp216 = __rt.inkey();
+            kbd_s = (__tmp216).to_string();
+            if (kbd_s).as_str() != "" { break; }
         }
         let __sel = kbd_s.clone();
-        if __sel == format!("{}{}" ,qb_chr(0_f64),"<").to_string() {
+        if __sel == format!("{}{}" ,qb_chr(0.0f64),"<").to_string() {
             finished = qb_true;
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"=").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"=").to_string() {
             '__gosub_networthreportprint: loop {
-                let mut __tmp_str206 = ("").to_string();
-                printhelpline(__rt, __gs, &mut __tmp_str206);
-                let mut __tmp_num207: f64 = 8_f64;
-                let mut __tmp_num208: f64 = 20_f64;
-                let mut __tmp_num209: f64 = 14_f64;
-                let mut __tmp_num210: f64 = 62_f64;
-                qb_box(__rt, __gs, &mut __tmp_num207, &mut __tmp_num208, &mut __tmp_num209, &mut __tmp_num210);
-                let mut __tmp_num211: f64 = 10_f64;
-                let mut __tmp_str212 = ("Prepare printer on LPT1 for report").to_string();
-                center(__rt, __gs, &mut __tmp_num211, &mut __tmp_str212);
-                let mut __tmp_num213: f64 = 12_f64;
-                let mut __tmp_str214 = ("Hit <Enter> to print, or <Esc> to abort").to_string();
-                center(__rt, __gs, &mut __tmp_num213, &mut __tmp_str214);
+                let mut __tmp_str217 = ("").to_string();
+                printhelpline(__rt, __gs, &mut __tmp_str217);
+                let mut __tmp_num218: f64 = 8.0f64;
+                let mut __tmp_num219: f64 = 20.0f64;
+                let mut __tmp_num220: f64 = 14.0f64;
+                let mut __tmp_num221: f64 = 62.0f64;
+                qb_box(__rt, __gs, &mut __tmp_num218, &mut __tmp_num219, &mut __tmp_num220, &mut __tmp_num221);
+                let mut __tmp_num222: f64 = 10.0f64;
+                let mut __tmp_str223 = ("Prepare printer on LPT1 for report").to_string();
+                center(__rt, __gs, &mut __tmp_num222, &mut __tmp_str223);
+                let mut __tmp_num224: f64 = 12.0f64;
+                let mut __tmp_str225 = ("Hit <Enter> to print, or <Esc> to abort").to_string();
+                center(__rt, __gs, &mut __tmp_num224, &mut __tmp_str225);
                 loop {
-                    let __tmp215 = __rt.inkey();
-                    kbd_s = (__tmp215).to_string();
-                    if !qb_bool(qb_and(qb_from_bool((kbd_s).as_str() != (qb_chr(13_f64)).as_str()), qb_from_bool((kbd_s).as_str() != (qb_chr(27_f64)).as_str()))) { break; }
+                    let __tmp226 = __rt.inkey();
+                    kbd_s = (__tmp226).to_string();
+                    if !(qb_bool(qb_and(qb_from_bool((kbd_s).as_str() != (qb_chr(13.0f64)).as_str()), qb_from_bool((kbd_s).as_str() != (qb_chr(27.0f64)).as_str())))) { break; }
                 }
-                if qb_bool(qb_from_bool((kbd_s).as_str() == (qb_chr(13_f64)).as_str())) {
-                    let mut __tmp_num216: f64 = 8_f64;
-                    let mut __tmp_num217: f64 = 20_f64;
-                    let mut __tmp_num218: f64 = 14_f64;
-                    let mut __tmp_num219: f64 = 62_f64;
-                    qb_box(__rt, __gs, &mut __tmp_num216, &mut __tmp_num217, &mut __tmp_num218, &mut __tmp_num219);
-                    let mut __tmp_num220: f64 = 11_f64;
-                    let mut __tmp_str221 = ("Printing report...").to_string();
-                    center(__rt, __gs, &mut __tmp_num220, &mut __tmp_str221);
+                if (kbd_s).as_str() == (qb_chr(13.0f64)).as_str() {
+                    let mut __tmp_num227: f64 = 8.0f64;
+                    let mut __tmp_num228: f64 = 20.0f64;
+                    let mut __tmp_num229: f64 = 14.0f64;
+                    let mut __tmp_num230: f64 = 62.0f64;
+                    qb_box(__rt, __gs, &mut __tmp_num227, &mut __tmp_num228, &mut __tmp_num229, &mut __tmp_num230);
+                    let mut __tmp_num231: f64 = 11.0f64;
+                    let mut __tmp_str232 = ("Printing report...").to_string();
+                    center(__rt, __gs, &mut __tmp_num231, &mut __tmp_str232);
                     u0_s = ("                     \\                  \\ ").to_string();
                     u1_s = ("                        \\                 \\ $$###,###,###.##").to_string();
                     u2_s = ("                                              --------------").to_string();
@@ -1704,80 +1866,94 @@ fn networthreport(__rt: &mut Runtime, __gs: &mut GameState) {
                     u4_s = ("                        \\               \\+$$#,###,###,###.##").to_string();
                     __gs.printerr = qb_false;
                     __rt.println(&[]);
-                    if qb_bool(qb_from_bool(__gs.printerr == qb_false)) {
+                    if __gs.printerr == qb_false {
                         __rt.println(&[]);
                         __rt.println(&[]);
                         __rt.println(&[]);
                         __rt.println(&[]);
                         __rt.println(&[]);
-                        let mut __tmp_str222 = ("Q B a s i c").to_string();
-                        lcenter(__rt, __gs, &mut __tmp_str222);
-                        let mut __tmp_str223 = ("M O N E Y   M A N A G E R").to_string();
-                        lcenter(__rt, __gs, &mut __tmp_str223);
+                        let mut __tmp_str233 = ("Q B a s i c").to_string();
+                        lcenter(__rt, __gs, &mut __tmp_str233);
+                        let mut __tmp_str234 = ("M O N E Y   M A N A G E R").to_string();
+                        lcenter(__rt, __gs, &mut __tmp_str234);
                         __rt.println(&[]);
                         __rt.println(&[]);
-                        let mut __tmp_str224 = (format!("{}{}" ,"NET WORTH REPORT:  ",date_s)).to_string();
-                        lcenter(__rt, __gs, &mut __tmp_str224);
-                        let mut __tmp_str225 = ("-------------------------------------------").to_string();
-                        lcenter(__rt, __gs, &mut __tmp_str225);
-                        let __pu_s226 = ("ASSETS:").to_string();
-                        let __pu227 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s226)]);
-                        __rt.println(&[__pu227]);
-                        assettotal = 0_f64;
-                        a = 1_f64;
-                        while qb_bool(qb_from_bool(a <= maxasset)) {
-                            let __tmp228 = cvit_s(__rt, __gs, assetindex[(a) as usize]);
-                            file_s = (format!("{}{}" ,"money.",__tmp228)).to_string();
-                            __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
+                        let mut __tmp_str235 = (format!("{}{}" ,"NET WORTH REPORT:  ",date_s)).to_string();
+                        lcenter(__rt, __gs, &mut __tmp_str235);
+                        let mut __tmp_str236 = ("-------------------------------------------").to_string();
+                        lcenter(__rt, __gs, &mut __tmp_str236);
+                        let __pu_s237 = ("ASSETS:").to_string();
+                        let __pu238 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s237)]);
+                        __rt.println(&[__pu238]);
+                        assettotal = 0.0f64;
+                        a = 1.0f64;
+                        while a <= maxasset {
+                            let __tmp239 = cvit_s(__rt, __gs, assetindex[(a) as usize]);
+                            file_s = (format!("{}{}" ,"money.",__tmp239)).to_string();
+                            __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
                             if __rt.error_pending { __rt.error_pending = false; errortrap(__rt, __gs); }
-                            let __file_buf229 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-                            if qb_bool(qb_from_bool((valid_s).as_str() == "THISISVALID")) {
-                                let __pu_s230 = (__gs.account__title[(assetindex[(a) as usize]) as usize]).to_string();
-                                let __pu231 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s230), QbVal::Num(CVD(&(iobalance_s)))]);
-                                __rt.println(&[__pu231]);
+                            valid_s = " ".repeat((11.0f64) as usize);
+                            iomaxrecord_s = " ".repeat((5.0f64) as usize);
+                            iobalance_s = " ".repeat((8.0f64) as usize);
+                            __rt.set_field((1.0f64) as u8, 24);
+                            let __file_buf240 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf240, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf240, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf240, 16, 8);
+                            if (valid_s).as_str() == "THISISVALID" {
+                                let __pu_s241 = (__gs.account__title[(assetindex[(a) as usize]) as usize]).to_string();
+                                let __pu242 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s241), QbVal::Num(CVD(&(iobalance_s)))]);
+                                __rt.println(&[__pu242]);
                                 assettotal = (assettotal + CVD(&(iobalance_s)));
                             }
-                            __rt.close_file((1_f64) as u8);
-                            a = (a + 1_f64);
+                            __rt.close_file((1.0f64) as u8);
+                            a = (a + 1.0f64);
                         }
                         __rt.println(&[qb_str(&(u2_s))]);
-                        let __pu_s232 = ("Total assets").to_string();
-                        let __pu233 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s232), QbVal::Num(assettotal)]);
-                        __rt.println(&[__pu233]);
+                        let __pu_s243 = ("Total assets").to_string();
+                        let __pu244 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s243), QbVal::Num(assettotal)]);
+                        __rt.println(&[__pu244]);
                         __rt.println(&[]);
                         __rt.println(&[]);
-                        let __pu_s234 = ("LIABILITIES:").to_string();
-                        let __pu235 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s234)]);
-                        __rt.println(&[__pu235]);
-                        liabilitytotal = 0_f64;
-                        a = 1_f64;
-                        while qb_bool(qb_from_bool(a <= maxliability)) {
-                            let __tmp236 = cvit_s(__rt, __gs, liabilityindex[(a) as usize]);
-                            file_s = (format!("{}{}" ,"money.",__tmp236)).to_string();
-                            __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
+                        let __pu_s245 = ("LIABILITIES:").to_string();
+                        let __pu246 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s245)]);
+                        __rt.println(&[__pu246]);
+                        liabilitytotal = 0.0f64;
+                        a = 1.0f64;
+                        while a <= maxliability {
+                            let __tmp247 = cvit_s(__rt, __gs, liabilityindex[(a) as usize]);
+                            file_s = (format!("{}{}" ,"money.",__tmp247)).to_string();
+                            __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
                             if __rt.error_pending { __rt.error_pending = false; errortrap(__rt, __gs); }
-                            let __file_buf237 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-                            if qb_bool(qb_from_bool((valid_s).as_str() == "THISISVALID")) {
-                                let __pu_s238 = (__gs.account__title[(liabilityindex[(a) as usize]) as usize]).to_string();
-                                let __pu239 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s238), QbVal::Num(CVD(&(iobalance_s)))]);
-                                __rt.println(&[__pu239]);
+                            valid_s = " ".repeat((11.0f64) as usize);
+                            iomaxrecord_s = " ".repeat((5.0f64) as usize);
+                            iobalance_s = " ".repeat((8.0f64) as usize);
+                            __rt.set_field((1.0f64) as u8, 24);
+                            let __file_buf248 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+                            valid_s = qb_field_get(&__file_buf248, 0, 11);
+                            iomaxrecord_s = qb_field_get(&__file_buf248, 11, 5);
+                            iobalance_s = qb_field_get(&__file_buf248, 16, 8);
+                            if (valid_s).as_str() == "THISISVALID" {
+                                let __pu_s249 = (__gs.account__title[(liabilityindex[(a) as usize]) as usize]).to_string();
+                                let __pu250 = qb_print_using(&(u1_s), &[QbVal::Str(&__pu_s249), QbVal::Num(CVD(&(iobalance_s)))]);
+                                __rt.println(&[__pu250]);
                                 liabilitytotal = (liabilitytotal + CVD(&(iobalance_s)));
                             }
-                            __rt.close_file((1_f64) as u8);
-                            a = (a + 1_f64);
+                            __rt.close_file((1.0f64) as u8);
+                            a = (a + 1.0f64);
                         }
                         __rt.println(&[qb_str(&(u2_s))]);
-                        let __pu_s240 = ("Total liabilities").to_string();
-                        let __pu241 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s240), QbVal::Num(liabilitytotal)]);
-                        __rt.println(&[__pu241]);
+                        let __pu_s251 = ("Total liabilities").to_string();
+                        let __pu252 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s251), QbVal::Num(liabilitytotal)]);
+                        __rt.println(&[__pu252]);
                         __rt.println(&[]);
                         __rt.println(&[]);
                         __rt.println(&[qb_str(&(u3_s))]);
-                        let __pu_s242 = ("NET WORTH").to_string();
-                        let __pu243 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s242), QbVal::Num((assettotal - liabilitytotal))]);
-                        __rt.println(&[__pu243]);
-                        let mut __tmp_str244 = ("-------------------------------------------").to_string();
-                        lcenter(__rt, __gs, &mut __tmp_str244);
+                        let __pu_s253 = ("NET WORTH").to_string();
+                        let __pu254 = qb_print_using(&(u4_s), &[QbVal::Str(&__pu_s253), QbVal::Num((assettotal - liabilitytotal))]);
+                        __rt.println(&[__pu254]);
+                        let mut __tmp_str255 = ("-------------------------------------------").to_string();
+                        lcenter(__rt, __gs, &mut __tmp_str255);
                         __rt.println(&[]);
                         __rt.println(&[]);
                         __rt.println(&[]);
@@ -1795,71 +1971,71 @@ fn networthreport(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn printhelpline(__rt: &mut Runtime, __gs: &mut GameState, help_s: &mut String) {
-    __rt.color(__gs.colors[(5_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    __rt.locate(Some(25_f64), Some(1_f64), None);
-    __rt.print(&[qb_str(&(qb_space(80_f64)))]);
-    let mut __tmp_num245: f64 = 25_f64;
-    center(__rt, __gs, &mut __tmp_num245, help_s);
+    __rt.color(__gs.colors[(5.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    __rt.locate(Some(25.0f64), Some(1.0f64), None);
+    __rt.print(&[qb_str(&(qb_space(80.0f64)))]);
+    let mut __tmp_num256: f64 = 25.0f64;
+    center(__rt, __gs, &mut __tmp_num256, help_s);
 }
 
 fn savestate(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut a: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
 
-    __rt.open_seq(&("money.dat").to_string(), "output", (2_f64) as u8);
-    __rt.write_file((2_f64) as u8, &(format!("{}", [qb_print_num(__gs.colorpref)].join("")) + "\n"));
-    a = 1_f64;
-    let __for_to_a: f64 = 19_f64;
-    let __for_step_a: f64 = 1.0_f64;
+    __rt.open_seq(&("money.dat").to_string(), "output", (2.0f64) as u8);
+    __rt.write_file((2.0f64) as u8, &(format!("{}", [qb_print_num(__gs.colorpref)].join("")) + "\n"));
+    a = 1.0f64;
+    let __for_to_a: f64 = 19.0f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        __rt.write_file((2_f64) as u8, &(format!("{}", [(__gs.account__title[(a) as usize]).to_string()].join("")) + "\n"));
-        __rt.write_file((2_f64) as u8, &(format!("{}", [(__gs.account__atype[(a) as usize]).to_string()].join("")) + "\n"));
-        __rt.write_file((2_f64) as u8, &(format!("{}", [(__gs.account__desc[(a) as usize]).to_string()].join("")) + "\n"));
+        __rt.write_file((2.0f64) as u8, &(format!("{}", [(__gs.account__title[(a) as usize]).to_string()].join("")) + "\n"));
+        __rt.write_file((2.0f64) as u8, &(format!("{}", [(__gs.account__atype[(a) as usize]).to_string()].join("")) + "\n"));
+        __rt.write_file((2.0f64) as u8, &(format!("{}", [(__gs.account__desc[(a) as usize]).to_string()].join("")) + "\n"));
         a += __for_step_a;
     }
-    __rt.close_file((2_f64) as u8);
+    __rt.close_file((2.0f64) as u8);
 }
 
 fn scrolldown(__rt: &mut Runtime, __gs: &mut GameState) {
-    absolute(varptr(__gs.scrolldownasm[(1_f64) as usize]));
+    absolute(varptr(__gs.scrolldownasm[(1.0f64) as usize]));
 }
 
 fn scrollup(__rt: &mut Runtime, __gs: &mut GameState) {
-    absolute(varptr(__gs.scrollupasm[(1_f64) as usize]));
+    absolute(varptr(__gs.scrollupasm[(1.0f64) as usize]));
 }
 
 fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut a_s: String = String::new();
-    let mut a: f64 = 0.0_f64;
-    let mut b: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
+    let mut b: f64 = 0.0;
+    let mut c: f64 = 0.0;
 
-    __rt.color(4_f64, Some(0_f64));
+    __rt.color(4.0f64, Some(0.0f64));
     a_s = ("*    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    *    ").to_string();
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+    while (__rt.inkey()).as_str() != "" {
     }
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
-        a = 1_f64;
-        let __for_to_a: f64 = 5_f64;
-        let __for_step_a: f64 = 1.0_f64;
+    while (__rt.inkey()).as_str() == "" {
+        a = 1.0f64;
+        let __for_to_a: f64 = 5.0f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-            __rt.locate(Some(1_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80_f64))))]);
-            __rt.locate(Some(22_f64), Some(1_f64), None);
-            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6_f64 - a), Some(80_f64))))]);
-            b = 2_f64;
-            let __for_to_b: f64 = 21_f64;
-            let __for_step_b: f64 = 1.0_f64;
+            __rt.locate(Some(1.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), a, Some(80.0f64))))]);
+            __rt.locate(Some(22.0f64), Some(1.0f64), None);
+            __rt.print(&[qb_str(&(qb_mid(&(a_s), (6.0f64 - a), Some(80.0f64))))]);
+            b = 2.0f64;
+            let __for_to_b: f64 = 21.0f64;
+            let __for_step_b: f64 = 1.0;
             while (__for_step_b > 0.0 && b <= __for_to_b) || (__for_step_b < 0.0 && b >= __for_to_b) {
-                c = qb_mod((a + b), 5_f64);
-                if qb_bool(qb_from_bool(c == 1_f64)) {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                c = qb_mod((a + b), 5.0f64);
+                if c == 1.0f64 {
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&("*"))]);
                 } else {
-                    __rt.locate(Some(b), Some(80_f64), None);
+                    __rt.locate(Some(b), Some(80.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
-                    __rt.locate(Some((23_f64 - b)), Some(1_f64), None);
+                    __rt.locate(Some((23.0f64 - b)), Some(1.0f64), None);
                     __rt.print(&[qb_str(&(" "))]);
                 }
                 b += __for_step_b;
@@ -1878,66 +2054,73 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
     let mut u3_s: String = String::new();
     let mut u4_s: String = String::new();
     let mut file_s: String = String::new();
-    let mut valid_s: String = String::new();
-    let mut balance: f64 = 0.0_f64;
-    let mut maxrecord: f64 = 0.0_f64;
-    let mut iomaxrecord_s: String = String::new();
-    let mut currrecord: f64 = 0.0_f64;
-    let mut fig1: f64 = 0.0_f64;
-    let mut iofig1_s: String = String::new();
-    let mut fig2: f64 = 0.0_f64;
-    let mut iofig2_s: String = String::new();
     let mut iodate_s: String = String::new();
     let mut ioref_s: String = String::new();
     let mut iodesc_s: String = String::new();
+    let mut iofig1_s: String = String::new();
+    let mut iofig2_s: String = String::new();
+    let mut valid_s: String = String::new();
+    let mut iomaxrecord_s: String = String::new();
+    let mut iobalance_s: String = String::new();
+    let mut balance: f64 = 0.0;
+    let mut maxrecord: f64 = 0.0;
+    let mut currrecord: f64 = 0.0;
+    let mut fig1: f64 = 0.0;
+    let mut fig2: f64 = 0.0;
 
-    let mut __tmp_num246: f64 = __gs.colors[(2_f64) as usize][(__gs.colorpref) as usize];
-    let mut __tmp_num247: f64 = __gs.colors[(1_f64) as usize][(__gs.colorpref) as usize];
-    fancycls(__rt, __gs, &mut __tmp_num246, &mut __tmp_num247);
-    let mut __tmp_str248 = ("").to_string();
-    printhelpline(__rt, __gs, &mut __tmp_str248);
-    let mut __tmp_num249: f64 = 8_f64;
-    let mut __tmp_num250: f64 = 20_f64;
-    let mut __tmp_num251: f64 = 14_f64;
-    let mut __tmp_num252: f64 = 62_f64;
-    qb_box(__rt, __gs, &mut __tmp_num249, &mut __tmp_num250, &mut __tmp_num251, &mut __tmp_num252);
-    let mut __tmp_num253: f64 = 10_f64;
-    let mut __tmp_str254 = ("Prepare printer on LPT1 for report").to_string();
-    center(__rt, __gs, &mut __tmp_num253, &mut __tmp_str254);
-    let mut __tmp_num255: f64 = 12_f64;
-    let mut __tmp_str256 = ("Hit <Enter> to print, or <Esc> to abort").to_string();
-    center(__rt, __gs, &mut __tmp_num255, &mut __tmp_str256);
+    let __baidx257 = (2.0f64) as usize;
+    let __baidx258 = (__gs.colorpref) as usize;
+    let mut __tmp_arr259: f64 = __gs.colors[__baidx257][__baidx258];
+    let __baidx260 = (1.0f64) as usize;
+    let __baidx261 = (__gs.colorpref) as usize;
+    let mut __tmp_arr262: f64 = __gs.colors[__baidx260][__baidx261];
+    fancycls(__rt, __gs, &mut __tmp_arr259, &mut __tmp_arr262);
+    __gs.colors[__baidx257][__baidx258] = __tmp_arr259;
+    __gs.colors[__baidx260][__baidx261] = __tmp_arr262;
+    let mut __tmp_str263 = ("").to_string();
+    printhelpline(__rt, __gs, &mut __tmp_str263);
+    let mut __tmp_num264: f64 = 8.0f64;
+    let mut __tmp_num265: f64 = 20.0f64;
+    let mut __tmp_num266: f64 = 14.0f64;
+    let mut __tmp_num267: f64 = 62.0f64;
+    qb_box(__rt, __gs, &mut __tmp_num264, &mut __tmp_num265, &mut __tmp_num266, &mut __tmp_num267);
+    let mut __tmp_num268: f64 = 10.0f64;
+    let mut __tmp_str269 = ("Prepare printer on LPT1 for report").to_string();
+    center(__rt, __gs, &mut __tmp_num268, &mut __tmp_str269);
+    let mut __tmp_num270: f64 = 12.0f64;
+    let mut __tmp_str271 = ("Hit <Enter> to print, or <Esc> to abort").to_string();
+    center(__rt, __gs, &mut __tmp_num270, &mut __tmp_str271);
     loop {
-        let __tmp257 = __rt.inkey();
-        kbd_s = (__tmp257).to_string();
-        if !qb_bool(qb_and(qb_from_bool((kbd_s).as_str() != (qb_chr(13_f64)).as_str()), qb_from_bool((kbd_s).as_str() != (qb_chr(27_f64)).as_str()))) { break; }
+        let __tmp272 = __rt.inkey();
+        kbd_s = (__tmp272).to_string();
+        if !(qb_bool(qb_and(qb_from_bool((kbd_s).as_str() != (qb_chr(13.0f64)).as_str()), qb_from_bool((kbd_s).as_str() != (qb_chr(27.0f64)).as_str())))) { break; }
     }
-    if qb_bool(qb_from_bool((kbd_s).as_str() == (qb_chr(13_f64)).as_str())) {
-        let mut __tmp_num258: f64 = 8_f64;
-        let mut __tmp_num259: f64 = 20_f64;
-        let mut __tmp_num260: f64 = 14_f64;
-        let mut __tmp_num261: f64 = 62_f64;
-        qb_box(__rt, __gs, &mut __tmp_num258, &mut __tmp_num259, &mut __tmp_num260, &mut __tmp_num261);
-        let mut __tmp_num262: f64 = 11_f64;
-        let mut __tmp_str263 = ("Printing report...").to_string();
-        center(__rt, __gs, &mut __tmp_num262, &mut __tmp_str263);
+    if (kbd_s).as_str() == (qb_chr(13.0f64)).as_str() {
+        let mut __tmp_num273: f64 = 8.0f64;
+        let mut __tmp_num274: f64 = 20.0f64;
+        let mut __tmp_num275: f64 = 14.0f64;
+        let mut __tmp_num276: f64 = 62.0f64;
+        qb_box(__rt, __gs, &mut __tmp_num273, &mut __tmp_num274, &mut __tmp_num275, &mut __tmp_num276);
+        let mut __tmp_num277: f64 = 11.0f64;
+        let mut __tmp_str278 = ("Printing report...").to_string();
+        center(__rt, __gs, &mut __tmp_num277, &mut __tmp_str278);
         __gs.printerr = qb_false;
         __rt.println(&[]);
-        if qb_bool(qb_from_bool(__gs.printerr == qb_false)) {
+        if __gs.printerr == qb_false {
             __rt.println(&[]);
             __rt.println(&[]);
             __rt.println(&[]);
             __rt.println(&[]);
             __rt.println(&[]);
             __rt.println(&[]);
-            let mut __tmp_str264 = ("Q B a s i c").to_string();
-            lcenter(__rt, __gs, &mut __tmp_str264);
-            let mut __tmp_str265 = ("M O N E Y   M A N A G E R").to_string();
-            lcenter(__rt, __gs, &mut __tmp_str265);
+            let mut __tmp_str279 = ("Q B a s i c").to_string();
+            lcenter(__rt, __gs, &mut __tmp_str279);
+            let mut __tmp_str280 = ("M O N E Y   M A N A G E R").to_string();
+            lcenter(__rt, __gs, &mut __tmp_str280);
             __rt.println(&[]);
             __rt.println(&[]);
-            let mut __tmp_str266 = (format!("{}{}" ,"Transaction summary: ",{ let mut __fn_s0: String = (__gs.account__title[((*item)) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) })).to_string();
-            lcenter(__rt, __gs, &mut __tmp_str266);
+            let mut __tmp_str281 = (format!("{}{}" ,"Transaction summary: ",{ let mut __fn_s0: String = (__gs.account__title[((*item)) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) })).to_string();
+            lcenter(__rt, __gs, &mut __tmp_str281);
             lcenter(__rt, __gs, &mut date_s);
             __rt.println(&[]);
             u5_s = ("--------|------|------------------------|----------|----------|--------------").to_string();
@@ -1948,37 +2131,53 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
             u2_s = ("###,###.##").to_string();
             u3_s = ("###,###,###.##").to_string();
             u4_s = ("          ").to_string();
-            let __tmp267 = cvit_s(__rt, __gs, (*item));
-            file_s = (format!("{}{}" ,"money.",__tmp267)).to_string();
-            __rt.open_random(&(file_s).to_string(), (1_f64) as u8, (84_f64) as usize);
+            let __tmp282 = cvit_s(__rt, __gs, (*item));
+            file_s = (format!("{}{}" ,"money.",__tmp282)).to_string();
+            __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
             if __rt.error_pending { __rt.error_pending = false; errortrap(__rt, __gs); }
-            let __file_buf268 = __rt.read_record((1_f64) as u8, Some((1_f64) as i64 - 1));
-            if qb_bool(qb_from_bool((valid_s).as_str() == "THISISVALID")) {
-                balance = 0_f64;
+            iodate_s = " ".repeat((8.0f64) as usize);
+            ioref_s = " ".repeat((10.0f64) as usize);
+            iodesc_s = " ".repeat((50.0f64) as usize);
+            iofig1_s = " ".repeat((8.0f64) as usize);
+            iofig2_s = " ".repeat((8.0f64) as usize);
+            __rt.set_field((1.0f64) as u8, 84);
+            valid_s = " ".repeat((11.0f64) as usize);
+            iomaxrecord_s = " ".repeat((5.0f64) as usize);
+            iobalance_s = " ".repeat((8.0f64) as usize);
+            __rt.set_field((1.0f64) as u8, 24);
+            let __file_buf283 = __rt.read_record((1.0f64) as u8, Some((1.0f64) as i64 - 1));
+            valid_s = qb_field_get(&__file_buf283, 0, 11);
+            iomaxrecord_s = qb_field_get(&__file_buf283, 11, 5);
+            iobalance_s = qb_field_get(&__file_buf283, 16, 8);
+            if (valid_s).as_str() == "THISISVALID" {
+                balance = 0.0f64;
                 maxrecord = qb_val(&(iomaxrecord_s));
-                currrecord = 1_f64;
-                while qb_bool(qb_from_bool(currrecord <= maxrecord)) {
-                    let __file_buf269 = __rt.read_record((1_f64) as u8, Some(((currrecord + 1_f64)) as i64 - 1));
+                currrecord = 1.0f64;
+                while currrecord <= maxrecord {
+                    let __file_buf284 = __rt.read_record((1.0f64) as u8, Some(((currrecord + 1.0f64)) as i64 - 1));
+                    valid_s = qb_field_get(&__file_buf284, 0, 11);
+                    iomaxrecord_s = qb_field_get(&__file_buf284, 11, 5);
+                    iobalance_s = qb_field_get(&__file_buf284, 16, 8);
                     fig1 = CVD(&(iofig1_s));
                     fig2 = CVD(&(iofig2_s));
-                    let __pu_s270 = (iodate_s).to_string();
-                    let __pu_s271 = (ioref_s).to_string();
-                    let __pu_s272 = (iodesc_s).to_string();
-                    let __pu273 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s270), QbVal::Str(&__pu_s271), QbVal::Str(&__pu_s272)]);
-                    __rt.print(&[__pu273]);
-                    if qb_bool(qb_and(qb_from_bool(fig2 == 0_f64), qb_from_bool(fig1 == 0_f64))) {
-                        let __pu274 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"|"),u4_s),"|"),u3_s)), &[QbVal::Num(balance)]);
-                        __rt.println(&[__pu274]);
-                    } else if qb_bool(qb_from_bool(fig2 == 0_f64)) {
+                    let __pu_s285 = (iodate_s).to_string();
+                    let __pu_s286 = (ioref_s).to_string();
+                    let __pu_s287 = (iodesc_s).to_string();
+                    let __pu288 = qb_print_using(&(u0_s), &[QbVal::Str(&__pu_s285), QbVal::Str(&__pu_s286), QbVal::Str(&__pu_s287)]);
+                    __rt.print(&[__pu288]);
+                    if qb_bool(qb_and(qb_from_bool(fig2 == 0.0f64), qb_from_bool(fig1 == 0.0f64))) {
+                        let __pu289 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"|"),u4_s),"|"),u3_s)), &[QbVal::Num(balance)]);
+                        __rt.println(&[__pu289]);
+                    } else if fig2 == 0.0f64 {
                         balance = (balance + fig1);
-                        let __pu275 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"|"),u4_s),"|"),u3_s)), &[QbVal::Num(fig1), QbVal::Num(balance)]);
-                        __rt.println(&[__pu275]);
+                        let __pu290 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u2_s,"|"),u4_s),"|"),u3_s)), &[QbVal::Num(fig1), QbVal::Num(balance)]);
+                        __rt.println(&[__pu290]);
                     } else {
                         balance = (balance - fig2);
-                        let __pu276 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"|"),u2_s),"|"),u3_s)), &[QbVal::Num(fig2), QbVal::Num(balance)]);
-                        __rt.println(&[__pu276]);
+                        let __pu291 = qb_print_using(&(format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,format!("{}{}" ,u4_s,"|"),u2_s),"|"),u3_s)), &[QbVal::Num(fig2), QbVal::Num(balance)]);
+                        __rt.println(&[__pu291]);
                     }
-                    currrecord = (currrecord + 1_f64);
+                    currrecord = (currrecord + 1.0f64);
                 }
                 __rt.println(&[qb_str(&(u5_s))]);
                 __rt.println(&[]);
@@ -1991,40 +2190,40 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
 
 fn cvdt_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
     let mut __fn_ret: String = Default::default();
-    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1_f64))).to_string();
+    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn cvit_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
     let mut __fn_ret: String = Default::default();
-    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1_f64))).to_string();
+    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn cvst_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
     let mut __fn_ret: String = Default::default();
-    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1_f64))).to_string();
+    __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn getstring_s(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64, start_s: &mut String, end_s: &mut String, mut vis: f64, mut max: f64) -> String {
     let mut __fn_ret: String = Default::default();
     let mut curr_s: String = String::new();
-    let mut finished: f64 = 0.0_f64;
+    let mut finished: f64 = 0.0;
     let mut kbd_s: String = String::new();
 
-    let mut __tmp_s277: String = (qb_left(&(start_s), max)).to_string();
-    let __tmp278 = trim_s(__rt, __gs, &mut __tmp_s277);
-    curr_s = (__tmp278).to_string();
-    if qb_bool(qb_from_bool((curr_s).as_str() == (qb_chr(8_f64)).as_str())) {
+    let mut __tmp_s292: String = (qb_left(&(start_s), max)).to_string();
+    let __tmp293 = trim_s(__rt, __gs, &mut __tmp_s292);
+    curr_s = (__tmp293).to_string();
+    if (curr_s).as_str() == (qb_chr(8.0f64)).as_str() {
         curr_s = ("").to_string();
     }
-    __rt.locate(None, None, Some(1_f64));
+    __rt.locate(None, None, Some(1.0f64));
     finished = qb_false;
     loop {
         '__gosub_getstringshowtext: loop {
             __rt.locate(Some(row), Some(col), None);
-            if qb_bool(qb_from_bool(qb_len(&(curr_s)) > vis)) {
+            if qb_len(&(curr_s)) > vis {
                 __rt.print(&[qb_str(&(qb_right(&(curr_s), vis)))]);
             } else {
                 __rt.print(&[qb_str(&(curr_s)), qb_str(&(qb_space((vis - qb_len(&(curr_s))))))]);
@@ -2035,27 +2234,27 @@ fn getstring_s(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: 
         }
         '__gosub_getstringgetkey: loop {
             kbd_s = ("").to_string();
-            while qb_bool(qb_from_bool((kbd_s).as_str() == "")) {
-                let __tmp279 = __rt.inkey();
-                kbd_s = (__tmp279).to_string();
+            while (kbd_s).as_str() == "" {
+                let __tmp294 = __rt.inkey();
+                kbd_s = (__tmp294).to_string();
             }
             break '__gosub_getstringgetkey;
             break '__gosub_getstringgetkey;
         }
-        if qb_bool(qb_from_bool(qb_len(&(kbd_s)) > 1_f64)) {
+        if qb_len(&(kbd_s)) > 1.0f64 {
             finished = qb_true;
             __fn_ret = (kbd_s).to_string();
         } else {
             let __sel = kbd_s.clone();
-            if __sel == qb_chr(13_f64).to_string() || __sel == qb_chr(27_f64).to_string() || __sel == qb_chr(9_f64).to_string() {
+            if __sel == qb_chr(13.0f64).to_string() || __sel == qb_chr(27.0f64).to_string() || __sel == qb_chr(9.0f64).to_string() {
                 finished = qb_true;
                 __fn_ret = (kbd_s).to_string();
-            } else if __sel == qb_chr(8_f64).to_string() {
-                if qb_bool(qb_from_bool((curr_s).as_str() != "")) {
-                    curr_s = (qb_left(&(curr_s), (qb_len(&(curr_s)) - 1_f64))).to_string();
+            } else if __sel == qb_chr(8.0f64).to_string() {
+                if (curr_s).as_str() != "" {
+                    curr_s = (qb_left(&(curr_s), (qb_len(&(curr_s)) - 1.0f64))).to_string();
                 }
             } else if (__sel >= " ".to_string() && __sel <= "}".to_string()) {
-                if qb_bool(qb_from_bool(qb_len(&(curr_s)) < max)) {
+                if qb_len(&(curr_s)) < max {
                     curr_s = (format!("{}{}" ,curr_s,kbd_s)).to_string();
                 } else {
                     __rt.beep();
@@ -2067,49 +2266,55 @@ fn getstring_s(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: 
         if qb_bool(finished) { break; }
     }
     *end_s = (curr_s).to_string();
-    __rt.locate(None, None, Some(0_f64));
+    __rt.locate(None, None, Some(0.0f64));
     return __fn_ret; // EXIT FUNCTION
     __fn_ret
 }
 
 fn menu(__rt: &mut Runtime, __gs: &mut GameState, mut currchoicex: f64, mut maxchoice: f64, choice_s: &mut Vec<String>, itemrow: &mut Vec<f64>, itemcol: &mut Vec<f64>, help_s: &mut Vec<String>, mut barmode: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut currchoice: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
-    let mut finished: f64 = 0.0_f64;
+    let mut currchoice: f64 = 0.0;
+    let mut a: f64 = 0.0;
+    let mut finished: f64 = 0.0;
     let mut kbd_s: String = String::new();
 
     currchoice = currchoicex;
     if qb_bool(barmode) {
-        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-        __rt.locate(Some(1_f64), Some(1_f64), None);
-        __rt.print(&[qb_str(&(qb_space(80_f64)))]);
+        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+        __rt.locate(Some(1.0f64), Some(1.0f64), None);
+        __rt.print(&[qb_str(&(qb_space(80.0f64)))]);
     } else {
-        let mut __tmp_num280: f64 = __gs.colors[(2_f64) as usize][(__gs.colorpref) as usize];
-        let mut __tmp_num281: f64 = __gs.colors[(1_f64) as usize][(__gs.colorpref) as usize];
-        fancycls(__rt, __gs, &mut __tmp_num280, &mut __tmp_num281);
-        __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-        let mut __tmp_num282: f64 = (itemrow[(1_f64) as usize] - 1_f64);
-        let mut __tmp_num283: f64 = (itemcol[(1_f64) as usize] - 1_f64);
-        let mut __tmp_num284: f64 = (itemrow[(maxchoice) as usize] + 1_f64);
-        let mut __tmp_num285: f64 = ((itemcol[(1_f64) as usize] + qb_len(&(choice_s[(1_f64) as usize]))) + 1_f64);
-        qb_box(__rt, __gs, &mut __tmp_num282, &mut __tmp_num283, &mut __tmp_num284, &mut __tmp_num285);
-        __rt.color(__gs.colors[(10_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(6_f64) as usize][(__gs.colorpref) as usize]));
-        a = 1_f64;
-        let __for_to_a: f64 = (maxchoice + 1_f64);
-        let __for_step_a: f64 = 1.0_f64;
+        let __baidx295 = (2.0f64) as usize;
+        let __baidx296 = (__gs.colorpref) as usize;
+        let mut __tmp_arr297: f64 = __gs.colors[__baidx295][__baidx296];
+        let __baidx298 = (1.0f64) as usize;
+        let __baidx299 = (__gs.colorpref) as usize;
+        let mut __tmp_arr300: f64 = __gs.colors[__baidx298][__baidx299];
+        fancycls(__rt, __gs, &mut __tmp_arr297, &mut __tmp_arr300);
+        __gs.colors[__baidx295][__baidx296] = __tmp_arr297;
+        __gs.colors[__baidx298][__baidx299] = __tmp_arr300;
+        __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+        let mut __tmp_num301: f64 = (itemrow[(1.0f64) as usize] - 1.0f64);
+        let mut __tmp_num302: f64 = (itemcol[(1.0f64) as usize] - 1.0f64);
+        let mut __tmp_num303: f64 = (itemrow[(maxchoice) as usize] + 1.0f64);
+        let mut __tmp_num304: f64 = ((itemcol[(1.0f64) as usize] + qb_len(&(choice_s[(1.0f64) as usize]))) + 1.0f64);
+        qb_box(__rt, __gs, &mut __tmp_num301, &mut __tmp_num302, &mut __tmp_num303, &mut __tmp_num304);
+        __rt.color(__gs.colors[(10.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(6.0f64) as usize][(__gs.colorpref) as usize]));
+        a = 1.0f64;
+        let __for_to_a: f64 = (maxchoice + 1.0f64);
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-            __rt.locate(Some(((itemrow[(1_f64) as usize] + a) - 1_f64)), Some(((itemcol[(1_f64) as usize] + qb_len(&(choice_s[(1_f64) as usize]))) + 2_f64)), None);
-            __rt.print(&[qb_str(&(qb_chr(178_f64))), qb_str(&(qb_chr(178_f64)))]);
+            __rt.locate(Some(((itemrow[(1.0f64) as usize] + a) - 1.0f64)), Some(((itemcol[(1.0f64) as usize] + qb_len(&(choice_s[(1.0f64) as usize]))) + 2.0f64)), None);
+            __rt.print(&[qb_str(&(qb_chr(178.0f64))), qb_str(&(qb_chr(178.0f64)))]);
             a += __for_step_a;
         }
-        __rt.locate(Some((itemrow[(maxchoice) as usize] + 2_f64)), Some((itemcol[(maxchoice) as usize] + 2_f64)), None);
-        __rt.print(&[qb_str(&(qb_string((qb_len(&(choice_s[(maxchoice) as usize])) + 2_f64), 178_f64)))]);
+        __rt.locate(Some((itemrow[(maxchoice) as usize] + 2.0f64)), Some((itemcol[(maxchoice) as usize] + 2.0f64)), None);
+        __rt.print(&[qb_str(&(qb_string((qb_len(&(choice_s[(maxchoice) as usize])) + 2.0f64), 178.0f64)))]);
     }
-    __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
-    a = 1_f64;
+    __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
+    a = 1.0f64;
     let __for_to_a: f64 = maxchoice;
-    let __for_step_a: f64 = 1.0_f64;
+    let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
         __rt.locate(Some(itemrow[(a) as usize]), Some(itemcol[(a) as usize]), None);
         __rt.print(&[qb_str(&(choice_s[(a) as usize]))]);
@@ -2118,82 +2323,84 @@ fn menu(__rt: &mut Runtime, __gs: &mut GameState, mut currchoicex: f64, mut maxc
     finished = qb_false;
     while qb_bool(qb_not(finished)) {
         '__gosub_menushowcursor: loop {
-            __rt.color(__gs.colors[(8_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9_f64) as usize][(__gs.colorpref) as usize]));
+            __rt.color(__gs.colors[(8.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(9.0f64) as usize][(__gs.colorpref) as usize]));
             __rt.locate(Some(itemrow[(currchoice) as usize]), Some(itemcol[(currchoice) as usize]), None);
             __rt.print(&[qb_str(&(choice_s[(currchoice) as usize]))]);
-            let mut __tmp_str286 = (help_s[(currchoice) as usize]).to_string();
-            printhelpline(__rt, __gs, &mut __tmp_str286);
+            let __baidx305 = (currchoice) as usize;
+            let mut __tmp_arrs306: String = help_s[__baidx305].clone();
+            printhelpline(__rt, __gs, &mut __tmp_arrs306);
+            help_s[__baidx305] = __tmp_arrs306.clone();
             break '__gosub_menushowcursor;
             break '__gosub_menushowcursor;
         }
         '__gosub_menugetkey: loop {
             kbd_s = ("").to_string();
-            while qb_bool(qb_from_bool((kbd_s).as_str() == "")) {
-                let __tmp287 = __rt.inkey();
-                kbd_s = (__tmp287).to_string();
+            while (kbd_s).as_str() == "" {
+                let __tmp307 = __rt.inkey();
+                kbd_s = (__tmp307).to_string();
             }
             break '__gosub_menugetkey;
             break '__gosub_menugetkey;
         }
         '__gosub_menuhidecursor: loop {
-            __rt.color(__gs.colors[(7_f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4_f64) as usize][(__gs.colorpref) as usize]));
+            __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
             __rt.locate(Some(itemrow[(currchoice) as usize]), Some(itemcol[(currchoice) as usize]), None);
             __rt.print(&[qb_str(&(choice_s[(currchoice) as usize]))]);
             break '__gosub_menuhidecursor;
             break '__gosub_menuhidecursor;
         }
         let __sel = kbd_s.clone();
-        if __sel == format!("{}{}" ,qb_chr(0_f64),"H").to_string() {
+        if __sel == format!("{}{}" ,qb_chr(0.0f64),"H").to_string() {
             '__gosub_menuup: loop {
                 if qb_bool(barmode) {
                     __rt.beep();
                 } else {
-                    currchoice = (qb_mod(((currchoice + maxchoice) - 2_f64), maxchoice) + 1_f64);
+                    currchoice = (qb_mod(((currchoice + maxchoice) - 2.0f64), maxchoice) + 1.0f64);
                 }
                 break '__gosub_menuup;
                 break '__gosub_menuup;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"P").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"P").to_string() {
             '__gosub_menudown: loop {
                 if qb_bool(barmode) {
                     finished = qb_true;
                 } else {
-                    currchoice = (qb_mod(currchoice, maxchoice) + 1_f64);
+                    currchoice = (qb_mod(currchoice, maxchoice) + 1.0f64);
                 }
                 break '__gosub_menudown;
                 break '__gosub_menudown;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"K").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"K").to_string() {
             '__gosub_menuleft: loop {
                 if qb_bool(barmode) {
-                    currchoice = (qb_mod(((currchoice + maxchoice) - 2_f64), maxchoice) + 1_f64);
+                    currchoice = (qb_mod(((currchoice + maxchoice) - 2.0f64), maxchoice) + 1.0f64);
                 } else {
-                    currchoice = (-2_f64);
+                    currchoice = (-2.0f64);
                     finished = qb_true;
                 }
                 break '__gosub_menuleft;
                 break '__gosub_menuleft;
             }
-        } else if __sel == format!("{}{}" ,qb_chr(0_f64),"M").to_string() {
+        } else if __sel == format!("{}{}" ,qb_chr(0.0f64),"M").to_string() {
             '__gosub_menuright: loop {
                 if qb_bool(barmode) {
-                    currchoice = (qb_mod(currchoice, maxchoice) + 1_f64);
+                    currchoice = (qb_mod(currchoice, maxchoice) + 1.0f64);
                 } else {
-                    currchoice = (-3_f64);
+                    currchoice = (-3.0f64);
                     finished = qb_true;
                 }
                 break '__gosub_menuright;
                 break '__gosub_menuright;
             }
-        } else if __sel == qb_chr(13_f64).to_string() {
+        } else if __sel == qb_chr(13.0f64).to_string() {
             '__gosub_menuenter: loop {
                 finished = qb_true;
                 break '__gosub_menuenter;
                 break '__gosub_menuenter;
             }
-        } else if __sel == qb_chr(27_f64).to_string() {
+        } else if __sel == qb_chr(27.0f64).to_string() {
             '__gosub_menuescape: loop {
-                currchoice = 0_f64;
+                currchoice = 0.0f64;
                 finished = qb_true;
                 break '__gosub_menuescape;
                 break '__gosub_menuescape;
@@ -2209,20 +2416,20 @@ fn menu(__rt: &mut Runtime, __gs: &mut GameState, mut currchoicex: f64, mut maxc
 
 fn trim_s(__rt: &mut Runtime, __gs: &mut GameState, x_s: &mut String) -> String {
     let mut __fn_ret: String = Default::default();
-    let mut lastchar: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
+    let mut lastchar: f64 = 0.0;
+    let mut a: f64 = 0.0;
     let mut y_s: String = String::new();
 
-    if qb_bool(qb_from_bool((x_s).as_str() == "")) {
+    if (x_s).as_str() == "" {
         __fn_ret = ("").to_string();
     } else {
-        lastchar = 0_f64;
-        a = 1_f64;
+        lastchar = 0.0f64;
+        a = 1.0f64;
         let __for_to_a: f64 = qb_len(&(x_s));
-        let __for_step_a: f64 = 1.0_f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-            y_s = (qb_mid(&(x_s), a, Some(1_f64))).to_string();
-            if qb_bool(qb_and(qb_from_bool((y_s).as_str() != (qb_chr(0_f64)).as_str()), qb_from_bool((y_s).as_str() != " "))) {
+            y_s = (qb_mid(&(x_s), a, Some(1.0f64))).to_string();
+            if qb_bool(qb_and(qb_from_bool((y_s).as_str() != (qb_chr(0.0f64)).as_str()), qb_from_bool((y_s).as_str() != " "))) {
                 lastchar = a;
             }
             a += __for_step_a;
@@ -2233,15 +2440,15 @@ fn trim_s(__rt: &mut Runtime, __gs: &mut GameState, x_s: &mut String) -> String 
 }
 
 fn errortrap(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut a: f64 = 0.0_f64;
+    let mut a: f64 = 0.0;
 
     let __sel = __rt.err_code;
-    if __sel == 53_f64 {
+    if __sel == 53.0f64 {
         __rt.close_all();
-        __gs.colorpref = 1_f64;
-        a = 1_f64;
-        let __for_to_a: f64 = 19_f64;
-        let __for_step_a: f64 = 1.0_f64;
+        __gs.colorpref = 1.0f64;
+        a = 1.0f64;
+        let __for_to_a: f64 = 19.0f64;
+        let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
             __gs.account__title[(a) as usize] = ("").to_string();
             __gs.account__atype[(a) as usize] = ("").to_string();
@@ -2250,19 +2457,19 @@ fn errortrap(__rt: &mut Runtime, __gs: &mut GameState) {
         }
         savestate(__rt, __gs);
         __rt.error_pending = false;
-    } else if __sel == 24_f64 || __sel == 25_f64 {
+    } else if __sel == 24.0f64 || __sel == 25.0f64 {
         __gs.printerr = qb_true;
-        let mut __tmp_num288: f64 = 8_f64;
-        let mut __tmp_num289: f64 = 13_f64;
-        let mut __tmp_num290: f64 = 14_f64;
-        let mut __tmp_num291: f64 = 69_f64;
-        qb_box(__rt, __gs, &mut __tmp_num288, &mut __tmp_num289, &mut __tmp_num290, &mut __tmp_num291);
-        let mut __tmp_num292: f64 = 11_f64;
-        let mut __tmp_str293 = ("Printer not responding ... Press Space to continue").to_string();
-        center(__rt, __gs, &mut __tmp_num292, &mut __tmp_str293);
-        while qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+        let mut __tmp_num308: f64 = 8.0f64;
+        let mut __tmp_num309: f64 = 13.0f64;
+        let mut __tmp_num310: f64 = 14.0f64;
+        let mut __tmp_num311: f64 = 69.0f64;
+        qb_box(__rt, __gs, &mut __tmp_num308, &mut __tmp_num309, &mut __tmp_num310, &mut __tmp_num311);
+        let mut __tmp_num312: f64 = 11.0f64;
+        let mut __tmp_str313 = ("Printer not responding ... Press Space to continue").to_string();
+        center(__rt, __gs, &mut __tmp_num312, &mut __tmp_str313);
+        while (__rt.inkey()).as_str() != "" {
         }
-        while qb_bool(qb_from_bool((__rt.inkey()).as_str() != " ")) {
+        while (__rt.inkey()).as_str() != " " {
         }
         __rt.error_pending = false;
     } else {
@@ -2274,22 +2481,24 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut keyflags: f64 = 0.0_f64;
+    let mut keyflags: f64 = 0.0;
 
-    __gs.account__title = vec![String::new(); (19_f64+1.0) as usize];
-    __gs.account__atype = vec![String::new(); (19_f64+1.0) as usize];
-    __gs.account__desc = vec![String::new(); (19_f64+1.0) as usize];
-    __gs.colors = vec![vec![Default::default(); (4_f64+1.0) as usize]; (20_f64+1.0) as usize];
-    __gs.scrollupasm = vec![Default::default(); (7_f64+1.0) as usize];
-    __gs.scrolldownasm = vec![Default::default(); (7_f64+1.0) as usize];
-    keyflags = qb_peek(1047_f64);
-    __rt.open_seq(&("money.dat").to_string(), "input", (1_f64) as u8);
+    __gs.account__title = vec![String::new(); (19.0f64+1.0) as usize];
+    __gs.account__atype = vec![String::new(); (19.0f64+1.0) as usize];
+    __gs.account__desc = vec![String::new(); (19.0f64+1.0) as usize];
+    __gs.colors = vec![vec![Default::default(); (4.0f64+1.0) as usize]; (20.0f64+1.0) as usize];
+    __gs.scrollupasm = vec![Default::default(); (7.0f64+1.0) as usize];
+    __gs.scrolldownasm = vec![Default::default(); (7.0f64+1.0) as usize];
+    keyflags = __rt.qb_peek(1047.0f64);
+    __rt.qb_poke(1047.0f64, 0.0f64);
+    __rt.open_seq(&("money.dat").to_string(), "input", (1.0f64) as u8);
     if __rt.error_pending { __rt.error_pending = false; errortrap(&mut __rt, &mut __gs); }
     __rt.close_all();
     initialize(&mut __rt, &mut __gs);
     intro(&mut __rt, &mut __gs);
     menusystem(&mut __rt, &mut __gs);
-    __rt.color(7_f64, Some(0_f64));
+    __rt.color(7.0f64, Some(0.0f64));
     __rt.cls(0u8);
+    __rt.qb_poke(1047.0f64, keyflags);
     __rt.quit();
 }

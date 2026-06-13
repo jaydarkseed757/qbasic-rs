@@ -4,22 +4,22 @@
          non_upper_case_globals, const_item_mutation, clippy::all)]
 use qbasic_runtime::*;
 
-const pi: f64 = 3.14159_f64;
-const qb_true: f64 = -1_f64;
-const qb_false: f64 = 0_f64;
-const back: f64 = 0_f64;
-const trow: f64 = 24_f64;
-const tcol: f64 = 60_f64;
-const rndm: f64 = -1_f64;
-const start: f64 = 0_f64;
-const qb_continue: f64 = 1_f64;
-const vga: f64 = 12_f64;
-const mcga: f64 = 13_f64;
-const ega256: f64 = 9_f64;
-const ega64: f64 = 8_f64;
-const mono: f64 = 10_f64;
-const herc: f64 = 3_f64;
-const cga: f64 = 1_f64;
+const pi: f64 = 3.14159f64;
+const qb_true: f64 = -1.0f64;
+const qb_false: f64 = 0.0f64;
+const back: f64 = 0.0f64;
+const trow: f64 = 24.0f64;
+const tcol: f64 = 60.0f64;
+const rndm: f64 = -1.0f64;
+const start: f64 = 0.0f64;
+const qb_continue: f64 = 1.0f64;
+const vga: f64 = 12.0f64;
+const mcga: f64 = 13.0f64;
+const ega256: f64 = 9.0f64;
+const ega64: f64 = 8.0f64;
+const mono: f64 = 10.0f64;
+const herc: f64 = 3.0f64;
+const cga: f64 = 1.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -58,10 +58,10 @@ struct GameState {
 }
 
 fn counttiles(__rt: &mut Runtime, __gs: &mut GameState, t1: &mut f64, t2: &mut f64) {
-    __rt.locate(Some((trow - 1_f64)), Some(tcol), None);
-    __rt.print(&[qb_str(&(qb_space(19_f64)))]);
-    if qb_bool(qb_and(qb_from_bool((*t1) > 0_f64), qb_from_bool((*t2) > 0_f64))) {
-        __rt.locate(Some((trow - 1_f64)), Some(tcol), None);
+    __rt.locate(Some((trow - 1.0f64)), Some(tcol), None);
+    __rt.print(&[qb_str(&(qb_space(19.0f64)))]);
+    if qb_bool(qb_and(qb_from_bool((*t1) > 0.0f64), qb_from_bool((*t2) > 0.0f64))) {
+        __rt.locate(Some((trow - 1.0f64)), Some(tcol), None);
         __rt.print(&[qb_str(&("Tile "))]);
         let __pu0 = qb_print_using(&(" ###"), &[QbVal::Num((*t1))]);
         __rt.print(&[__pu0]);
@@ -71,167 +71,169 @@ fn counttiles(__rt: &mut Runtime, __gs: &mut GameState, t1: &mut f64, t2: &mut f
 }
 
 fn delay(__rt: &mut Runtime, __gs: &mut GameState, seconds: &mut f64) {
-    let mut begin: f64 = 0.0_f64;
+    let mut begin: f64 = 0.0;
 
     begin = qb_timer();
-    while !qb_bool(qb_or(qb_from_bool((qb_timer() - begin) > (*seconds)), qb_from_bool((qb_timer() - begin) < 0_f64))) {
+    while !(qb_bool(qb_or(qb_from_bool((qb_timer() - begin) > (*seconds)), qb_from_bool((qb_timer() - begin) < 0.0f64)))) {
     }
 }
 
 fn getconfig(__rt: &mut Runtime, __gs: &mut GameState) {
-    __gs.initrows = 50_f64;
-    __rt.locate(Some(__gs.initrows), Some(1_f64), None);
+    let available: f64 = 0.0;
+
+    __gs.initrows = 50.0f64;
+    __rt.locate(Some(__gs.initrows), Some(1.0f64), None);
     __gs.bestmode = vga;
     __gs.available = ("12789BCD").to_string();
     __rt.screen(__gs.bestmode);
     if __rt.error_pending { __rt.error_pending = false; }
-    if qb_bool(qb_from_bool(__gs.bestmode == ega256)) {
-        __rt.screen(8_f64);
+    if __gs.bestmode == ega256 {
+        __rt.screen(8.0f64);
         if __rt.error_pending { __rt.error_pending = false; }
     }
-    __rt.screen(0_f64);
+    __rt.screen(0.0f64);
 }
 
 fn message(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String) {
     __rt.locate(Some(trow), Some(tcol), None);
-    __rt.print(&[qb_str(&(qb_space(19_f64)))]);
+    __rt.print(&[qb_str(&(qb_space(19.0f64)))]);
     __rt.locate(Some(trow), Some(tcol), None);
-    __rt.color(7_f64, None);
+    __rt.color(7.0f64, None);
     __rt.print(&[qb_str(&(text_s))]);
-    __rt.color(23_f64, None);
+    __rt.color(23.0f64, None);
     __rt.print(&[qb_str(&(" . . ."))]);
-    __rt.color(7_f64, None);
+    __rt.color(7.0f64, None);
 }
 
 fn setconfig(__rt: &mut Runtime, __gs: &mut GameState, mode: &mut f64) {
     let __sel = (*mode);
-    if __sel == 1_f64 {
+    if __sel == 1.0f64 {
         if qb_bool(qb_or(qb_from_bool(__gs.bestmode == cga), qb_from_bool(__gs.bestmode == mcga))) {
-            __gs.vc__colors = 0_f64;
+            __gs.vc__colors = 0.0f64;
         } else {
-            __gs.vc__colors = 16_f64;
+            __gs.vc__colors = 16.0f64;
         }
-        __gs.vc__atribs = 4_f64;
-        __gs.vc__xpix = 319_f64;
-        __gs.vc__ypix = 199_f64;
-        __gs.vc__tcol = 40_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 2_f64 {
+        __gs.vc__atribs = 4.0f64;
+        __gs.vc__xpix = 319.0f64;
+        __gs.vc__ypix = 199.0f64;
+        __gs.vc__tcol = 40.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 2.0f64 {
         if qb_bool(qb_or(qb_from_bool(__gs.bestmode == cga), qb_from_bool(__gs.bestmode == mcga))) {
-            __gs.vc__colors = 0_f64;
+            __gs.vc__colors = 0.0f64;
         } else {
-            __gs.vc__colors = 16_f64;
+            __gs.vc__colors = 16.0f64;
         }
-        __gs.vc__atribs = 2_f64;
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 199_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 3_f64 {
-        __gs.vc__colors = 0_f64;
-        __gs.vc__atribs = 2_f64;
-        __gs.vc__xpix = 720_f64;
-        __gs.vc__ypix = 348_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 7_f64 {
-        __gs.vc__colors = 16_f64;
-        __gs.vc__atribs = 16_f64;
-        __gs.vc__xpix = 319_f64;
-        __gs.vc__ypix = 199_f64;
-        __gs.vc__tcol = 40_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 8_f64 {
-        __gs.vc__colors = 16_f64;
-        __gs.vc__atribs = 16_f64;
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 199_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 9_f64 {
-        __gs.vc__colors = 64_f64;
-        if qb_bool(qb_from_bool(__gs.bestmode == ega64)) {
-            __gs.vc__atribs = 4_f64;
+        __gs.vc__atribs = 2.0f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 199.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 3.0f64 {
+        __gs.vc__colors = 0.0f64;
+        __gs.vc__atribs = 2.0f64;
+        __gs.vc__xpix = 720.0f64;
+        __gs.vc__ypix = 348.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 7.0f64 {
+        __gs.vc__colors = 16.0f64;
+        __gs.vc__atribs = 16.0f64;
+        __gs.vc__xpix = 319.0f64;
+        __gs.vc__ypix = 199.0f64;
+        __gs.vc__tcol = 40.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 8.0f64 {
+        __gs.vc__colors = 16.0f64;
+        __gs.vc__atribs = 16.0f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 199.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 9.0f64 {
+        __gs.vc__colors = 64.0f64;
+        if __gs.bestmode == ega64 {
+            __gs.vc__atribs = 4.0f64;
         } else {
-            __gs.vc__atribs = 16_f64;
+            __gs.vc__atribs = 16.0f64;
         }
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 349_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 10_f64 {
-        __gs.vc__colors = 0_f64;
-        __gs.vc__atribs = 2_f64;
-        __gs.vc__xpix = 319_f64;
-        __gs.vc__ypix = 199_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-    } else if __sel == 11_f64 {
-        __gs.vc__colors = 216_f64;
-        __gs.vc__atribs = 2_f64;
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 479_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 30_f64;
-    } else if __sel == 12_f64 {
-        __gs.vc__colors = 216_f64;
-        __gs.vc__atribs = 16_f64;
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 479_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 30_f64;
-    } else if __sel == 13_f64 {
-        __gs.vc__colors = 216_f64;
-        __gs.vc__atribs = 256_f64;
-        __gs.vc__xpix = 639_f64;
-        __gs.vc__ypix = 479_f64;
-        __gs.vc__tcol = 40_f64;
-        __gs.vc__trow = 25_f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 349.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 10.0f64 {
+        __gs.vc__colors = 0.0f64;
+        __gs.vc__atribs = 2.0f64;
+        __gs.vc__xpix = 319.0f64;
+        __gs.vc__ypix = 199.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+    } else if __sel == 11.0f64 {
+        __gs.vc__colors = 216.0f64;
+        __gs.vc__atribs = 2.0f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 479.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 30.0f64;
+    } else if __sel == 12.0f64 {
+        __gs.vc__colors = 216.0f64;
+        __gs.vc__atribs = 16.0f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 479.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 30.0f64;
+    } else if __sel == 13.0f64 {
+        __gs.vc__colors = 216.0f64;
+        __gs.vc__atribs = 256.0f64;
+        __gs.vc__xpix = 639.0f64;
+        __gs.vc__ypix = 479.0f64;
+        __gs.vc__tcol = 40.0f64;
+        __gs.vc__trow = 25.0f64;
     } else {
-        __gs.vc__colors = 16_f64;
-        __gs.vc__atribs = 16_f64;
-        __gs.vc__xpix = 0_f64;
-        __gs.vc__ypix = 0_f64;
-        __gs.vc__tcol = 80_f64;
-        __gs.vc__trow = 25_f64;
-        __gs.vc__scrn = 0_f64;
+        __gs.vc__colors = 16.0f64;
+        __gs.vc__atribs = 16.0f64;
+        __gs.vc__xpix = 0.0f64;
+        __gs.vc__ypix = 0.0f64;
+        __gs.vc__tcol = 80.0f64;
+        __gs.vc__trow = 25.0f64;
+        __gs.vc__scrn = 0.0f64;
         return; // EXIT SUB
     }
     __gs.vc__scrn = (*mode);
 }
 
 fn setpalette(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut index: f64 = 0.0_f64;
-    let mut bs: f64 = 0.0_f64;
-    let mut gs: f64 = 0.0_f64;
-    let mut rs: f64 = 0.0_f64;
-    let mut hs: f64 = 0.0_f64;
-    let mut hrs: f64 = 0.0_f64;
-    let mut hgs: f64 = 0.0_f64;
-    let mut hbs: f64 = 0.0_f64;
+    let mut index: f64 = 0.0;
+    let mut bs: f64 = 0.0;
+    let mut gs: f64 = 0.0;
+    let mut rs: f64 = 0.0;
+    let mut hs: f64 = 0.0;
+    let mut hrs: f64 = 0.0;
+    let mut hgs: f64 = 0.0;
+    let mut hbs: f64 = 0.0;
 
     if qb_bool(__gs.vc__colors) {
         let __sel = __gs.vc__scrn;
-        if __sel == 1_f64 || __sel == 2_f64 || __sel == 7_f64 || __sel == 8_f64 {
-            index = 0_f64;
-            bs = 0_f64;
-            let __for_to_bs: f64 = 1_f64;
-            let __for_step_bs: f64 = 1.0_f64;
+        if __sel == 1.0f64 || __sel == 2.0f64 || __sel == 7.0f64 || __sel == 8.0f64 {
+            index = 0.0f64;
+            bs = 0.0f64;
+            let __for_to_bs: f64 = 1.0f64;
+            let __for_step_bs: f64 = 1.0;
             while (__for_step_bs > 0.0 && bs <= __for_to_bs) || (__for_step_bs < 0.0 && bs >= __for_to_bs) {
-                gs = 0_f64;
-                let __for_to_gs: f64 = 1_f64;
-                let __for_step_gs: f64 = 1.0_f64;
+                gs = 0.0f64;
+                let __for_to_gs: f64 = 1.0f64;
+                let __for_step_gs: f64 = 1.0;
                 while (__for_step_gs > 0.0 && gs <= __for_to_gs) || (__for_step_gs < 0.0 && gs >= __for_to_gs) {
-                    rs = 0_f64;
-                    let __for_to_rs: f64 = 1_f64;
-                    let __for_step_rs: f64 = 1.0_f64;
+                    rs = 0.0f64;
+                    let __for_to_rs: f64 = 1.0f64;
+                    let __for_step_rs: f64 = 1.0;
                     while (__for_step_rs > 0.0 && rs <= __for_to_rs) || (__for_step_rs < 0.0 && rs >= __for_to_rs) {
-                        hs = 0_f64;
-                        let __for_to_hs: f64 = 1_f64;
-                        let __for_step_hs: f64 = 1.0_f64;
+                        hs = 0.0f64;
+                        let __for_to_hs: f64 = 1.0f64;
+                        let __for_step_hs: f64 = 1.0;
                         while (__for_step_hs > 0.0 && hs <= __for_to_hs) || (__for_step_hs < 0.0 && hs >= __for_to_hs) {
-                            __gs.pal[(index) as usize] = ((((hs * 8_f64) + (rs * 4_f64)) + (gs * 2_f64)) + bs);
-                            index = (index + 1_f64);
+                            __gs.pal[(index) as usize] = ((((hs * 8.0f64) + (rs * 4.0f64)) + (gs * 2.0f64)) + bs);
+                            index = (index + 1.0f64);
                             hs += __for_step_hs;
                         }
                         rs += __for_step_rs;
@@ -240,34 +242,34 @@ fn setpalette(__rt: &mut Runtime, __gs: &mut GameState) {
                 }
                 bs += __for_step_bs;
             }
-        } else if __sel == 9_f64 {
-            index = 0_f64;
-            bs = 0_f64;
-            let __for_to_bs: f64 = 1_f64;
-            let __for_step_bs: f64 = 1.0_f64;
+        } else if __sel == 9.0f64 {
+            index = 0.0f64;
+            bs = 0.0f64;
+            let __for_to_bs: f64 = 1.0f64;
+            let __for_step_bs: f64 = 1.0;
             while (__for_step_bs > 0.0 && bs <= __for_to_bs) || (__for_step_bs < 0.0 && bs >= __for_to_bs) {
-                gs = 0_f64;
-                let __for_to_gs: f64 = 1_f64;
-                let __for_step_gs: f64 = 1.0_f64;
+                gs = 0.0f64;
+                let __for_to_gs: f64 = 1.0f64;
+                let __for_step_gs: f64 = 1.0;
                 while (__for_step_gs > 0.0 && gs <= __for_to_gs) || (__for_step_gs < 0.0 && gs >= __for_to_gs) {
-                    rs = 0_f64;
-                    let __for_to_rs: f64 = 1_f64;
-                    let __for_step_rs: f64 = 1.0_f64;
+                    rs = 0.0f64;
+                    let __for_to_rs: f64 = 1.0f64;
+                    let __for_step_rs: f64 = 1.0;
                     while (__for_step_rs > 0.0 && rs <= __for_to_rs) || (__for_step_rs < 0.0 && rs >= __for_to_rs) {
-                        hrs = 0_f64;
-                        let __for_to_hrs: f64 = 1_f64;
-                        let __for_step_hrs: f64 = 1.0_f64;
+                        hrs = 0.0f64;
+                        let __for_to_hrs: f64 = 1.0f64;
+                        let __for_step_hrs: f64 = 1.0;
                         while (__for_step_hrs > 0.0 && hrs <= __for_to_hrs) || (__for_step_hrs < 0.0 && hrs >= __for_to_hrs) {
-                            hgs = 0_f64;
-                            let __for_to_hgs: f64 = 1_f64;
-                            let __for_step_hgs: f64 = 1.0_f64;
+                            hgs = 0.0f64;
+                            let __for_to_hgs: f64 = 1.0f64;
+                            let __for_step_hgs: f64 = 1.0;
                             while (__for_step_hgs > 0.0 && hgs <= __for_to_hgs) || (__for_step_hgs < 0.0 && hgs >= __for_to_hgs) {
-                                hbs = 0_f64;
-                                let __for_to_hbs: f64 = 1_f64;
-                                let __for_step_hbs: f64 = 1.0_f64;
+                                hbs = 0.0f64;
+                                let __for_to_hbs: f64 = 1.0f64;
+                                let __for_step_hbs: f64 = 1.0;
                                 while (__for_step_hbs > 0.0 && hbs <= __for_to_hbs) || (__for_step_hbs < 0.0 && hbs >= __for_to_hbs) {
-                                    __gs.pal[(index) as usize] = ((((((rs * 32_f64) + (gs * 16_f64)) + (bs * 8_f64)) + (hrs * 4_f64)) + (hgs * 2_f64)) + hbs);
-                                    index = (index + 1_f64);
+                                    __gs.pal[(index) as usize] = ((((((rs * 32.0f64) + (gs * 16.0f64)) + (bs * 8.0f64)) + (hrs * 4.0f64)) + (hgs * 2.0f64)) + hbs);
+                                    index = (index + 1.0f64);
                                     hbs += __for_step_hbs;
                                 }
                                 hgs += __for_step_hgs;
@@ -280,22 +282,22 @@ fn setpalette(__rt: &mut Runtime, __gs: &mut GameState) {
                 }
                 bs += __for_step_bs;
             }
-        } else if __sel == 11_f64 || __sel == 12_f64 || __sel == 13_f64 {
-            index = 0_f64;
-            rs = 0_f64;
-            let __for_to_rs: f64 = 63_f64;
-            let __for_step_rs: f64 = 11_f64;
+        } else if __sel == 11.0f64 || __sel == 12.0f64 || __sel == 13.0f64 {
+            index = 0.0f64;
+            rs = 0.0f64;
+            let __for_to_rs: f64 = 63.0f64;
+            let __for_step_rs: f64 = 11.0f64;
             while (__for_step_rs > 0.0 && rs <= __for_to_rs) || (__for_step_rs < 0.0 && rs >= __for_to_rs) {
-                bs = 0_f64;
-                let __for_to_bs: f64 = 63_f64;
-                let __for_step_bs: f64 = 11_f64;
+                bs = 0.0f64;
+                let __for_to_bs: f64 = 63.0f64;
+                let __for_step_bs: f64 = 11.0f64;
                 while (__for_step_bs > 0.0 && bs <= __for_to_bs) || (__for_step_bs < 0.0 && bs >= __for_to_bs) {
-                    gs = 0_f64;
-                    let __for_to_gs: f64 = 63_f64;
-                    let __for_step_gs: f64 = 11_f64;
+                    gs = 0.0f64;
+                    let __for_to_gs: f64 = 63.0f64;
+                    let __for_step_gs: f64 = 11.0f64;
                     while (__for_step_gs > 0.0 && gs <= __for_to_gs) || (__for_step_gs < 0.0 && gs >= __for_to_gs) {
-                        __gs.pal[(index) as usize] = (((65536_f64 * bs) + (256_f64 * gs)) + rs);
-                        index = (index + 1_f64);
+                        __gs.pal[(index) as usize] = (((65536.0f64 * bs) + (256.0f64 * gs)) + rs);
+                        index = (index + 1.0f64);
                         gs += __for_step_gs;
                     }
                     bs += __for_step_bs;
@@ -304,17 +306,17 @@ fn setpalette(__rt: &mut Runtime, __gs: &mut GameState) {
             }
         } else {
         }
-        if qb_bool(qb_from_bool(__gs.vc__atribs > 2_f64)) {
+        if __gs.vc__atribs > 2.0f64 {
             torusrotate(__rt, __gs, &mut rndm);
         }
     }
 }
 
 fn tiledraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut f64, t__x3: &mut f64, t__x4: &mut f64, t__y1: &mut f64, t__y2: &mut f64, t__y3: &mut f64, t__y4: &mut f64, t__z1: &mut f64, t__xc: &mut f64, t__yc: &mut f64, t__tcolor: &mut f64) {
-    let mut border: f64 = 0.0_f64;
+    let mut border: f64 = 0.0;
 
-    border = (__gs.vc__atribs - 1_f64);
-    if qb_bool(qb_from_bool(__gs.vc__atribs == 2_f64)) {
+    border = (__gs.vc__atribs - 1.0f64);
+    if __gs.vc__atribs == 2.0f64 {
         __rt.line((*t__x1),(*t__y1),(*t__x2),(*t__y2),(*t__tcolor));
         __rt.line_to((*t__x3),(*t__y3),(*t__tcolor));
         __rt.line_to((*t__x4),(*t__y4),(*t__tcolor));
@@ -328,14 +330,14 @@ fn tiledraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &m
     }
     if qb_bool(inside(__rt, __gs, &mut *t__x1, &mut *t__x2, &mut *t__x3, &mut *t__x4, &mut *t__y1, &mut *t__y2, &mut *t__y3, &mut *t__y4, &mut *t__z1, &mut *t__xc, &mut *t__yc, &mut *t__tcolor)) {
         __rt.pset((*t__xc), (*t__yc), __rt.bg_color as f64);
-        let __stpx2 = __rt.cur_x() + (0_f64);
-        let __stpy2 = __rt.cur_y() + (0_f64);
+        let __stpx2 = __rt.cur_x() + (0.0f64);
+        let __stpy2 = __rt.cur_y() + (0.0f64);
         __rt.paint(__stpx2, __stpy2, back, border);
-        let __stpx3 = __rt.cur_x() + (0_f64);
-        let __stpy3 = __rt.cur_y() + (0_f64);
+        let __stpx3 = __rt.cur_x() + (0.0f64);
+        let __stpy3 = __rt.cur_y() + (0.0f64);
         __rt.paint(__stpx3, __stpy3, (*t__tcolor), border);
     }
-    if qb_bool(qb_from_bool(__gs.tor__bord == "YES")) {
+    if __gs.tor__bord == "YES" {
         border = back;
     } else {
         border = (*t__tcolor);
@@ -347,87 +349,85 @@ fn tiledraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &m
 }
 
 fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__x2: &mut Vec<f64>, t__x3: &mut Vec<f64>, t__x4: &mut Vec<f64>, t__y1: &mut Vec<f64>, t__y2: &mut Vec<f64>, t__y3: &mut Vec<f64>, t__y4: &mut Vec<f64>, t__z1: &mut Vec<f64>, t__xc: &mut Vec<f64>, t__yc: &mut Vec<f64>, t__tcolor: &mut Vec<f64>) {
-    let mut xsect: f64 = 0.0_f64;
-    let mut ypanel: f64 = 0.0_f64;
-    let mut xrot: f64 = 0.0_f64;
-    let mut yrot: f64 = 0.0_f64;
-    let mut cxrot: f64 = 0.0_f64;
-    let mut sxrot: f64 = 0.0_f64;
-    let mut cyrot: f64 = 0.0_f64;
-    let mut syrot: f64 = 0.0_f64;
-    let mut xinc: f64 = 0.0_f64;
-    let mut yinc: f64 = 0.0_f64;
-    let mut firsty: f64 = 0.0_f64;
-    let mut sx: f64 = 0.0_f64;
-    let mut sy: f64 = 0.0_f64;
-    let mut sz: f64 = 0.0_f64;
-    let mut ssx: f64 = 0.0_f64;
-    let mut ty: f64 = 0.0_f64;
-    let mut tz: f64 = 0.0_f64;
+    let mut xsect: f64 = 0.0;
+    let mut ypanel: f64 = 0.0;
+    let mut xrot: f64 = 0.0;
+    let mut yrot: f64 = 0.0;
+    let mut cxrot: f64 = 0.0;
+    let mut sxrot: f64 = 0.0;
+    let mut cyrot: f64 = 0.0;
+    let mut syrot: f64 = 0.0;
+    let mut xinc: f64 = 0.0;
+    let mut yinc: f64 = 0.0;
+    let mut firsty: f64 = 0.0;
+    let mut sx: f64 = 0.0;
+    let mut sy: f64 = 0.0;
+    let mut sz: f64 = 0.0;
+    let mut ssx: f64 = 0.0;
+    let mut ty: f64 = 0.0;
+    let mut tz: f64 = 0.0;
 
     let mut xsect: f64 = Default::default();
     let mut ypanel: f64 = Default::default();
     let __fa4 = __gs.tor__xdegree;
-    let __tmp5 = degtorad(__rt, __gs, __fa4);
-    xrot = __tmp5;
+    xrot = degtorad(__rt, __gs, __fa4);
     let __fa6 = __gs.tor__ydegree;
-    let __tmp7 = degtorad(__rt, __gs, __fa6);
-    yrot = __tmp7;
+    yrot = degtorad(__rt, __gs, __fa6);
     cxrot = qb_cos(xrot);
     sxrot = qb_sin(xrot);
     cyrot = qb_cos(yrot);
     syrot = qb_sin(yrot);
-    xinc = ((2_f64 * pi) / __gs.tor__sect);
-    yinc = ((2_f64 * pi) / __gs.tor__panel);
-    firsty = ((__gs.tor__thick + 1_f64) * cyrot);
-    t__x1[(0_f64) as usize] = firsty;
-    t__x2[((__gs.tor__sect - 1_f64)) as usize] = firsty;
-    t__x3[((__gs.max - 1_f64)) as usize] = firsty;
+    xinc = ((2.0f64 * pi) / __gs.tor__sect);
+    yinc = ((2.0f64 * pi) / __gs.tor__panel);
+    firsty = ((__gs.tor__thick + 1.0f64) * cyrot);
+    t__x1[(0.0f64) as usize] = firsty;
+    t__x2[((__gs.tor__sect - 1.0f64)) as usize] = firsty;
+    t__x3[((__gs.max - 1.0f64)) as usize] = firsty;
     t__x4[((__gs.max - __gs.tor__sect)) as usize] = firsty;
-    t__y1[(0_f64) as usize] = 0_f64;
-    t__y2[((__gs.tor__sect - 1_f64)) as usize] = 0_f64;
-    t__y3[((__gs.max - 1_f64)) as usize] = 0_f64;
-    t__y4[((__gs.max - __gs.tor__sect)) as usize] = 0_f64;
-    t__z1[(0_f64) as usize] = ((-(__gs.tor__thick + 1_f64)) * syrot);
-    xsect = 1_f64;
-    let __for_to_xsect: f64 = (__gs.tor__sect - 1_f64);
-    let __for_step_xsect: f64 = 1.0_f64;
+    t__y1[(0.0f64) as usize] = 0.0f64;
+    t__y2[((__gs.tor__sect - 1.0f64)) as usize] = 0.0f64;
+    t__y3[((__gs.max - 1.0f64)) as usize] = 0.0f64;
+    t__y4[((__gs.max - __gs.tor__sect)) as usize] = 0.0f64;
+    t__z1[(0.0f64) as usize] = ((-(__gs.tor__thick + 1.0f64)) * syrot);
+    xsect = 1.0f64;
+    let __for_to_xsect: f64 = (__gs.tor__sect - 1.0f64);
+    let __for_step_xsect: f64 = 1.0;
     while (__for_step_xsect > 0.0 && xsect <= __for_to_xsect) || (__for_step_xsect < 0.0 && xsect >= __for_to_xsect) {
-        sx = ((__gs.tor__thick + 1_f64) * qb_cos((xsect * xinc)));
-        sy = (((__gs.tor__thick + 1_f64) * qb_sin((xsect * xinc))) * cxrot);
-        sz = (((__gs.tor__thick + 1_f64) * qb_sin((xsect * xinc))) * sxrot);
+        sx = ((__gs.tor__thick + 1.0f64) * qb_cos((xsect * xinc)));
+        sy = (((__gs.tor__thick + 1.0f64) * qb_sin((xsect * xinc))) * cxrot);
+        sz = (((__gs.tor__thick + 1.0f64) * qb_sin((xsect * xinc))) * sxrot);
         ssx = ((sz * syrot) + (sx * cyrot));
         t__x1[(xsect) as usize] = ssx;
-        t__x2[((xsect - 1_f64)) as usize] = ssx;
-        t__x3[((((__gs.max - __gs.tor__sect) + xsect) - 1_f64)) as usize] = ssx;
+        t__x2[((xsect - 1.0f64)) as usize] = ssx;
+        t__x3[((((__gs.max - __gs.tor__sect) + xsect) - 1.0f64)) as usize] = ssx;
         t__x4[(((__gs.max - __gs.tor__sect) + xsect)) as usize] = ssx;
         t__y1[(xsect) as usize] = sy;
-        t__y2[((xsect - 1_f64)) as usize] = sy;
-        t__y3[((((__gs.max - __gs.tor__sect) + xsect) - 1_f64)) as usize] = sy;
+        t__y2[((xsect - 1.0f64)) as usize] = sy;
+        t__y3[((((__gs.max - __gs.tor__sect) + xsect) - 1.0f64)) as usize] = sy;
         t__y4[(((__gs.max - __gs.tor__sect) + xsect)) as usize] = sy;
         t__z1[(xsect) as usize] = ((sz * cyrot) - (sx * syrot));
         xsect += __for_step_xsect;
     }
-    ypanel = 1_f64;
-    let __for_to_ypanel: f64 = (__gs.tor__panel - 1_f64);
-    let __for_step_ypanel: f64 = 1.0_f64;
+    ypanel = 1.0f64;
+    let __for_to_ypanel: f64 = (__gs.tor__panel - 1.0f64);
+    let __for_step_ypanel: f64 = 1.0;
     while (__for_step_ypanel > 0.0 && ypanel <= __for_to_ypanel) || (__for_step_ypanel < 0.0 && ypanel >= __for_to_ypanel) {
         sx = (__gs.tor__thick + qb_cos((ypanel * yinc)));
         sy = ((-qb_sin((ypanel * yinc))) * sxrot);
         sz = (qb_sin((ypanel * yinc)) * cxrot);
         ssx = ((sz * syrot) + (sx * cyrot));
         t__x1[((__gs.tor__sect * ypanel)) as usize] = ssx;
-        t__x2[(((__gs.tor__sect * (ypanel + 1_f64)) - 1_f64)) as usize] = ssx;
-        t__x3[(((__gs.tor__sect * ypanel) - 1_f64)) as usize] = ssx;
-        t__x4[((__gs.tor__sect * (ypanel - 1_f64))) as usize] = ssx;
+        t__x2[(((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64)) as usize] = ssx;
+        t__x3[(((__gs.tor__sect * ypanel) - 1.0f64)) as usize] = ssx;
+        t__x4[((__gs.tor__sect * (ypanel - 1.0f64))) as usize] = ssx;
         t__y1[((__gs.tor__sect * ypanel)) as usize] = sy;
-        t__y2[(((__gs.tor__sect * (ypanel + 1_f64)) - 1_f64)) as usize] = sy;
-        t__y3[(((__gs.tor__sect * ypanel) - 1_f64)) as usize] = sy;
-        t__y4[((__gs.tor__sect * (ypanel - 1_f64))) as usize] = sy;
+        t__y2[(((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64)) as usize] = sy;
+        t__y3[(((__gs.tor__sect * ypanel) - 1.0f64)) as usize] = sy;
+        t__y4[((__gs.tor__sect * (ypanel - 1.0f64))) as usize] = sy;
         t__z1[((__gs.tor__sect * ypanel)) as usize] = ((sz * cyrot) - (sx * syrot));
-        xsect = 1_f64;
-        let __for_to_xsect: f64 = (__gs.tor__sect - 1_f64);
-        let __for_step_xsect: f64 = 1.0_f64;
+        xsect = 1.0f64;
+        let __for_to_xsect: f64 = (__gs.tor__sect - 1.0f64);
+        let __for_step_xsect: f64 = 1.0;
         while (__for_step_xsect > 0.0 && xsect <= __for_to_xsect) || (__for_step_xsect < 0.0 && xsect >= __for_to_xsect) {
             counttiles(__rt, __gs, &mut xsect, &mut ypanel);
             ty = ((__gs.tor__thick + qb_cos((ypanel * yinc))) * qb_sin((xsect * xinc)));
@@ -437,38 +437,38 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
             sz = ((ty * sxrot) + (tz * cxrot));
             ssx = ((sz * syrot) + (sx * cyrot));
             t__x1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = ssx;
-            t__x2[((((__gs.tor__sect * ypanel) + xsect) - 1_f64)) as usize] = ssx;
-            t__x3[((((__gs.tor__sect * (ypanel - 1_f64)) + xsect) - 1_f64)) as usize] = ssx;
-            t__x4[(((__gs.tor__sect * (ypanel - 1_f64)) + xsect)) as usize] = ssx;
+            t__x2[((((__gs.tor__sect * ypanel) + xsect) - 1.0f64)) as usize] = ssx;
+            t__x3[((((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64)) as usize] = ssx;
+            t__x4[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect)) as usize] = ssx;
             t__y1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = sy;
-            t__y2[((((__gs.tor__sect * ypanel) + xsect) - 1_f64)) as usize] = sy;
-            t__y3[((((__gs.tor__sect * (ypanel - 1_f64)) + xsect) - 1_f64)) as usize] = sy;
-            t__y4[(((__gs.tor__sect * (ypanel - 1_f64)) + xsect)) as usize] = sy;
+            t__y2[((((__gs.tor__sect * ypanel) + xsect) - 1.0f64)) as usize] = sy;
+            t__y3[((((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64)) as usize] = sy;
+            t__y4[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect)) as usize] = sy;
             t__z1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = ((sz * cyrot) - (sx * syrot));
             xsect += __for_step_xsect;
         }
         ypanel += __for_step_ypanel;
     }
-    let mut __tmp_num8: f64 = (-1_f64);
-    let mut __tmp_num9: f64 = (-1_f64);
+    let mut __tmp_num8: f64 = (-1.0f64);
+    let mut __tmp_num9: f64 = (-1.0f64);
     counttiles(__rt, __gs, &mut __tmp_num8, &mut __tmp_num9);
 }
 
 fn toruscolor(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__x2: &mut Vec<f64>, t__x3: &mut Vec<f64>, t__x4: &mut Vec<f64>, t__y1: &mut Vec<f64>, t__y2: &mut Vec<f64>, t__y3: &mut Vec<f64>, t__y4: &mut Vec<f64>, t__z1: &mut Vec<f64>, t__xc: &mut Vec<f64>, t__yc: &mut Vec<f64>, t__tcolor: &mut Vec<f64>) {
-    let mut lastatr: f64 = 0.0_f64;
-    let mut atr: f64 = 0.0_f64;
-    let mut til: f64 = 0.0_f64;
+    let mut lastatr: f64 = 0.0;
+    let mut atr: f64 = 0.0;
+    let mut til: f64 = 0.0;
 
-    lastatr = (__gs.vc__atribs - 2_f64);
-    atr = 1_f64;
-    til = 0_f64;
-    let __for_to_til: f64 = (__gs.max - 1_f64);
-    let __for_step_til: f64 = 1.0_f64;
+    lastatr = (__gs.vc__atribs - 2.0f64);
+    atr = 1.0f64;
+    til = 0.0f64;
+    let __for_to_til: f64 = (__gs.max - 1.0f64);
+    let __for_step_til: f64 = 1.0;
     while (__for_step_til > 0.0 && til <= __for_to_til) || (__for_step_til < 0.0 && til >= __for_to_til) {
-        if qb_bool(qb_from_bool(atr >= lastatr)) {
-            atr = 1_f64;
+        if atr >= lastatr {
+            atr = 1.0f64;
         } else {
-            atr = (atr + 1_f64);
+            atr = (atr + 1.0f64);
         }
         t__tcolor[(til) as usize] = atr;
         til += __for_step_til;
@@ -476,149 +476,141 @@ fn toruscolor(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t_
 }
 
 fn torusdefine(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut available_s: String = String::new();
-    let mut fields: f64 = 0.0_f64;
-    let mut ky: f64 = 0.0_f64;
-    let mut fld: f64 = 0.0_f64;
+    let mut fields: f64 = 0.0;
+    let mut ky: f64 = 0.0;
+    let mut fld: f64 = 0.0;
     let mut k_s: String = String::new();
-    let mut inc: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
+    let mut inc: f64 = 0.0;
+    let mut i: f64 = 0.0;
 
-    let enter: f64 = 13_f64;
-    let escape: f64 = 27_f64;
-    let downarrow: f64 = 80_f64;
-    let uparrow: f64 = 72_f64;
-    let leftarrow: f64 = 75_f64;
-    let rightarrow: f64 = 77_f64;
-    let col1: f64 = 20_f64;
-    let col2: f64 = 50_f64;
-    let row: f64 = 9_f64;
-    __rt.locate(Some(1_f64), Some(col1), None);
+    let enter: f64 = 13.0f64;
+    let escape: f64 = 27.0f64;
+    let downarrow: f64 = 80.0f64;
+    let uparrow: f64 = 72.0f64;
+    let leftarrow: f64 = 75.0f64;
+    let rightarrow: f64 = 77.0f64;
+    let col1: f64 = 20.0f64;
+    let col2: f64 = 50.0f64;
+    let row: f64 = 9.0f64;
+    __rt.locate(Some(1.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("UP .............. Move to next field"))]);
-    __rt.locate(Some(2_f64), Some(col1), None);
+    __rt.locate(Some(2.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("DOWN ........ Move to previous field"))]);
-    __rt.locate(Some(3_f64), Some(col1), None);
+    __rt.locate(Some(3.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("LEFT ......... Rotate field value up"))]);
-    __rt.locate(Some(4_f64), Some(col1), None);
+    __rt.locate(Some(4.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("RIGHT ...... Rotate field value down"))]);
-    __rt.locate(Some(5_f64), Some(col1), None);
+    __rt.locate(Some(5.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("ENTER .... Start with current values"))]);
-    __rt.locate(Some(6_f64), Some(col1), None);
+    __rt.locate(Some(6.0f64), Some(col1), None);
     __rt.println(&[qb_str(&("ESCAPE .................. Quit Torus"))]);
-    __rt.locate(Some(row), Some(col1), Some(1_f64));
+    __rt.locate(Some(row), Some(col1), Some(1.0f64));
     __rt.locate(Some(row), Some(col1), None);
     __rt.print(&[qb_str(&("Thickness"))]);
     __rt.locate(Some(row), Some(col2), None);
     let __pu10 = qb_print_using(&("[ # ]"), &[QbVal::Num(__gs.tor__thick)]);
     __rt.print(&[__pu10]);
-    __rt.locate(Some((row + 2_f64)), Some(col1), None);
+    __rt.locate(Some((row + 2.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Panels per Section"))]);
-    __rt.locate(Some((row + 2_f64)), Some(col2), None);
+    __rt.locate(Some((row + 2.0f64)), Some(col2), None);
     let __pu11 = qb_print_using(&("[ ## ]"), &[QbVal::Num(__gs.tor__panel)]);
     __rt.print(&[__pu11]);
-    __rt.locate(Some((row + 4_f64)), Some(col1), None);
+    __rt.locate(Some((row + 4.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Sections per Torus"))]);
-    __rt.locate(Some((row + 4_f64)), Some(col2), None);
+    __rt.locate(Some((row + 4.0f64)), Some(col2), None);
     let __pu12 = qb_print_using(&("[ ## ]"), &[QbVal::Num(__gs.tor__sect)]);
     __rt.print(&[__pu12]);
-    __rt.locate(Some((row + 6_f64)), Some(col1), None);
+    __rt.locate(Some((row + 6.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Tilt around Horizontal Axis"))]);
-    __rt.locate(Some((row + 6_f64)), Some(col2), None);
+    __rt.locate(Some((row + 6.0f64)), Some(col2), None);
     let __pu13 = qb_print_using(&("[ ### ]"), &[QbVal::Num(__gs.tor__xdegree)]);
     __rt.print(&[__pu13]);
-    __rt.locate(Some((row + 8_f64)), Some(col1), None);
+    __rt.locate(Some((row + 8.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Tilt around Vertical Axis"))]);
-    __rt.locate(Some((row + 8_f64)), Some(col2), None);
+    __rt.locate(Some((row + 8.0f64)), Some(col2), None);
     let __pu14 = qb_print_using(&("[ ### ]"), &[QbVal::Num(__gs.tor__ydegree)]);
     __rt.print(&[__pu14]);
-    __rt.locate(Some((row + 10_f64)), Some(col1), None);
+    __rt.locate(Some((row + 10.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Tile Border"))]);
-    __rt.locate(Some((row + 10_f64)), Some(col2), None);
+    __rt.locate(Some((row + 10.0f64)), Some(col2), None);
     let __pu_s15 = (__gs.tor__bord).to_string();
     let __pu16 = qb_print_using(&("[ & ] "), &[QbVal::Str(&__pu_s15)]);
     __rt.print(&[__pu16]);
-    __rt.locate(Some((row + 12_f64)), Some(col1), None);
+    __rt.locate(Some((row + 12.0f64)), Some(col1), None);
     __rt.print(&[qb_str(&("Screen Mode"))]);
-    __rt.locate(Some((row + 12_f64)), Some(col2), None);
+    __rt.locate(Some((row + 12.0f64)), Some(col2), None);
     let __pu17 = qb_print_using(&("[ ## ]"), &[QbVal::Num(__gs.vc__scrn)]);
     __rt.println(&[__pu17]);
-    if qb_bool(qb_from_bool(qb_len(&(__gs.available)) == 1_f64)) {
-        fields = 10_f64;
+    if qb_len(&(__gs.available)) == 1.0f64 {
+        fields = 10.0f64;
     } else {
-        fields = 12_f64;
+        fields = 12.0f64;
     }
     loop {
-        __rt.locate(Some((row + fld)), Some((col2 + 2_f64)), None);
+        __rt.locate(Some((row + fld)), Some((col2 + 2.0f64)), None);
         loop {
             let __tmp18 = __rt.inkey();
             k_s = (__tmp18).to_string();
-            if !qb_bool(qb_from_bool((k_s).as_str() == "")) { break; }
+            if !((k_s).as_str() == "") { break; }
         }
-        ky = qb_asc(&(qb_right(&(k_s), 1_f64)));
+        ky = qb_asc(&(qb_right(&(k_s), 1.0f64)));
         let __sel = ky;
         if __sel == escape {
             __rt.cls(0u8);
             __rt.quit();
         } else if __sel == uparrow || __sel == downarrow {
-            if qb_bool(qb_from_bool(ky == downarrow)) {
-                inc = 2_f64;
+            if ky == downarrow {
+                inc = 2.0f64;
             } else {
-                inc = (-2_f64);
+                inc = (-2.0f64);
             }
-            let __tmp19 = rotated(__rt, __gs, 0_f64, fields, fld, inc);
-            fld = __tmp19;
+            fld = rotated(__rt, __gs, 0.0f64, fields, fld, inc);
         } else if __sel == rightarrow || __sel == leftarrow {
-            if qb_bool(qb_from_bool(ky == rightarrow)) {
-                inc = 1_f64;
+            if ky == rightarrow {
+                inc = 1.0f64;
             } else {
-                inc = (-1_f64);
+                inc = (-1.0f64);
             }
             let __sel = fld;
-            if __sel == 0_f64 {
+            if __sel == 0.0f64 {
                 let __fa20 = qb_int(__gs.tor__thick);
-                let __tmp21 = rotated(__rt, __gs, 1_f64, 9_f64, __fa20, inc);
-                __gs.tor__thick = __tmp21;
+                __gs.tor__thick = rotated(__rt, __gs, 1.0f64, 9.0f64, __fa20, inc);
                 let __pu22 = qb_print_using(&("#"), &[QbVal::Num(__gs.tor__thick)]);
                 __rt.println(&[__pu22]);
-            } else if __sel == 2_f64 {
+            } else if __sel == 2.0f64 {
                 let __fa23 = __gs.tor__panel;
-                let __tmp24 = rotated(__rt, __gs, 6_f64, 20_f64, __fa23, inc);
-                __gs.tor__panel = __tmp24;
+                __gs.tor__panel = rotated(__rt, __gs, 6.0f64, 20.0f64, __fa23, inc);
                 let __pu25 = qb_print_using(&("##"), &[QbVal::Num(__gs.tor__panel)]);
                 __rt.println(&[__pu25]);
-            } else if __sel == 4_f64 {
+            } else if __sel == 4.0f64 {
                 let __fa26 = __gs.tor__sect;
-                let __tmp27 = rotated(__rt, __gs, 6_f64, 20_f64, __fa26, inc);
-                __gs.tor__sect = __tmp27;
+                __gs.tor__sect = rotated(__rt, __gs, 6.0f64, 20.0f64, __fa26, inc);
                 let __pu28 = qb_print_using(&("##"), &[QbVal::Num(__gs.tor__sect)]);
                 __rt.println(&[__pu28]);
-            } else if __sel == 6_f64 {
+            } else if __sel == 6.0f64 {
                 let __fa29 = __gs.tor__xdegree;
-                let __tmp30 = rotated(__rt, __gs, 0_f64, 345_f64, __fa29, (15_f64 * inc));
-                __gs.tor__xdegree = __tmp30;
+                __gs.tor__xdegree = rotated(__rt, __gs, 0.0f64, 345.0f64, __fa29, (15.0f64 * inc));
                 let __pu31 = qb_print_using(&("###"), &[QbVal::Num(__gs.tor__xdegree)]);
                 __rt.println(&[__pu31]);
-            } else if __sel == 8_f64 {
+            } else if __sel == 8.0f64 {
                 let __fa32 = __gs.tor__ydegree;
-                let __tmp33 = rotated(__rt, __gs, 0_f64, 345_f64, __fa32, (15_f64 * inc));
-                __gs.tor__ydegree = __tmp33;
+                __gs.tor__ydegree = rotated(__rt, __gs, 0.0f64, 345.0f64, __fa32, (15.0f64 * inc));
                 let __pu34 = qb_print_using(&("###"), &[QbVal::Num(__gs.tor__ydegree)]);
                 __rt.println(&[__pu34]);
-            } else if __sel == 10_f64 {
-                if qb_bool(qb_from_bool(__gs.vc__atribs > 2_f64)) {
-                    if qb_bool(qb_from_bool(__gs.tor__bord == "YES")) {
+            } else if __sel == 10.0f64 {
+                if __gs.vc__atribs > 2.0f64 {
+                    if __gs.tor__bord == "YES" {
                         __gs.tor__bord = ("NO").to_string();
                     } else {
                         __gs.tor__bord = ("YES").to_string();
                     }
                 }
                 __rt.println(&[qb_str(&(__gs.tor__bord))]);
-            } else if __sel == 12_f64 {
+            } else if __sel == 12.0f64 {
                 i = qb_instr(1.0, &(__gs.available), &(qb_hex(__gs.vc__scrn)));
                 let __fa35 = qb_len(&(__gs.available));
-                let __tmp36 = rotated(__rt, __gs, 1_f64, __fa35, i, inc);
-                i = __tmp36;
-                __gs.vc__scrn = qb_val(&(format!("{}{}" ,"&h",qb_mid(&(__gs.available), i, Some(1_f64)))));
+                i = rotated(__rt, __gs, 1.0f64, __fa35, i, inc);
+                __gs.vc__scrn = qb_val(&(format!("{}{}" ,"&h",qb_mid(&(__gs.available), i, Some(1.0f64)))));
                 let __pu37 = qb_print_using(&("##"), &[QbVal::Num(__gs.vc__scrn)]);
                 __rt.println(&[__pu37]);
             } else {
@@ -627,26 +619,26 @@ fn torusdefine(__rt: &mut Runtime, __gs: &mut GameState) {
         }
         let mut __tmp_num38: f64 = __gs.vc__scrn;
         setconfig(__rt, __gs, &mut __tmp_num38);
-        if qb_bool(qb_from_bool(ky == enter)) { break; }
+        if ky == enter { break; }
     }
-    __rt.locate(Some(1_f64), Some(1_f64), Some(0_f64));
+    __rt.locate(Some(1.0f64), Some(1.0f64), Some(0.0f64));
     let __sel = __gs.vc__scrn;
-    if __sel == 1_f64 {
-        __gs.tor__delay = 0.3_f64;
-    } else if __sel == 2_f64 || __sel == 3_f64 || __sel == 10_f64 || __sel == 11_f64 || __sel == 13_f64 {
-        __gs.tor__delay = 0_f64;
+    if __sel == 1.0f64 {
+        __gs.tor__delay = 0.3f64;
+    } else if __sel == 2.0f64 || __sel == 3.0f64 || __sel == 10.0f64 || __sel == 11.0f64 || __sel == 13.0f64 {
+        __gs.tor__delay = 0.0f64;
     } else {
-        __gs.tor__delay = 0.05_f64;
+        __gs.tor__delay = 0.05f64;
     }
     __rt.randomize(qb_timer());
 }
 
 fn torusdraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__x2: &mut Vec<f64>, t__x3: &mut Vec<f64>, t__x4: &mut Vec<f64>, t__y1: &mut Vec<f64>, t__y2: &mut Vec<f64>, t__y3: &mut Vec<f64>, t__y4: &mut Vec<f64>, t__z1: &mut Vec<f64>, t__xc: &mut Vec<f64>, t__yc: &mut Vec<f64>, t__tcolor: &mut Vec<f64>, index: &mut Vec<f64>) {
-    let mut til: f64 = 0.0_f64;
+    let mut til: f64 = 0.0;
 
-    til = 0_f64;
-    let __for_to_til: f64 = (__gs.max - 1_f64);
-    let __for_step_til: f64 = 1.0_f64;
+    til = 0.0f64;
+    let __for_to_til: f64 = (__gs.max - 1.0f64);
+    let __for_step_til: f64 = 1.0;
     while (__for_step_til > 0.0 && til <= __for_to_til) || (__for_step_til < 0.0 && til >= __for_to_til) {
         let __taidx39 = (index[(til) as usize]) as usize;
         tiledraw(__rt, __gs, &mut t__x1[__taidx39], &mut t__x2[__taidx39], &mut t__x3[__taidx39], &mut t__x4[__taidx39], &mut t__y1[__taidx39], &mut t__y2[__taidx39], &mut t__y3[__taidx39], &mut t__y4[__taidx39], &mut t__z1[__taidx39], &mut t__xc[__taidx39], &mut t__yc[__taidx39], &mut t__tcolor[__taidx39]);
@@ -655,60 +647,60 @@ fn torusdraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
 }
 
 fn torusrotate(__rt: &mut Runtime, __gs: &mut GameState, first: &mut f64) {
-    let mut temp: f64 = 0.0_f64;
-    let mut firstclr: f64 = 0.0_f64;
-    let mut lastclr: f64 = 0.0_f64;
-    let mut lastatr: f64 = 0.0_f64;
-    let mut work: f64 = 0.0_f64;
-    let mut atr: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut toggle: f64 = 0.0_f64;
+    let temp: f64 = 0.0;
+    let mut firstclr: f64 = 0.0;
+    let mut lastclr: f64 = 0.0;
+    let mut lastatr: f64 = 0.0;
+    let mut work: f64 = 0.0;
+    let mut atr: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut toggle: f64 = 0.0;
 
-    let mut temp: f64 = Default::default();
+    let temp: f64 = Default::default();
     if qb_bool(__gs.vc__colors) {
         let __sel = (*first);
         if __sel == rndm {
             let __tmp40 = __rt.rnd();
             firstclr = qb_int((__tmp40 * __gs.vc__colors));
         } else if __sel == start {
-            firstclr = 0_f64;
+            firstclr = 0.0f64;
         } else {
-            firstclr = (firstclr - 1_f64);
+            firstclr = (firstclr - 1.0f64);
         }
-        if qb_bool(qb_from_bool(__gs.vc__colors > (__gs.max - 1_f64))) {
-            lastclr = (__gs.max - 1_f64);
+        if __gs.vc__colors > (__gs.max - 1.0f64) {
+            lastclr = (__gs.max - 1.0f64);
         } else {
-            lastclr = (__gs.vc__colors - 1_f64);
+            lastclr = (__gs.vc__colors - 1.0f64);
         }
-        if qb_bool(qb_or(qb_from_bool(firstclr < 0_f64), qb_from_bool(firstclr >= lastclr))) {
+        if qb_bool(qb_or(qb_from_bool(firstclr < 0.0f64), qb_from_bool(firstclr >= lastclr))) {
             firstclr = lastclr;
         }
-        if qb_bool(qb_from_bool(__gs.vc__atribs == 2_f64)) {
-            lastatr = (__gs.vc__atribs - 1_f64);
+        if __gs.vc__atribs == 2.0f64 {
+            lastatr = (__gs.vc__atribs - 1.0f64);
         } else {
-            if qb_bool(qb_from_bool(lastclr < (__gs.vc__atribs - 2_f64))) {
+            if lastclr < (__gs.vc__atribs - 2.0f64) {
                 lastatr = lastclr;
             } else {
-                lastatr = (__gs.vc__atribs - 2_f64);
+                lastatr = (__gs.vc__atribs - 2.0f64);
             }
         }
         work = firstclr;
         atr = lastatr;
-        let __for_to_atr: f64 = 1_f64;
-        let __for_step_atr: f64 = (-1_f64);
+        let __for_to_atr: f64 = 1.0f64;
+        let __for_step_atr: f64 = (-1.0f64);
         while (__for_step_atr > 0.0 && atr <= __for_to_atr) || (__for_step_atr < 0.0 && atr >= __for_to_atr) {
             __rt.palette(atr, __gs.pal[(work) as usize]);
-            work = (work - 1_f64);
-            if qb_bool(qb_from_bool(work < 0_f64)) {
+            work = (work - 1.0f64);
+            if work < 0.0f64 {
                 work = lastclr;
             }
             atr += __for_step_atr;
         }
     }
-    if qb_bool(qb_from_bool(__gs.vc__atribs == 2_f64)) {
-        i = 0_f64;
-        let __for_to_i: f64 = (__gs.max - 1_f64);
-        let __for_step_i: f64 = 1.0_f64;
+    if __gs.vc__atribs == 2.0f64 {
+        i = 0.0f64;
+        let __for_to_i: f64 = (__gs.max - 1.0f64);
+        let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             __gs.t__tcolor[(i) as usize] = toggle;
             i += __for_step_i;
@@ -740,31 +732,31 @@ fn torusrotate(__rt: &mut Runtime, __gs: &mut GameState, first: &mut f64) {
         __gs.t__yc = __taf51;
         __gs.t__tcolor = __taf52;
         __gs.index = __saf53;
-        toggle = qb_mod((toggle + 1_f64), 2_f64);
+        toggle = qb_mod((toggle + 1.0f64), 2.0f64);
     }
-    if qb_bool(qb_and(qb_from_bool(__gs.vc__scrn == 1_f64), qb_or(qb_from_bool(__gs.bestmode == cga), qb_from_bool(__gs.bestmode == mcga)))) {
-        __rt.color(7.0_f64, Some(toggle));
-        toggle = qb_mod((toggle + 1_f64), 2_f64);
+    if qb_bool(qb_and(qb_from_bool(__gs.vc__scrn == 1.0f64), qb_or(qb_from_bool(__gs.bestmode == cga), qb_from_bool(__gs.bestmode == mcga)))) {
+        __rt.color(7.0, Some(toggle));
+        toggle = qb_mod((toggle + 1.0f64), 2.0f64);
         return; // EXIT SUB
     }
 }
 
 fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut f64) {
-    let mut partition: f64 = 0.0_f64;
-    let mut randindex: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut j: f64 = 0.0_f64;
+    let mut partition: f64 = 0.0;
+    let mut randindex: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut j: f64 = 0.0;
 
     let mut partition: f64 = Default::default();
-    if qb_bool(qb_from_bool((*low) < (*high))) {
-        if qb_bool(qb_from_bool(((*high) - (*low)) == 1_f64)) {
-            if qb_bool(qb_from_bool(__gs.t__z1[(__gs.index[((*low)) as usize]) as usize] > __gs.t__z1[(__gs.index[((*high)) as usize]) as usize])) {
+    if (*low) < (*high) {
+        if ((*high) - (*low)) == 1.0f64 {
+            if __gs.t__z1[(__gs.index[((*low)) as usize]) as usize] > __gs.t__z1[(__gs.index[((*high)) as usize]) as usize] {
                 counttiles(__rt, __gs, high, low);
                 __gs.index.swap(((*low)) as usize, ((*high)) as usize);
             }
         } else {
             let __tmp54 = __rt.rnd();
-            randindex = (qb_int((__tmp54 * (((*high) - (*low)) + 1_f64))) + (*low));
+            randindex = (qb_int((__tmp54 * (((*high) - (*low)) + 1.0f64))) + (*low));
             counttiles(__rt, __gs, high, low);
             __gs.index.swap(((*high)) as usize, (randindex) as usize);
             partition = __gs.t__z1[(__gs.index[((*high)) as usize]) as usize];
@@ -772,28 +764,28 @@ fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
                 i = (*low);
                 j = (*high);
                 while qb_bool(qb_and(qb_from_bool(i < j), qb_from_bool(__gs.t__z1[(__gs.index[(i) as usize]) as usize] <= partition))) {
-                    i = (i + 1_f64);
+                    i = (i + 1.0f64);
                 }
                 while qb_bool(qb_and(qb_from_bool(j > i), qb_from_bool(__gs.t__z1[(__gs.index[(j) as usize]) as usize] >= partition))) {
-                    j = (j - 1_f64);
+                    j = (j - 1.0f64);
                 }
-                if qb_bool(qb_from_bool(i < j)) {
+                if i < j {
                     counttiles(__rt, __gs, high, low);
                     __gs.index.swap((i) as usize, (j) as usize);
                 }
-                if !qb_bool(qb_from_bool(i < j)) { break; }
+                if !(i < j) { break; }
             }
             counttiles(__rt, __gs, high, low);
             __gs.index.swap((i) as usize, ((*high)) as usize);
-            if qb_bool(qb_from_bool((i - (*low)) < ((*high) - i))) {
-                let mut __tmp_num55: f64 = (i - 1_f64);
+            if (i - (*low)) < ((*high) - i) {
+                let mut __tmp_num55: f64 = (i - 1.0f64);
                 torussort(__rt, __gs, low, &mut __tmp_num55);
-                let mut __tmp_num56: f64 = (i + 1_f64);
+                let mut __tmp_num56: f64 = (i + 1.0f64);
                 torussort(__rt, __gs, &mut __tmp_num56, high);
             } else {
-                let mut __tmp_num57: f64 = (i + 1_f64);
+                let mut __tmp_num57: f64 = (i + 1.0f64);
                 torussort(__rt, __gs, &mut __tmp_num57, high);
-                let mut __tmp_num58: f64 = (i - 1_f64);
+                let mut __tmp_num58: f64 = (i - 1.0f64);
                 torussort(__rt, __gs, low, &mut __tmp_num58);
             }
         }
@@ -802,73 +794,69 @@ fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
 
 fn degtorad(__rt: &mut Runtime, __gs: &mut GameState, mut degrees: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    __fn_ret = (((degrees * 2_f64) * pi) / 360_f64);
+    __fn_ret = (((degrees * 2.0f64) * pi) / 360.0f64);
     __fn_ret
 }
 
 fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut f64, t__x3: &mut f64, t__x4: &mut f64, t__y1: &mut f64, t__y2: &mut f64, t__y3: &mut f64, t__y4: &mut f64, t__z1: &mut f64, t__xc: &mut f64, t__yc: &mut f64, t__tcolor: &mut f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
-    let mut highest: f64 = 0.0_f64;
-    let mut lowest: f64 = 0.0_f64;
-    let mut border: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut yu: f64 = 0.0_f64;
-    let mut yd: f64 = 0.0_f64;
-    let mut h: f64 = 0.0_f64;
-    let mut l: f64 = 0.0_f64;
-    let mut isup: f64 = 0.0_f64;
-    let mut isdown: f64 = 0.0_f64;
+    let mut highest: f64 = 0.0;
+    let mut lowest: f64 = 0.0;
+    let mut border: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut yu: f64 = 0.0;
+    let mut yd: f64 = 0.0;
+    let mut h: f64 = 0.0;
+    let mut l: f64 = 0.0;
+    let mut isup: f64 = 0.0;
+    let mut isdown: f64 = 0.0;
 
     let mut highest: f64 = Default::default();
     let mut lowest: f64 = Default::default();
-    border = (__gs.vc__atribs - 1_f64);
-    (*t__xc) = ((*t__x2) + ((((*t__x3) + (((*t__x4) - (*t__x3)) / 2_f64)) - (*t__x2)) / 2_f64));
-    (*t__yc) = ((*t__y2) + ((((*t__y3) + (((*t__y4) - (*t__y3)) / 2_f64)) - (*t__y2)) / 2_f64));
-    if qb_bool(qb_from_bool(__rt.point((*t__xc), (*t__yc)) == border)) {
+    border = (__gs.vc__atribs - 1.0f64);
+    (*t__xc) = ((*t__x2) + ((((*t__x3) + (((*t__x4) - (*t__x3)) / 2.0f64)) - (*t__x2)) / 2.0f64));
+    (*t__yc) = ((*t__y2) + ((((*t__y3) + (((*t__y4) - (*t__y3)) / 2.0f64)) - (*t__y2)) / 2.0f64));
+    if __rt.point((*t__xc), (*t__yc)) == border {
         __fn_ret = qb_false;
         return __fn_ret; // EXIT FUNCTION
     }
     highest = (*t__y1);
     lowest = (*t__y1);
-    if qb_bool(qb_from_bool((*t__y2) > highest)) {
+    if (*t__y2) > highest {
         highest = (*t__y2);
     }
-    if qb_bool(qb_from_bool((*t__y2) < lowest)) {
+    if (*t__y2) < lowest {
         lowest = (*t__y2);
     }
-    if qb_bool(qb_from_bool((*t__y3) > highest)) {
+    if (*t__y3) > highest {
         highest = (*t__y3);
     }
-    if qb_bool(qb_from_bool((*t__y3) < lowest)) {
+    if (*t__y3) < lowest {
         lowest = (*t__y3);
     }
-    if qb_bool(qb_from_bool((*t__y4) > highest)) {
+    if (*t__y4) > highest {
         highest = (*t__y4);
     }
-    if qb_bool(qb_from_bool((*t__y4) < lowest)) {
+    if (*t__y4) < lowest {
         lowest = (*t__y4);
     }
-    let __tmp59 = __rt.pmap((*t__xc), 0_f64);
-    x = __tmp59;
-    let __tmp60 = __rt.pmap((*t__yc), 1_f64);
-    yu = __tmp60;
+    x = __rt.pmap((*t__xc), 0.0f64);
+    yu = __rt.pmap((*t__yc), 1.0f64);
     yd = yu;
-    let __tmp61 = __rt.pmap(highest, 1_f64);
-    h = __tmp61;
-    let __tmp62 = __rt.pmap(lowest, 1_f64);
-    l = __tmp62;
+    h = __rt.pmap(highest, 1.0f64);
+    l = __rt.pmap(lowest, 1.0f64);
     isup = qb_false;
     isdown = qb_false;
     loop {
-        yu = (yu - 1_f64);
-        yd = (yd + 1_f64);
+        yu = (yu - 1.0f64);
+        yd = (yd + 1.0f64);
         if qb_bool(qb_not(isup)) {
-            if qb_bool(qb_from_bool(__rt.point((*t__xc), __rt.pmap(yu, 3_f64)) == border)) {
+            if __rt.point((*t__xc), __rt.pmap(yu, 3.0f64)) == border {
                 isup = qb_true;
             }
         }
         if qb_bool(qb_not(isdown)) {
-            if qb_bool(qb_from_bool(__rt.point((*t__xc), __rt.pmap(yd, 3_f64)) == border)) {
+            if __rt.point((*t__xc), __rt.pmap(yd, 3.0f64)) == border {
                 isdown = qb_true;
             }
         }
@@ -885,10 +873,10 @@ fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut
 fn rotated(__rt: &mut Runtime, __gs: &mut GameState, mut lower: f64, mut upper: f64, mut current: f64, mut inc: f64) -> f64 {
     let mut __fn_ret: f64 = Default::default();
     current = (current + inc);
-    if qb_bool(qb_from_bool(current > upper)) {
+    if current > upper {
         current = lower;
     }
-    if qb_bool(qb_from_bool(current < lower)) {
+    if current < lower {
         current = upper;
     }
     __fn_ret = current;
@@ -896,21 +884,21 @@ fn rotated(__rt: &mut Runtime, __gs: &mut GameState, mut lower: f64, mut upper: 
 }
 
 fn memerr(__rt: &mut Runtime, __gs: &mut GameState) {
-    __rt.locate(Some(22_f64), Some(1_f64), None);
+    __rt.locate(Some(22.0f64), Some(1.0f64), None);
     __rt.println(&[qb_str(&("Out of memory"))]);
-    __rt.println(&[qb_str(&("Reducing panels from")), qb_print_num(__gs.tor__panel), qb_str(&("to")), qb_print_num((__gs.tor__panel - 1_f64))]);
-    __rt.print(&[qb_str(&("Reducing sections from")), qb_print_num(__gs.tor__sect), qb_str(&("to")), qb_print_num((__gs.tor__sect - 1_f64))]);
-    while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+    __rt.println(&[qb_str(&("Reducing panels from")), qb_print_num(__gs.tor__panel), qb_str(&("to")), qb_print_num((__gs.tor__panel - 1.0f64))]);
+    __rt.print(&[qb_str(&("Reducing sections from")), qb_print_num(__gs.tor__sect), qb_str(&("to")), qb_print_num((__gs.tor__sect - 1.0f64))]);
+    while (__rt.inkey()).as_str() == "" {
     }
-    __gs.tor__panel = (__gs.tor__panel - 1_f64);
-    __gs.tor__sect = (__gs.tor__sect - 1_f64);
+    __gs.tor__panel = (__gs.tor__panel - 1.0f64);
+    __gs.tor__sect = (__gs.tor__sect - 1.0f64);
     __rt.error_pending = false;
     // label: RowErr
-    if qb_bool(qb_from_bool(__gs.initrows == 50_f64)) {
-        __gs.initrows = 43_f64;
+    if __gs.initrows == 50.0f64 {
+        __gs.initrows = 43.0f64;
         __rt.error_pending = false;
     } else {
-        __gs.initrows = 25_f64;
+        __gs.initrows = 25.0f64;
         __rt.error_pending = false;
     }
 }
@@ -919,17 +907,17 @@ fn main() {
     let mut __rt = Runtime::new();
     let mut __gs = GameState::default();
 
-    let mut available_s: String = String::new();
-    let mut tmp: f64 = 0.0_f64;
-    let mut til: f64 = 0.0_f64;
+    let available_s: String = String::new();
+    let mut tmp: f64 = 0.0;
+    let mut til: f64 = 0.0;
 
-    __gs.pal = vec![Default::default(); (300_f64+1.0) as usize];
-    __gs.tor__thick = 3_f64;
+    __gs.pal = vec![Default::default(); (300.0f64+1.0) as usize];
+    __gs.tor__thick = 3.0f64;
     __gs.tor__bord = ("YES").to_string();
-    __gs.tor__panel = 8_f64;
-    __gs.tor__sect = 14_f64;
-    __gs.tor__xdegree = 60_f64;
-    __gs.tor__ydegree = 165_f64;
+    __gs.tor__panel = 8.0f64;
+    __gs.tor__sect = 14.0f64;
+    __gs.tor__xdegree = 60.0f64;
+    __gs.tor__ydegree = 165.0f64;
     getconfig(&mut __rt, &mut __gs);
     __gs.vc__scrn = __gs.bestmode;
     while qb_bool(qb_true) {
@@ -937,24 +925,24 @@ fn main() {
         loop {
             tmp = __gs.tor__panel;
             __gs.max = (__gs.tor__panel * __gs.tor__sect);
-            __gs.index.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__x1.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__x2.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__x3.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__x4.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__y1.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__y2.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__y3.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__y4.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__z1.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__xc.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__yc.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            __gs.t__tcolor.resize(((__gs.max - 1_f64)+1.0) as usize, Default::default());
-            if qb_bool(qb_from_bool(tmp == __gs.tor__panel)) { break; }
+            __gs.index.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__x1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__x2.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__x3.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__x4.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__y1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__y2.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__y3.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__y4.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__z1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__xc.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__yc.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.t__tcolor.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            if tmp == __gs.tor__panel { break; }
         }
-        til = 0_f64;
-        let __for_to_til: f64 = (__gs.max - 1_f64);
-        let __for_step_til: f64 = 1.0_f64;
+        til = 0.0f64;
+        let __for_to_til: f64 = (__gs.max - 1.0f64);
+        let __for_step_til: f64 = 1.0;
         while (__for_step_til > 0.0 && til <= __for_to_til) || (__for_step_til < 0.0 && til >= __for_to_til) {
             __gs.index[(til) as usize] = til;
             til += __for_step_til;
@@ -1013,12 +1001,12 @@ fn main() {
         __gs.t__tcolor = __taf87;
         let mut __tmp_str88 = ("Sorting").to_string();
         message(&mut __rt, &mut __gs, &mut __tmp_str88);
-        let mut __tmp_num89: f64 = 0_f64;
-        let mut __tmp_num90: f64 = (__gs.max - 1_f64);
+        let mut __tmp_num89: f64 = 0.0f64;
+        let mut __tmp_num90: f64 = (__gs.max - 1.0f64);
         torussort(&mut __rt, &mut __gs, &mut __tmp_num89, &mut __tmp_num90);
         __rt.screen(__gs.vc__scrn);
         setpalette(&mut __rt, &mut __gs);
-        __rt.set_window((-(__gs.tor__thick + 1_f64)),(-(__gs.tor__thick + 1_f64)),(__gs.tor__thick + 1_f64),(__gs.tor__thick + 1_f64),false);
+        __rt.set_window((-(__gs.tor__thick + 1.0f64)),(-(__gs.tor__thick + 1.0f64)),(__gs.tor__thick + 1.0f64),(__gs.tor__thick + 1.0f64),false);
         let mut __taf91 = std::mem::take(&mut __gs.t__x1);
         let mut __taf92 = std::mem::take(&mut __gs.t__x2);
         let mut __taf93 = std::mem::take(&mut __gs.t__x3);
@@ -1046,12 +1034,12 @@ fn main() {
         __gs.t__yc = __taf101;
         __gs.t__tcolor = __taf102;
         __gs.index = __saf103;
-        while qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) {
+        while (__rt.inkey()).as_str() == "" {
             let mut __tmp_num104: f64 = __gs.tor__delay;
             delay(&mut __rt, &mut __gs, &mut __tmp_num104);
             torusrotate(&mut __rt, &mut __gs, &mut qb_continue);
         }
-        __rt.screen(0_f64);
+        __rt.screen(0.0f64);
     }
     __rt.quit();
     // label: VideoErr

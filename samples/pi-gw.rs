@@ -6,13 +6,13 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut n: f64 = 0.0_f64;
-    let mut a: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut t: f64 = 0.0_f64;
-    let mut i: f64 = 0.0_f64;
-    let mut b: f64 = 0.0_f64;
-    let mut p: f64 = 0.0_f64;
+    let mut n: f64 = 0.0;
+    let mut a: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut t: f64 = 0.0;
+    let mut i: f64 = 0.0;
+    let mut b: f64 = 0.0;
+    let mut p: f64 = 0.0;
 
     // label: 10
     // label: 20
@@ -24,21 +24,21 @@ fn main() {
     // label: 60
     __rt.println(&[]);
     // label: 70
-    n = 15_f64;
+    n = 15.0f64;
     // label: 80
     // label: 90
-    a = 0_f64;
+    a = 0.0f64;
     // label: 100
-    x = (1_f64 / 5_f64);
+    x = (1.0f64 / 5.0f64);
     // label: 110
     t = x;
     // label: 120
-    i = 0_f64;
-    let __for_to_i: f64 = (n - 1_f64);
-    let __for_step_i: f64 = 1.0_f64;
+    i = 0.0f64;
+    let __for_to_i: f64 = (n - 1.0f64);
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         // label: 130
-        a = (a + (t / ((2_f64 * i) + 1_f64)));
+        a = (a + (t / ((2.0f64 * i) + 1.0f64)));
         // label: 140
         t = (((-t) * x) * x);
         // label: 150
@@ -46,25 +46,25 @@ fn main() {
     }
     // label: 160
     // label: 170
-    b = 0_f64;
+    b = 0.0f64;
     // label: 180
-    x = (1_f64 / 239_f64);
+    x = (1.0f64 / 239.0f64);
     // label: 190
     t = x;
     // label: 200
-    i = 0_f64;
-    let __for_to_i: f64 = (n - 1_f64);
-    let __for_step_i: f64 = 1.0_f64;
+    i = 0.0f64;
+    let __for_to_i: f64 = (n - 1.0f64);
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         // label: 210
-        b = (b + (t / ((2_f64 * i) + 1_f64)));
+        b = (b + (t / ((2.0f64 * i) + 1.0f64)));
         // label: 220
         t = (((-t) * x) * x);
         // label: 230
         i += __for_step_i;
     }
     // label: 240
-    p = ((16_f64 * a) - (4_f64 * b));
+    p = ((16.0f64 * a) - (4.0f64 * b));
     // label: 250
     __rt.println(&[qb_str(&("PI =")), qb_print_num(p)]);
     // label: 260

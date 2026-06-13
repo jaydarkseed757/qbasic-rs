@@ -6,22 +6,22 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut c: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
+    let mut c: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
 
     __rt.cls(0u8);
-    __rt.screen(13_f64);
-    c = 0_f64;
-    let __for_to_c: f64 = 255_f64;
-    let __for_step_c: f64 = 1.0_f64;
+    __rt.screen(13.0f64);
+    c = 0.0f64;
+    let __for_to_c: f64 = 255.0f64;
+    let __for_step_c: f64 = 1.0;
     while (__for_step_c > 0.0 && c <= __for_to_c) || (__for_step_c < 0.0 && c >= __for_to_c) {
-        x = (qb_mod(c, 16_f64) * 20_f64);
-        y = (qb_idiv(c, 16_f64) * 12_f64);
-        __rt.line_box_fill(x,y,(x + 19_f64),(y + 11_f64),c);
+        x = (qb_mod(c, 16.0f64) * 20.0f64);
+        y = (qb_idiv(c, 16.0f64) * 12.0f64);
+        __rt.line_box_fill(x,y,(x + 19.0f64),(y + 11.0f64),c);
         c += __for_step_c;
     }
-    __rt.locate(Some(25_f64), Some(1_f64), None);
+    __rt.locate(Some(25.0f64), Some(1.0f64), None);
     __rt.println(&[qb_str(&("256 Color Palette - Press any key..."))]);
-    __rt.sleep(0_f64);
+    __rt.sleep(0.0);
 }

@@ -6,28 +6,28 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
     let mut __pc: u32 = 10;
     '__sm: loop {
         match __pc {
             10 => {
-                i = 1_f64;
-                let __for_to_i: f64 = 100_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                i = 1.0f64;
+                let __for_to_i: f64 = 100.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
                     // line 20
-                    if qb_bool(qb_from_bool(qb_mod(i, 15_f64) == 0_f64)) {
+                    if qb_mod(i, 15.0f64) == 0.0f64 {
                         __rt.println(&[qb_str(&("FizzBuzz"))]);
                         { __pc = 60; continue '__sm; }
                     }
                     // line 30
-                    if qb_bool(qb_from_bool(qb_mod(i, 3_f64) == 0_f64)) {
+                    if qb_mod(i, 3.0f64) == 0.0f64 {
                         __rt.println(&[qb_str(&("Fizz"))]);
                         { __pc = 60; continue '__sm; }
                     }
                     // line 40
-                    if qb_bool(qb_from_bool(qb_mod(i, 5_f64) == 0_f64)) {
+                    if qb_mod(i, 5.0f64) == 0.0f64 {
                         __rt.println(&[qb_str(&("Buzz"))]);
                         { __pc = 60; continue '__sm; }
                     }

@@ -6,15 +6,15 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
-    let mut x: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut c: f64 = 0.0_f64;
+    let mut x: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut c: f64 = 0.0;
 
     let mut __pc: u32 = 10;
     '__sm: loop {
         match __pc {
             10 => {
-                __rt.screen(1_f64);
+                __rt.screen(1.0f64);
                 __pc = 20; continue '__sm;
             }
             20 => {
@@ -27,17 +27,17 @@ fn main() {
             }
             40 => {
                 let __tmp0 = __rt.rnd();
-                x = qb_int((__tmp0 * 320_f64));
+                x = qb_int((__tmp0 * 320.0f64));
                 __pc = 50; continue '__sm;
             }
             50 => {
                 let __tmp1 = __rt.rnd();
-                y = qb_int((__tmp1 * 200_f64));
+                y = qb_int((__tmp1 * 200.0f64));
                 __pc = 60; continue '__sm;
             }
             60 => {
                 let __tmp2 = __rt.rnd();
-                c = qb_int((__tmp2 * 4_f64));
+                c = qb_int((__tmp2 * 4.0f64));
                 __pc = 70; continue '__sm;
             }
             70 => {

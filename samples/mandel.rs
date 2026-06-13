@@ -4,10 +4,10 @@
          non_upper_case_globals, const_item_mutation, clippy::all)]
 use qbasic_runtime::*;
 
-const qb_false: f64 = 0_f64;
-const qb_true: f64 = -1_f64;
-const maxloop: f64 = 30_f64;
-const maxsize: f64 = 1000000_f64;
+const qb_false: f64 = 0.0f64;
+const qb_true: f64 = -1.0f64;
+const maxloop: f64 = 30.0f64;
+const maxsize: f64 = 1000000.0f64;
 
 #[derive(Default)]
 struct GameState {
@@ -16,35 +16,35 @@ struct GameState {
 }
 
 fn shiftpalette(__rt: &mut Runtime, __gs: &mut GameState) {
-    let mut i: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
 
-    i = 1_f64;
+    i = 1.0f64;
     let __for_to_i: f64 = __gs.colorrange;
-    let __for_step_i: f64 = 1.0_f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.palettearray[(i) as usize] = (qb_mod(__gs.palettearray[(i) as usize], __gs.colorrange) + 1_f64);
+        __gs.palettearray[(i) as usize] = (qb_mod(__gs.palettearray[(i) as usize], __gs.colorrange) + 1.0f64);
         i += __for_step_i;
     }
-    __rt.palette_using(&__gs.palettearray[(0_f64) as usize..]);
+    __rt.palette_using(&__gs.palettearray[(0.0f64) as usize..]);
 }
 
 fn screentest(__rt: &mut Runtime, __gs: &mut GameState, em: &mut f64, cr: &mut f64, vl: &mut f64, vr: &mut f64, vt: &mut f64, vb: &mut f64) {
     (*em) = qb_true;
-    __rt.screen(8_f64);
+    __rt.screen(8.0f64);
     if __rt.error_pending { __rt.error_pending = false; }
     if qb_bool((*em)) {
-        (*vl) = 110_f64;
-        (*vr) = 529_f64;
-        (*vt) = 5_f64;
-        (*vb) = 179_f64;
-        (*cr) = 15_f64;
+        (*vl) = 110.0f64;
+        (*vr) = 529.0f64;
+        (*vt) = 5.0f64;
+        (*vb) = 179.0f64;
+        (*cr) = 15.0f64;
     } else {
-        __rt.screen(1_f64);
-        (*vl) = 55_f64;
-        (*vr) = 264_f64;
-        (*vt) = 5_f64;
-        (*vb) = 179_f64;
-        (*cr) = 3_f64;
+        __rt.screen(1.0f64);
+        (*vl) = 55.0f64;
+        (*vr) = 264.0f64;
+        (*vt) = 5.0f64;
+        (*vb) = 179.0f64;
+        (*cr) = 3.0f64;
     }
 }
 
@@ -59,72 +59,72 @@ fn windowvals(__rt: &mut Runtime, __gs: &mut GameState, wl: &mut f64, wr: &mut f
     __rt.println(&[]);
     __rt.println(&[qb_str(&("Press <ENTER> to see the default window. Press any"))]);
     __rt.print(&[qb_str(&("other key to input your own window coordinates: "))]);
-    __rt.locate(None, None, Some(1_f64));
-    let __tmp0 = __rt.input_str(1_f64);
+    __rt.locate(None, None, Some(1.0f64));
+    let __tmp0 = __rt.input_str(1.0f64);
     resp_s = (__tmp0).to_string();
-    if qb_bool(qb_from_bool((resp_s).as_str() != (qb_chr(13_f64)).as_str())) {
+    if (resp_s).as_str() != (qb_chr(13.0f64)).as_str() {
         __rt.println(&[]);
         __rt.print_str("X coordinate of upper left corner: ? ");
-        (*wl) = __rt.input_line().parse().unwrap_or_default();
+        (*wl) = __rt.input_line().trim().parse().unwrap_or_default();
         loop {
             __rt.print_str("X coordinate of lower right corner: ? ");
-            (*wr) = __rt.input_line().parse().unwrap_or_default();
-            if qb_bool(qb_from_bool((*wr) <= (*wl))) {
+            (*wr) = __rt.input_line().trim().parse().unwrap_or_default();
+            if (*wr) <= (*wl) {
                 __rt.println(&[qb_str(&("Right corner must be greater than left corner."))]);
             }
-            if !qb_bool(qb_from_bool((*wr) <= (*wl))) { break; }
+            if !((*wr) <= (*wl)) { break; }
         }
         __rt.print_str("Y coordinate of upper left corner: ? ");
-        (*wt) = __rt.input_line().parse().unwrap_or_default();
+        (*wt) = __rt.input_line().trim().parse().unwrap_or_default();
         loop {
             __rt.print_str("Y coordinate of lower right corner: ? ");
-            (*wb) = __rt.input_line().parse().unwrap_or_default();
-            if qb_bool(qb_from_bool((*wb) >= (*wt))) {
+            (*wb) = __rt.input_line().trim().parse().unwrap_or_default();
+            if (*wb) >= (*wt) {
                 __rt.println(&[qb_str(&("Bottom corner must be less than top corner."))]);
             }
-            if !qb_bool(qb_from_bool((*wb) >= (*wt))) { break; }
+            if !((*wb) >= (*wt)) { break; }
         }
     } else {
-        (*wl) = (-1000_f64);
-        (*wr) = 250_f64;
-        (*wt) = 625_f64;
-        (*wb) = (-625_f64);
+        (*wl) = (-1000.0f64);
+        (*wr) = 250.0f64;
+        (*wt) = 625.0f64;
+        (*wb) = (-625.0f64);
     }
 }
 
 fn main() {
     let mut __rt = Runtime::new();
-    __rt.set_pace(30_f64);
+    __rt.set_pace(30.0);
     let mut __gs = GameState::default();
 
-    let mut i: f64 = 0.0_f64;
-    let mut wleft: f64 = 0.0_f64;
-    let mut wright: f64 = 0.0_f64;
-    let mut wtop: f64 = 0.0_f64;
-    let mut wbottom: f64 = 0.0_f64;
-    let mut egamode: f64 = 0.0_f64;
-    let mut vleft: f64 = 0.0_f64;
-    let mut vright: f64 = 0.0_f64;
-    let mut vtop: f64 = 0.0_f64;
-    let mut vbottom: f64 = 0.0_f64;
-    let mut xlength: f64 = 0.0_f64;
-    let mut ylength: f64 = 0.0_f64;
-    let mut colorwidth: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut logicy: f64 = 0.0_f64;
-    let mut oldcolor: f64 = 0.0_f64;
-    let mut x: f64 = 0.0_f64;
-    let mut logicx: f64 = 0.0_f64;
-    let mut mandelx: f64 = 0.0_f64;
-    let mut mandely: f64 = 0.0_f64;
-    let mut realnum: f64 = 0.0_f64;
-    let mut imagnum: f64 = 0.0_f64;
-    let mut pcolor: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut wleft: f64 = 0.0;
+    let mut wright: f64 = 0.0;
+    let mut wtop: f64 = 0.0;
+    let mut wbottom: f64 = 0.0;
+    let mut egamode: f64 = 0.0;
+    let mut vleft: f64 = 0.0;
+    let mut vright: f64 = 0.0;
+    let mut vtop: f64 = 0.0;
+    let mut vbottom: f64 = 0.0;
+    let mut xlength: f64 = 0.0;
+    let mut ylength: f64 = 0.0;
+    let mut colorwidth: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut logicy: f64 = 0.0;
+    let mut oldcolor: f64 = 0.0;
+    let mut x: f64 = 0.0;
+    let mut logicx: f64 = 0.0;
+    let mut mandelx: f64 = 0.0;
+    let mut mandely: f64 = 0.0;
+    let mut realnum: f64 = 0.0;
+    let mut imagnum: f64 = 0.0;
+    let mut pcolor: f64 = 0.0;
 
-    __gs.palettearray = vec![Default::default(); (15_f64+1.0) as usize];
-    i = 0_f64;
-    let __for_to_i: f64 = 15_f64;
-    let __for_step_i: f64 = 1.0_f64;
+    __gs.palettearray = vec![Default::default(); (15.0f64+1.0) as usize];
+    i = 0.0f64;
+    let __for_to_i: f64 = 15.0f64;
+    let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         __gs.palettearray[(i) as usize] = i;
         i += __for_step_i;
@@ -133,48 +133,46 @@ fn main() {
     let mut __tmp_gs1: f64 = __gs.colorrange;
     screentest(&mut __rt, &mut __gs, &mut egamode, &mut __tmp_gs1, &mut vleft, &mut vright, &mut vtop, &mut vbottom);
     __gs.colorrange = __tmp_gs1;
-    __rt.set_view(vleft,vtop,vright,vbottom,0_f64,__gs.colorrange);
+    __rt.set_view(vleft,vtop,vright,vbottom,0.0f64,__gs.colorrange);
     __rt.set_window(wleft,wtop,wright,wbottom,false);
-    __rt.locate(Some(24_f64), Some(10_f64), None);
+    __rt.locate(Some(24.0f64), Some(10.0f64), None);
     __rt.print(&[qb_str(&("Press any key to quit."))]);
     xlength = (vright - vleft);
     ylength = (vbottom - vtop);
     colorwidth = qb_idiv(maxloop, __gs.colorrange);
-    y = 0_f64;
+    y = 0.0f64;
     let __for_to_y: f64 = ylength;
-    let __for_step_y: f64 = 1.0_f64;
+    let __for_step_y: f64 = 1.0;
     while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
-        let __tmp2 = __rt.pmap(y, 3_f64);
-        logicy = __tmp2;
+        logicy = __rt.pmap(y, 3.0f64);
         __rt.pset(wleft, logicy, __rt.fg_color as f64);
-        oldcolor = 0_f64;
-        x = 0_f64;
+        oldcolor = 0.0f64;
+        x = 0.0f64;
         let __for_to_x: f64 = xlength;
-        let __for_step_x: f64 = 1.0_f64;
+        let __for_step_x: f64 = 1.0;
         while (__for_step_x > 0.0 && x <= __for_to_x) || (__for_step_x < 0.0 && x >= __for_to_x) {
-            let __tmp3 = __rt.pmap(x, 2_f64);
-            logicx = __tmp3;
+            logicx = __rt.pmap(x, 2.0f64);
             mandelx = logicx;
             mandely = logicy;
-            i = 1_f64;
+            i = 1.0f64;
             let __for_to_i: f64 = maxloop;
-            let __for_step_i: f64 = 1.0_f64;
+            let __for_step_i: f64 = 1.0;
             while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
                 realnum = (mandelx * mandelx);
                 imagnum = (mandely * mandely);
-                if qb_bool(qb_from_bool((realnum + imagnum) >= maxsize)) {
+                if (realnum + imagnum) >= maxsize {
                     break; // EXIT FOR
                 }
-                mandely = (qb_idiv((mandelx * mandely), 250_f64) + logicy);
-                mandelx = (qb_idiv((realnum - imagnum), 500_f64) + logicx);
+                mandely = (qb_idiv((mandelx * mandely), 250.0f64) + logicy);
+                mandelx = (qb_idiv((realnum - imagnum), 500.0f64) + logicx);
                 i += __for_step_i;
             }
             pcolor = qb_idiv(i, colorwidth);
-            if qb_bool(qb_from_bool(pcolor != oldcolor)) {
+            if pcolor != oldcolor {
                 __rt.line_to(logicx,logicy,(__gs.colorrange - oldcolor));
                 oldcolor = pcolor;
             }
-            if qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+            if (__rt.inkey()).as_str() != "" {
                 __rt.quit();
             }
             x += __for_step_x;
@@ -189,9 +187,9 @@ fn main() {
         if qb_bool(egamode) {
             shiftpalette(&mut __rt, &mut __gs);
         }
-        if !qb_bool(qb_from_bool((__rt.inkey()).as_str() == "")) { break; }
+        if !((__rt.inkey()).as_str() == "") { break; }
     }
-    __rt.screen(0_f64);
+    __rt.screen(0.0f64);
     __rt.quit();
     // label: BadScreen
     egamode = qb_false;

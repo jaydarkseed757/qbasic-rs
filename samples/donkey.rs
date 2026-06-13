@@ -33,16 +33,16 @@ fn lbl_1780(__rt: &mut Runtime, __gs: &mut GameState) {
     // label: 1880
     __rt.draw(&("BD2BL2D1R1U1L1BR2R1D1L1U1"));
     // label: 1890
-    __rt.line_box(0_f64,0_f64,40_f64,60_f64,__rt.fg_color as f64);
+    __rt.line_box(0.0f64,0.0f64,40.0f64,60.0f64,__rt.fg_color as f64);
     // label: 1900
-    __rt.paint(1_f64, 1_f64, -1_f64, -1_f64);
+    __rt.paint(1.0f64, 1.0f64, -1.0f64, -1.0f64);
     // label: 1910
-    __gs.car = vec![Default::default(); (900_f64+1.0) as usize];
+    __gs.car = vec![Default::default(); (900.0f64+1.0) as usize];
     // label: 1920
-    let __sgx1_0 = 1_f64;
-    let __sgy1_0 = 1_f64;
-    let __sgx2_0 = 29_f64;
-    let __sgy2_0 = 45_f64;
+    let __sgx1_0 = 1.0f64;
+    let __sgy1_0 = 1.0f64;
+    let __sgx2_0 = 29.0f64;
+    let __sgy2_0 = 45.0f64;
     __rt.get_sprite(__sgx1_0, __sgy1_0, __sgx2_0, __sgy2_0, &mut __gs.car);
     // label: 1930
     return;
@@ -63,18 +63,18 @@ fn lbl_1940(__rt: &mut Runtime, __gs: &mut GameState) {
     // label: 2000
     __rt.draw(&("D3L1U5M-2,3U1"));
     // label: 2010
-    __rt.paint(21_f64, 14_f64, 3_f64, 3_f64);
+    __rt.paint(21.0f64, 14.0f64, 3.0f64, 3.0f64);
     // label: 2020
-    __rt.pset(37_f64, 10_f64, __rt.bg_color as f64);
-    __rt.pset(40_f64, 10_f64, __rt.bg_color as f64);
+    __rt.pset(37.0f64, 10.0f64, __rt.bg_color as f64);
+    __rt.pset(40.0f64, 10.0f64, __rt.bg_color as f64);
     // label: 2030
-    __rt.pset(37_f64, 11_f64, __rt.bg_color as f64);
-    __rt.pset(40_f64, 11_f64, __rt.bg_color as f64);
+    __rt.pset(37.0f64, 11.0f64, __rt.bg_color as f64);
+    __rt.pset(40.0f64, 11.0f64, __rt.bg_color as f64);
     // label: 2040
-    let __sgx1_1 = 13_f64;
-    let __sgy1_1 = 0_f64;
-    let __sgx2_1 = 45_f64;
-    let __sgy2_1 = 25_f64;
+    let __sgx1_1 = 13.0f64;
+    let __sgy1_1 = 0.0f64;
+    let __sgx2_1 = 45.0f64;
+    let __sgy2_1 = 25.0f64;
     __rt.get_sprite(__sgx1_1, __sgy1_1, __sgx2_1, __sgy2_1, &mut __gs.dnk);
     // label: 2050
     return;
@@ -86,23 +86,23 @@ fn main() {
 
     let mut samples_s: String = String::new();
     let mut cmd_s: String = String::new();
-    let mut i: f64 = 0.0_f64;
-    let mut cx: f64 = 0.0_f64;
-    let mut y: f64 = 0.0_f64;
-    let mut cy: f64 = 0.0_f64;
-    let mut sd: f64 = 0.0_f64;
-    let mut sm: f64 = 0.0_f64;
-    let mut dx: f64 = 0.0_f64;
+    let mut i: f64 = 0.0;
+    let mut cx: f64 = 0.0;
+    let mut y: f64 = 0.0;
+    let mut cy: f64 = 0.0;
+    let mut sd: f64 = 0.0;
+    let mut sm: f64 = 0.0;
+    let mut dx: f64 = 0.0;
     let mut a_s: String = String::new();
-    let mut d1x: f64 = 0.0_f64;
-    let mut d1y: f64 = 0.0_f64;
-    let mut d2x: f64 = 0.0_f64;
-    let mut c1x: f64 = 0.0_f64;
-    let mut c1y: f64 = 0.0_f64;
-    let mut c2x: f64 = 0.0_f64;
-    let mut p: f64 = 0.0_f64;
-    let mut z: f64 = 0.0_f64;
-    let mut z1: f64 = 0.0_f64;
+    let mut d1x: f64 = 0.0;
+    let mut d1y: f64 = 0.0;
+    let mut d2x: f64 = 0.0;
+    let mut c1x: f64 = 0.0;
+    let mut c1y: f64 = 0.0;
+    let mut c2x: f64 = 0.0;
+    let mut p: f64 = 0.0;
+    let mut z: f64 = 0.0;
+    let mut z1: f64 = 0.0;
 
     let mut q: Vec<f64> = Vec::new();
     let mut d1: Vec<f64> = Vec::new();
@@ -123,6 +123,7 @@ fn main() {
                 __pc = 975; continue '__sm;
             }
             975 => {
+                __rt.qb_poke(106.0f64, 0.0f64);
                 __pc = 980; continue '__sm;
             }
             980 => {
@@ -138,58 +139,58 @@ fn main() {
                 __pc = 1010; continue '__sm;
             }
             1010 => {
-                __rt.screen(0_f64);
-                __rt.color(15_f64, Some(0_f64));
+                __rt.screen(0.0f64);
+                __rt.color(15.0f64, Some(0.0f64));
                 __rt.cls(0u8);
-                __rt.locate(Some(5_f64), Some(19_f64), None);
+                __rt.locate(Some(5.0f64), Some(19.0f64), None);
                 __rt.println(&[qb_str(&("IBM"))]);
                 __pc = 1020; continue '__sm;
             }
             1020 => {
-                __rt.locate(Some(7_f64), Some(12_f64), Some(0_f64));
+                __rt.locate(Some(7.0f64), Some(12.0f64), Some(0.0f64));
                 __rt.println(&[qb_str(&("Personal Computer"))]);
                 __pc = 1030; continue '__sm;
             }
             1030 => {
-                __rt.color(10_f64, Some(0_f64));
-                __rt.locate(Some(10_f64), Some(9_f64), Some(0_f64));
-                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(213_f64),qb_string(21_f64, 205_f64)),qb_chr(184_f64))))]);
+                __rt.color(10.0f64, Some(0.0f64));
+                __rt.locate(Some(10.0f64), Some(9.0f64), Some(0.0f64));
+                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(213.0f64),qb_string(21.0f64, 205.0f64)),qb_chr(184.0f64))))]);
                 __pc = 1040; continue '__sm;
             }
             1040 => {
-                __rt.locate(Some(11_f64), Some(9_f64), Some(0_f64));
-                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179_f64),"       DONKEY        "),qb_chr(179_f64))))]);
+                __rt.locate(Some(11.0f64), Some(9.0f64), Some(0.0f64));
+                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179.0f64),"       DONKEY        "),qb_chr(179.0f64))))]);
                 __pc = 1050; continue '__sm;
             }
             1050 => {
-                __rt.locate(Some(12_f64), Some(9_f64), Some(0_f64));
-                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179_f64),qb_string(21_f64, 32_f64)),qb_chr(179_f64))))]);
+                __rt.locate(Some(12.0f64), Some(9.0f64), Some(0.0f64));
+                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179.0f64),qb_string(21.0f64, 32.0f64)),qb_chr(179.0f64))))]);
                 __pc = 1060; continue '__sm;
             }
             1060 => {
-                __rt.locate(Some(13_f64), Some(9_f64), Some(0_f64));
-                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179_f64),"    Version 1.1O     "),qb_chr(179_f64))))]);
+                __rt.locate(Some(13.0f64), Some(9.0f64), Some(0.0f64));
+                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(179.0f64),"    Version 1.1O     "),qb_chr(179.0f64))))]);
                 __pc = 1070; continue '__sm;
             }
             1070 => {
-                __rt.locate(Some(14_f64), Some(9_f64), Some(0_f64));
-                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(212_f64),qb_string(21_f64, 205_f64)),qb_chr(190_f64))))]);
+                __rt.locate(Some(14.0f64), Some(9.0f64), Some(0.0f64));
+                __rt.println(&[qb_str(&(format!("{}{}" ,format!("{}{}" ,qb_chr(212.0f64),qb_string(21.0f64, 205.0f64)),qb_chr(190.0f64))))]);
                 __pc = 1080; continue '__sm;
             }
             1080 => {
-                __rt.color(15_f64, Some(0_f64));
-                __rt.locate(Some(17_f64), Some(4_f64), Some(0_f64));
+                __rt.color(15.0f64, Some(0.0f64));
+                __rt.locate(Some(17.0f64), Some(4.0f64), Some(0.0f64));
                 __rt.println(&[qb_str(&("(C) Copyright IBM Corp 1981, 1982"))]);
                 __pc = 1090; continue '__sm;
             }
             1090 => {
-                __rt.color(14_f64, Some(0_f64));
-                __rt.locate(Some(23_f64), Some(7_f64), Some(0_f64));
+                __rt.color(14.0f64, Some(0.0f64));
+                __rt.locate(Some(23.0f64), Some(7.0f64), Some(0.0f64));
                 __rt.println(&[qb_str(&("Press space bar to continue"))]);
                 __pc = 1100; continue '__sm;
             }
             1100 => {
-                if qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+                if (__rt.inkey()).as_str() != "" {
                     { __pc = 1100; continue '__sm; }
                 }
                 __pc = 1110; continue '__sm;
@@ -200,19 +201,19 @@ fn main() {
                 __pc = 1120; continue '__sm;
             }
             1120 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == "")) {
+                if (cmd_s).as_str() == "" {
                     { __pc = 1110; continue '__sm; }
                 }
                 __pc = 1130; continue '__sm;
             }
             1130 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == (qb_chr(27_f64)).as_str())) {
+                if (cmd_s).as_str() == (qb_chr(27.0f64)).as_str() {
                     { __pc = 1298; continue '__sm; }
                 }
                 __pc = 1140; continue '__sm;
             }
             1140 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == " ")) {
+                if (cmd_s).as_str() == " " {
                     { __pc = 1160; continue '__sm; }
                 }
                 __pc = 1150; continue '__sm;
@@ -225,14 +226,14 @@ fn main() {
                 __pc = 1170; continue '__sm;
             }
             1170 => {
-                if qb_bool(qb_from_bool(qb_and(qb_peek(1040_f64), 48_f64) != 48_f64)) {
+                if qb_and(__rt.qb_peek(1040.0f64), 48.0f64) != 48.0f64 {
                     { __pc = 1291; continue '__sm; }
                 }
                 __pc = 1180; continue '__sm;
             }
             1180 => {
                 __rt.cls(0u8);
-                __rt.locate(Some(3_f64), Some(1_f64), None);
+                __rt.locate(Some(3.0f64), Some(1.0f64), None);
                 __pc = 1190; continue '__sm;
             }
             1190 => {
@@ -255,7 +256,7 @@ fn main() {
                 __pc = 1240; continue '__sm;
             }
             1240 => {
-                if qb_bool(qb_from_bool((__rt.inkey()).as_str() != "")) {
+                if (__rt.inkey()).as_str() != "" {
                     { __pc = 1240; continue '__sm; }
                 }
                 __pc = 1250; continue '__sm;
@@ -266,19 +267,19 @@ fn main() {
                 __pc = 1260; continue '__sm;
             }
             1260 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == "")) {
+                if (cmd_s).as_str() == "" {
                     { __pc = 1250; continue '__sm; }
                 }
                 __pc = 1270; continue '__sm;
             }
             1270 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == (qb_chr(27_f64)).as_str())) {
+                if (cmd_s).as_str() == (qb_chr(27.0f64)).as_str() {
                     { __pc = 1298; continue '__sm; }
                 }
                 __pc = 1280; continue '__sm;
             }
             1280 => {
-                if qb_bool(qb_from_bool((cmd_s).as_str() == " ")) {
+                if (cmd_s).as_str() == " " {
                     { __pc = 1298; continue '__sm; }
                 }
                 __pc = 1290; continue '__sm;
@@ -302,15 +303,15 @@ fn main() {
                 __pc = 1295; continue '__sm;
             }
             1295 => {
-                __rt.color(31_f64, Some(0_f64));
+                __rt.color(31.0f64, Some(0.0f64));
                 __pc = 1296; continue '__sm;
             }
             1296 => {
                 __rt.println(&[qb_str(&("THIS PROGRAM REQUIRES ADVANCED BASIC -- USE COMMAND 'BASICA'"))]);
-                __rt.color(15_f64, Some(0_f64));
-                i = 1_f64;
-                let __for_to_i: f64 = 9000_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                __rt.color(15.0f64, Some(0.0f64));
+                i = 1.0f64;
+                let __for_to_i: f64 = 9000.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
                     i += __for_step_i;
                 }
@@ -321,12 +322,12 @@ fn main() {
                 __pc = 1299; continue '__sm;
             }
             1299 => {
-                __rt.screen(0_f64);
-                if qb_bool(qb_from_bool((samples_s).as_str() == "YES")) {
+                __rt.screen(0.0f64);
+                if (samples_s).as_str() == "YES" {
                     // STUB: CHAIN
                     __rt.quit();
                 } else {
-                    __rt.color(7_f64, Some(0_f64));
+                    __rt.color(7.0f64, Some(0.0f64));
                     __rt.cls(0u8);
                     __rt.quit();
                 }
@@ -336,30 +337,30 @@ fn main() {
                 __pc = 1410; continue '__sm;
             }
             1410 => {
-                __rt.color(0_f64, None);
+                __rt.color(0.0f64, None);
                 __pc = 1420; continue '__sm;
             }
             1420 => {
                 __pc = 1440; continue '__sm;
             }
             1440 => {
-                __rt.screen(1_f64);
-                __rt.color(8_f64, Some(1_f64));
+                __rt.screen(1.0f64);
+                __rt.color(8.0f64, Some(1.0f64));
                 __pc = 1450; continue '__sm;
             }
             1450 => {
-                q = vec![Default::default(); (500_f64+1.0) as usize];
+                q = vec![Default::default(); (500.0f64+1.0) as usize];
                 __pc = 1460; continue '__sm;
             }
             1460 => {
-                d1 = vec![Default::default(); (150_f64+1.0) as usize];
-                d2 = vec![Default::default(); (150_f64+1.0) as usize];
-                c1 = vec![Default::default(); (200_f64+1.0) as usize];
-                c2 = vec![Default::default(); (200_f64+1.0) as usize];
+                d1 = vec![Default::default(); (150.0f64+1.0) as usize];
+                d2 = vec![Default::default(); (150.0f64+1.0) as usize];
+                c1 = vec![Default::default(); (200.0f64+1.0) as usize];
+                c2 = vec![Default::default(); (200.0f64+1.0) as usize];
                 __pc = 1470; continue '__sm;
             }
             1470 => {
-                __gs.dnk = vec![Default::default(); (300_f64+1.0) as usize];
+                __gs.dnk = vec![Default::default(); (300.0f64+1.0) as usize];
                 __pc = 1480; continue '__sm;
             }
             1480 => {
@@ -375,109 +376,109 @@ fn main() {
                 __pc = 1510; continue '__sm;
             }
             1510 => {
-                b = vec![Default::default(); (300_f64+1.0) as usize];
+                b = vec![Default::default(); (300.0f64+1.0) as usize];
                 __pc = 1520; continue '__sm;
             }
             1520 => {
-                i = 2_f64;
-                let __for_to_i: f64 = 300_f64;
-                let __for_step_i: f64 = 1.0_f64;
+                i = 2.0f64;
+                let __for_to_i: f64 = 300.0f64;
+                let __for_step_i: f64 = 1.0;
                 while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-                    b[(i) as usize] = ((-16384_f64) + 192_f64);
+                    b[(i) as usize] = ((-16384.0f64) + 192.0f64);
                     i += __for_step_i;
                 }
                 __pc = 1530; continue '__sm;
             }
             1530 => {
-                b[(0_f64) as usize] = 2_f64;
-                b[(1_f64) as usize] = 193_f64;
+                b[(0.0f64) as usize] = 2.0f64;
+                b[(1.0f64) as usize] = 193.0f64;
                 __pc = 1540; continue '__sm;
             }
             1540 => {
                 __pc = 1550; continue '__sm;
             }
             1550 => {
-                cx = 110_f64;
+                cx = 110.0f64;
                 __rt.cls(0u8);
                 __pc = 1590; continue '__sm;
             }
             1590 => {
-                __rt.line_box(0_f64,0_f64,305_f64,199_f64,__rt.fg_color as f64);
+                __rt.line_box(0.0f64,0.0f64,305.0f64,199.0f64,__rt.fg_color as f64);
                 __pc = 1600; continue '__sm;
             }
             1600 => {
-                __rt.line_box_fill(6_f64,6_f64,97_f64,195_f64,1_f64);
+                __rt.line_box_fill(6.0f64,6.0f64,97.0f64,195.0f64,1.0f64);
                 __pc = 1610; continue '__sm;
             }
             1610 => {
-                __rt.line_box_fill(183_f64,6_f64,305_f64,195_f64,1_f64);
+                __rt.line_box_fill(183.0f64,6.0f64,305.0f64,195.0f64,1.0f64);
                 __pc = 1620; continue '__sm;
             }
             1620 => {
-                __rt.locate(Some(3_f64), Some(5_f64), None);
+                __rt.locate(Some(3.0f64), Some(5.0f64), None);
                 __rt.println(&[qb_str(&("Donkey"))]);
                 __pc = 1630; continue '__sm;
             }
             1630 => {
-                __rt.locate(Some(3_f64), Some(29_f64), None);
+                __rt.locate(Some(3.0f64), Some(29.0f64), None);
                 __rt.println(&[qb_str(&("Driver"))]);
                 __pc = 1631; continue '__sm;
             }
             1631 => {
-                __rt.locate(Some(19_f64), Some(25_f64), None);
+                __rt.locate(Some(19.0f64), Some(25.0f64), None);
                 __rt.print(&[qb_str(&("Press Space  "))]);
                 __pc = 1632; continue '__sm;
             }
             1632 => {
-                __rt.locate(Some(20_f64), Some(25_f64), None);
+                __rt.locate(Some(20.0f64), Some(25.0f64), None);
                 __rt.print(&[qb_str(&("Bar to switch"))]);
                 __pc = 1633; continue '__sm;
             }
             1633 => {
-                __rt.locate(Some(21_f64), Some(25_f64), None);
+                __rt.locate(Some(21.0f64), Some(25.0f64), None);
                 __rt.print(&[qb_str(&("lanes        "))]);
                 __pc = 1635; continue '__sm;
             }
             1635 => {
-                __rt.locate(Some(23_f64), Some(25_f64), None);
+                __rt.locate(Some(23.0f64), Some(25.0f64), None);
                 __rt.print(&[qb_str(&("Press ESC    "))]);
                 __pc = 1636; continue '__sm;
             }
             1636 => {
-                __rt.locate(Some(24_f64), Some(25_f64), None);
+                __rt.locate(Some(24.0f64), Some(25.0f64), None);
                 __rt.print(&[qb_str(&("to exit      "))]);
                 __pc = 1640; continue '__sm;
             }
             1640 => {
-                y = 4_f64;
-                let __for_to_y: f64 = 199_f64;
-                let __for_step_y: f64 = 20_f64;
+                y = 4.0f64;
+                let __for_to_y: f64 = 199.0f64;
+                let __for_step_y: f64 = 20.0f64;
                 while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
-                    __rt.line(140_f64,y,140_f64,(y + 10_f64),__rt.fg_color as f64);
+                    __rt.line(140.0f64,y,140.0f64,(y + 10.0f64),__rt.fg_color as f64);
                     y += __for_step_y;
                 }
                 __pc = 1650; continue '__sm;
             }
             1650 => {
-                cy = 105_f64;
-                cx = 105_f64;
+                cy = 105.0f64;
+                cx = 105.0f64;
                 __pc = 1660; continue '__sm;
             }
             1660 => {
-                __rt.line(100_f64,0_f64,100_f64,199_f64,__rt.fg_color as f64);
-                __rt.line(180_f64,0_f64,180_f64,199_f64,__rt.fg_color as f64);
+                __rt.line(100.0f64,0.0f64,100.0f64,199.0f64,__rt.fg_color as f64);
+                __rt.line(180.0f64,0.0f64,180.0f64,199.0f64,__rt.fg_color as f64);
                 __pc = 1670; continue '__sm;
             }
             1670 => {
-                __rt.locate(Some(5_f64), Some(6_f64), None);
+                __rt.locate(Some(5.0f64), Some(6.0f64), None);
                 __rt.println(&[qb_print_num(sd)]);
-                __rt.locate(Some(5_f64), Some(31_f64), None);
+                __rt.locate(Some(5.0f64), Some(31.0f64), None);
                 __rt.println(&[qb_print_num(sm)]);
                 __pc = 1680; continue '__sm;
             }
             1680 => {
-                cy = (cy - 4_f64);
-                if qb_bool(qb_from_bool(cy < 60_f64)) {
+                cy = (cy - 4.0f64);
+                if cy < 60.0f64 {
                     { __pc = 2230; continue '__sm; }
                 }
                 __pc = 1690; continue '__sm;
@@ -490,115 +491,116 @@ fn main() {
             }
             1700 => {
                 let __tmp5 = __rt.rnd();
-                dx = (105_f64 + (42_f64 * qb_int((__tmp5 * 2_f64))));
+                dx = (105.0f64 + (42.0f64 * qb_int((__tmp5 * 2.0f64))));
                 __pc = 1710; continue '__sm;
             }
             1710 => {
-                y = ((__rt.rnd() * (-4_f64)) * 8_f64);
-                let __for_to_y: f64 = 124_f64;
-                let __for_step_y: f64 = 6_f64;
+                y = ((__rt.rnd() * (-4.0f64)) * 8.0f64);
+                let __for_to_y: f64 = 124.0f64;
+                let __for_step_y: f64 = 6.0f64;
                 while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
                     // line 1720
-                    let __sf6: f64 = 20000_f64;
-                    let __sd6: f64 = 1_f64;
+                    let __sf6: f64 = 20000.0f64;
+                    let __sd6: f64 = 1.0f64;
                     __rt.sound(__sf6, __sd6);
                     // line 1730
                     let __tmp7 = __rt.inkey();
                     a_s = (__tmp7).to_string();
-                    if qb_bool(qb_from_bool((a_s).as_str() == (qb_chr(27_f64)).as_str())) {
+                    if (a_s).as_str() == (qb_chr(27.0f64)).as_str() {
                         { __pc = 1298; continue '__sm; }
                     } else {
-                        if qb_bool(qb_from_bool(qb_len(&(a_s)) > 0_f64)) {
-                            __rt.line_box_fill(cx,cy,(cx + 28_f64),(cy + 44_f64),0_f64);
-                            cx = (252_f64 - cx);
+                        __rt.qb_poke(106.0f64, 0.0f64);
+                        if qb_len(&(a_s)) > 0.0f64 {
+                            __rt.line_box_fill(cx,cy,(cx + 28.0f64),(cy + 44.0f64),0.0f64);
+                            cx = (252.0f64 - cx);
                             let __spx8 = cx;
                             let __spy8 = cy;
                             __rt.put_sprite(&__gs.car, __spx8, __spy8, qbasic_runtime::PutAction::Preset);
-                            let __sf9: f64 = 200_f64;
-                            let __sd9: f64 = 1_f64;
+                            let __sf9: f64 = 200.0f64;
+                            let __sd9: f64 = 1.0f64;
                             __rt.sound(__sf9, __sd9);
                         }
                     }
                     // line 1740
-                    if qb_bool(qb_from_bool(y >= 3_f64)) {
+                    if y >= 3.0f64 {
                         let __spx10 = dx;
                         let __spy10 = y;
                         __rt.put_sprite(&__gs.dnk, __spx10, __spy10, qbasic_runtime::PutAction::Pset);
                     }
                     // line 1750
-                    if qb_bool(qb_and(qb_from_bool(cx == dx), qb_from_bool((y + 25_f64) >= cy))) {
+                    if qb_bool(qb_and(qb_from_bool(cx == dx), qb_from_bool((y + 25.0f64) >= cy))) {
                         { __pc = 2060; continue '__sm; }
                     }
                     // line 1760
-                    if qb_bool(qb_and(y, 3_f64)) {
-                        let __spx11 = 140_f64;
-                        let __spy11 = 6_f64;
+                    if qb_bool(qb_and(y, 3.0f64)) {
+                        let __spx11 = 140.0f64;
+                        let __spy11 = 6.0f64;
                         __rt.put_sprite(&b, __spx11, __spy11, qbasic_runtime::PutAction::Xor);
                     }
                     // line 1770
                     y += __for_step_y;
                 }
-                __rt.line_box_fill(dx,124_f64,(dx + 32_f64),149_f64,0_f64);
+                __rt.line_box_fill(dx,124.0f64,(dx + 32.0f64),149.0f64,0.0f64);
                 { __pc = 1670; continue '__sm; }
                 __pc = 2060; continue '__sm;
             }
             2060 => {
-                sd = (sd + 1_f64);
-                __rt.locate(Some(14_f64), Some(6_f64), None);
+                sd = (sd + 1.0f64);
+                __rt.locate(Some(14.0f64), Some(6.0f64), None);
                 __rt.println(&[qb_str(&("BOOM!"))]);
                 __pc = 2070; continue '__sm;
             }
             2070 => {
                 let __sgx1_12 = dx;
                 let __sgy1_12 = y;
-                let __sgx2_12 = (dx + 16_f64);
-                let __sgy2_12 = (y + 25_f64);
+                let __sgx2_12 = (dx + 16.0f64);
+                let __sgy2_12 = (y + 25.0f64);
                 __rt.get_sprite(__sgx1_12, __sgy1_12, __sgx2_12, __sgy2_12, &mut d1);
                 __pc = 2080; continue '__sm;
             }
             2080 => {
                 d1x = dx;
                 d1y = y;
-                d2x = (dx + 17_f64);
+                d2x = (dx + 17.0f64);
                 __pc = 2090; continue '__sm;
             }
             2090 => {
-                let __sgx1_13 = (dx + 17_f64);
+                let __sgx1_13 = (dx + 17.0f64);
                 let __sgy1_13 = y;
-                let __sgx2_13 = (dx + 31_f64);
-                let __sgy2_13 = (y + 25_f64);
+                let __sgx2_13 = (dx + 31.0f64);
+                let __sgy2_13 = (y + 25.0f64);
                 __rt.get_sprite(__sgx1_13, __sgy1_13, __sgx2_13, __sgy2_13, &mut d2);
                 __pc = 2100; continue '__sm;
             }
             2100 => {
                 let __sgx1_14 = cx;
                 let __sgy1_14 = cy;
-                let __sgx2_14 = (cx + 14_f64);
-                let __sgy2_14 = (cy + 44_f64);
+                let __sgx2_14 = (cx + 14.0f64);
+                let __sgy2_14 = (cy + 44.0f64);
                 __rt.get_sprite(__sgx1_14, __sgy1_14, __sgx2_14, __sgy2_14, &mut c1);
                 __pc = 2110; continue '__sm;
             }
             2110 => {
-                let __sgx1_15 = (cx + 15_f64);
+                let __sgx1_15 = (cx + 15.0f64);
                 let __sgy1_15 = cy;
-                let __sgx2_15 = (cx + 28_f64);
-                let __sgy2_15 = (cy + 44_f64);
+                let __sgx2_15 = (cx + 28.0f64);
+                let __sgy2_15 = (cy + 44.0f64);
                 __rt.get_sprite(__sgx1_15, __sgy1_15, __sgx2_15, __sgy2_15, &mut c2);
                 __pc = 2120; continue '__sm;
             }
             2120 => {
                 c1x = cx;
                 c1y = cy;
-                c2x = (cx + 15_f64);
+                c2x = (cx + 15.0f64);
                 __pc = 2130; continue '__sm;
             }
             2130 => {
-                p = 6_f64;
-                let __for_to_p: f64 = 0_f64;
-                let __for_step_p: f64 = (-1_f64);
+                p = 6.0f64;
+                let __for_to_p: f64 = 0.0f64;
+                let __for_step_p: f64 = (-1.0f64);
                 while (__for_step_p > 0.0 && p <= __for_to_p) || (__for_step_p < 0.0 && p >= __for_to_p) {
-                    z = (1_f64 / 2_f64.powf(p));
-                    z1 = (1_f64 - z);
+                    z = (1.0f64 / 2.0f64.powf(p));
+                    z1 = (1.0f64 - z);
                     // line 2140
                     let __spx16 = c1x;
                     let __spy16 = c1y;
@@ -616,11 +618,11 @@ fn main() {
                     // line 2160
                     c1x = (cx * z1);
                     d1y = (y * z1);
-                    c2x = (c2x + ((291_f64 - c2x) * z));
+                    c2x = (c2x + ((291.0f64 - c2x) * z));
                     // line 2170
                     d1x = (dx * z1);
-                    c1y = (c1y + ((155_f64 - c1y) * z));
-                    d2x = (d2x + ((294_f64 - d2x) * z));
+                    c1y = (c1y + ((155.0f64 - c1y) * z));
+                    d2x = (d2x + ((294.0f64 - d2x) * z));
                     // line 2180
                     let __spx20 = c1x;
                     let __spy20 = c1y;
@@ -637,17 +639,17 @@ fn main() {
                     __rt.put_sprite(&d2, __spx23, __spy23, qbasic_runtime::PutAction::Xor);
                     // line 2200
                     let __tmp25 = __rt.rnd();
-                    let __sf24: f64 = (37_f64 + (__tmp25 * 200_f64));
-                    let __sd24: f64 = 4_f64;
+                    let __sf24: f64 = (37.0f64 + (__tmp25 * 200.0f64));
+                    let __sd24: f64 = 4.0f64;
                     __rt.sound(__sf24, __sd24);
                     p += __for_step_p;
                 }
                 __pc = 2210; continue '__sm;
             }
             2210 => {
-                y = 1_f64;
-                let __for_to_y: f64 = 2000_f64;
-                let __for_step_y: f64 = 1.0_f64;
+                y = 1.0f64;
+                let __for_to_y: f64 = 2000.0f64;
+                let __for_step_y: f64 = 1.0;
                 while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
                     y += __for_step_y;
                 }
@@ -659,15 +661,15 @@ fn main() {
                 __pc = 2230; continue '__sm;
             }
             2230 => {
-                sm = (sm + 1_f64);
-                __rt.locate(Some(7_f64), Some(25_f64), None);
+                sm = (sm + 1.0f64);
+                __rt.locate(Some(7.0f64), Some(25.0f64), None);
                 __rt.println(&[qb_str(&("Donkey loses!"))]);
                 __pc = 2240; continue '__sm;
             }
             2240 => {
-                y = 1_f64;
-                let __for_to_y: f64 = 1000_f64;
-                let __for_step_y: f64 = 1.0_f64;
+                y = 1.0f64;
+                let __for_to_y: f64 = 1000.0f64;
+                let __for_step_y: f64 = 1.0;
                 while (__for_step_y > 0.0 && y <= __for_to_y) || (__for_step_y < 0.0 && y >= __for_to_y) {
                     y += __for_step_y;
                 }

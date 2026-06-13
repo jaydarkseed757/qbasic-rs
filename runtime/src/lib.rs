@@ -500,6 +500,13 @@ pub struct Runtime {
     idle_polls: u32,
     /// Simulated byte memory for POKE/PEEK.  QB POKE stores a byte; PEEK reads it back.
     poke_mem: std::collections::HashMap<u32, u8>,
+    /// VGA DAC state for OUT &H3C8/&H3C9 port writes.
+    dac_write_idx: usize,  // current palette entry being written (auto-advances)
+    dac_channel:   u8,     // which sub-channel: 0=R, 1=G, 2=B
+    dac_pending_r: u8,     // accumulated red (6-bit DAC value)
+    dac_pending_g: u8,     // accumulated green
+    dac_read_idx:  usize,  // current palette entry for INP reads
+    dac_read_ch:   u8,     // read sub-channel: 0=R, 1=G, 2=B
 }
 
 /// When to write the framebuffer image in headless mode.
@@ -655,6 +662,8 @@ impl Runtime {
             present_count: 0,
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
+            dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
+            dac_read_idx:  0, dac_read_ch:  0,
         }
     }
 
@@ -735,6 +744,8 @@ impl Runtime {
             present_count: 0,
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
+            dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
+            dac_read_idx:  0, dac_read_ch:  0,
         };
         // QBC_SEED pins the RNG (overrides RANDOMIZE TIMER) — applies in windowed
         // mode too, so a seeded run can still be watched live.
@@ -2264,6 +2275,67 @@ impl Runtime {
     pub fn qb_peek(&mut self, addr: f64) -> f64 {
         let a = (addr as i64) as u32;
         self.poke_mem.get(&a).copied().unwrap_or(0) as f64
+    }
+
+    /// OUT port, val — write a byte to a hardware I/O port.
+    ///
+    /// Intercepts the VGA DAC ports used to set palette entries directly:
+    ///   0x3C8 — DAC write-address register: sets the palette index to start writing.
+    ///   0x3C9 — DAC data register: R, G, B written in sequence (each 0–63);
+    ///           the index auto-advances to the next entry after each blue byte.
+    ///   0x3C7 — DAC read-address register: sets the palette index to start reading.
+    ///   0x3C6 — DAC pixel mask (normally 0xFF); ignored.
+    /// All other ports are silently ignored.
+    pub fn qb_out(&mut self, port: f64, val: f64) {
+        let v = (val as i64) as u8;
+        match port as u16 {
+            0x3C8 => {
+                self.dac_write_idx = v as usize & 0xFF;
+                self.dac_channel   = 0;
+            }
+            0x3C9 => {
+                let dac = v & 63; // DAC values are 6-bit (0–63)
+                match self.dac_channel {
+                    0 => { self.dac_pending_r = dac; self.dac_channel = 1; }
+                    1 => { self.dac_pending_g = dac; self.dac_channel = 2; }
+                    _ => {
+                        let r = dac6_to_8(self.dac_pending_r);
+                        let g = dac6_to_8(self.dac_pending_g);
+                        let b = dac6_to_8(dac);
+                        self.palette_rgb[self.dac_write_idx] = (r, g, b);
+                        self.dac_write_idx = (self.dac_write_idx + 1) & 0xFF;
+                        self.dac_channel = 0;
+                    }
+                }
+            }
+            0x3C7 => {
+                self.dac_read_idx = v as usize & 0xFF;
+                self.dac_read_ch  = 0;
+            }
+            _ => {} // all other ports silently ignored
+        }
+    }
+
+    /// INP(port) — read a byte from a hardware I/O port.
+    ///
+    /// Reads back VGA DAC palette entries via port 0x3C9 (R, G, B in sequence,
+    /// 6-bit per channel, same as set by OUT 0x3C9).  Port 0x3C7 sets the
+    /// read address (same as DAC read-address register).  All other ports return 0.
+    pub fn qb_in(&mut self, port: f64) -> f64 {
+        match port as u16 {
+            0x3C9 => {
+                let (r, g, b) = self.palette_rgb[self.dac_read_idx];
+                let ch = self.dac_read_ch;
+                self.dac_read_ch += 1;
+                if self.dac_read_ch == 3 {
+                    self.dac_read_ch = 0;
+                    self.dac_read_idx = (self.dac_read_idx + 1) & 0xFF;
+                }
+                // Scale 8-bit back to 6-bit DAC (reverse of dac6_to_8)
+                (match ch { 0 => r >> 2, 1 => g >> 2, _ => b >> 2 }) as f64
+            }
+            _ => 0.0
+        }
     }
 
     /// SOUND freq, duration — freq in Hz, duration in PC timer ticks (18.2/sec).

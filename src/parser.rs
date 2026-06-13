@@ -149,6 +149,7 @@ pub enum Stmt {
     Paint  { x: Expr, y: Expr, fill: Expr, border: Option<Expr>, step: bool },
     Play(Expr),
     Poke { addr: Expr, val: Expr },
+    Out  { port: Expr, val: Expr },
     Sound { freq: Expr, duration: Expr },
     Beep,
     Randomize(Option<Expr>),
@@ -734,6 +735,13 @@ impl Parser {
                 self.expect(&Token::Comma)?;
                 let val = self.parse_expr()?;
                 Ok(Stmt::Poke { addr, val })
+            }
+            Token::Out => {
+                self.advance(); // consume OUT
+                let port = self.parse_expr()?;
+                self.expect(&Token::Comma)?;
+                let val = self.parse_expr()?;
+                Ok(Stmt::Out { port, val })
             }
             Token::Width => {
                 self.skip_warn("WIDTH");
@@ -2467,6 +2475,15 @@ impl Parser {
                 } else {
                     Ok(Expr::Var(LValue::Scalar { name, ty: lv_ty }))
                 }
+            }
+
+            // INP(port) — read a hardware I/O port byte.
+            Token::Inp => {
+                self.advance();
+                self.expect(&Token::LParen)?;
+                let port = self.parse_expr()?;
+                self.expect(&Token::RParen)?;
+                Ok(Expr::Call { name: "INP".into(), args: vec![port] })
             }
 
             // PLAY(n) — function form: returns number of notes remaining in background queue.

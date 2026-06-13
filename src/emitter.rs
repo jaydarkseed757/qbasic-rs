@@ -1717,6 +1717,11 @@ impl Emitter {
                 let v = self.emit_expr_inline(val);
                 self.line(&format!("__rt.qb_poke({a}, {v});"));
             }
+            Stmt::Out { port, val } => {
+                let p = self.emit_expr_inline(port);
+                let v = self.emit_expr_inline(val);
+                self.line(&format!("__rt.qb_out({p}, {v});"));
+            }
 
             Stmt::Sound { freq, duration } => {
                 // Hoist both args to temps to prevent double-borrow when freq
@@ -3831,6 +3836,9 @@ impl Emitter {
                 if name_lc == "peek" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_peek({})", a[0]));
                 }
+                if name_lc == "inp" && a.len() == 1 {
+                    return hoist(self, format!("__rt.qb_in({})", a[0]));
+                }
                 // PLAY(n) function form — returns notes remaining in background queue.
                 if name_lc == "play" {
                     return hoist(self, "__rt.play_count()".into());
@@ -4696,7 +4704,7 @@ fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(String, QbT
                     scan_expr(freq, result, added, exclude);
                     scan_expr(duration, result, added, exclude);
                 }
-                Stmt::Poke { addr, val } => {
+                Stmt::Poke { addr, val } | Stmt::Out { port: addr, val } => {
                     scan_expr(addr, result, added, exclude);
                     scan_expr(val, result, added, exclude);
                 }

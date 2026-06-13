@@ -59,6 +59,8 @@ pub enum Token {
     Resume,        // RESUME / RESUME NEXT
     Palette,       // PALETTE color, value
     Poke,          // POKE addr, val
+    Out,           // OUT port, val
+    Inp,           // INP(port) — read hardware port
     Put,           // PUT (x,y), array, mode  (sprite blit)
     Get,           // GET (x1,y1)-(x2,y2), array  (screen capture)
     Width,         // WIDTH col, row
@@ -162,6 +164,8 @@ fn keyword(word: &str) -> Option<Token> {
         "ON"        => Token::On,
         "PALETTE"   => Token::Palette,
         "POKE"      => Token::Poke,
+        "OUT"       => Token::Out,
+        "INP"       => Token::Inp,
         "PUT"       => Token::Put,
         "RESUME"    => Token::Resume,
         "WIDTH"     => Token::Width,

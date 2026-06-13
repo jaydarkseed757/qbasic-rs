@@ -24,7 +24,7 @@ tests/
 # Build everything first (transpiler + runtime)
 cargo build --release
 
-# Run all 23 tests
+# Run all 30 tests
 bash tests/run-tests.sh
 
 # Verbose: show actual vs expected on failure + full output on pass
@@ -75,7 +75,7 @@ Tests are grouped below by the language feature they primarily exercise.
 
 | Test | What it covers |
 |---|---|
-| `if_single` | Single-line `IF/THEN`, `IF/THEN/ELSE`, nested single-line `IF`, multiple statements after `THEN` (colon-separated) |
+| `if_single` | Single-line `IF/THEN`, `IF/THEN/ELSE`, nested single-line `IF`, multiple statements after `THEN` (colon-separated); block-IF whose THEN ends with a single-line IF — the block ELSE must not be stolen |
 | `if_multi` | Multi-line `IF/ELSEIF/ELSE/END IF`, untaken `ELSE` branch |
 | `for_loop` | `FOR/NEXT` with positive step, negative step, fractional step (`STEP 0.5`), `EXIT FOR` |
 | `while_wend` | `WHILE/WEND`, loop that never executes (`WHILE 0`), nested `WHILE` |
@@ -113,6 +113,9 @@ Tests are grouped below by the language feature they primarily exercise.
 |---|---|
 | `data_read` | `DATA` literals (numeric and string), `READ`, `RESTORE` and re-read |
 | `math_funcs` | `INT`, `FIX`, `ABS`, `SQR`, `SGN`, `MOD`, integer division (`\`), `^` (power), edge cases (`INT(-3.1)`, `FIX(-3.9)`) |
+| `numeric` | `CINT` banker's rounding (ties to even), integer division and `MOD` with pre-rounded operands, operator precedence (`*`/`/` tighter than `\` tighter than `MOD`) |
+| `qb_semantics` | Full QB-fidelity regression: operator precedence, `^` left-associativity, byref array-element mutation in SUBs, `NEXT i, j` multi-counter, `DATA` backslash escaping, `EQV`/`IMP`, `UBOUND`/`LBOUND` on string arrays, `RND(0)`/`RND(-n)`, QB LCG first value |
+| `val_edge` | `VAL` stops at first non-numeric character; `VAL("&Hnn")` hex and `VAL("&Onn")` octal prefixes |
 
 ### Strings
 
@@ -121,12 +124,31 @@ Tests are grouped below by the language feature they primarily exercise.
 | `string_concat` | `+` concatenation, `LEN`, comparison operators (`=`, `<`, `>`), QB boolean result (`-1` / `0`) |
 | `string_ops` | `LEFT$`, `RIGHT$`, `MID$`, `UCASE$`, `LCASE$`, `INSTR`, `CHR$`, `ASC`, `SPACE$`, `STRING$`, `STR$`, `VAL`, empty-string edge cases |
 
+### Graphics (headless)
+
+| Test | What it covers |
+|---|---|
+| `paint_pattern` | `PAINT (x,y), CHR$(n), border` pattern tiling and `POINT(x,y)` readback — uses the default framebuffer (no window), output to stdout |
+
+### Files and memory
+
+| Test | What it covers |
+|---|---|
+| `record_io` | Random-access TYPE record round-trip: `OPEN FOR RANDOM`, `PUT #n, rec, var`, `GET #n, rec, var`, fixed-string and INTEGER fields, close/reopen |
+
 ### User-defined types
 
 | Test | What it covers |
 |---|---|
 | `type_nested` | Single-level `TYPE` with scalar fields, nested `TYPE` field (`Col AS Color`), field access via `.` |
 | `type_complex` | Nested `TYPE` array (`DIM px(1 TO 3) AS Pixel`), scalar `TYPE` passed to `SUB` (expanded to per-field `&mut` params), field-level swap using a temp `TYPE` variable |
+| `type_array_field` | Array field inside a `TYPE` body (`Cell(4) AS INTEGER`); scalar, DIM SHARED, and array-of-TYPE forms; `arr(i).Field(j)` access |
+
+### Variables and scope
+
+| Test | What it covers |
+|---|---|
+| `common_static` | `COMMON SHARED` variable visible in main and SUBs; `STATIC` local persisting across calls |
 
 ---
 

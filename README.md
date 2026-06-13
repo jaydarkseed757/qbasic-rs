@@ -85,9 +85,12 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
+| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) | ✅ |
+| `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
+| `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
-All **39 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 39/39). The full set also includes `nibbles`,
+All **42 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 42/42). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, and the
 `pi-gw`/`hangman-gw` GW-BASIC variants.
@@ -99,10 +102,10 @@ All **39 bundled programs** in `basic-src/` transpile and run
 ### Language coverage
 - **Control flow**: IF/ELSEIF/ELSE, FOR/NEXT, WHILE/WEND, DO/LOOP, SELECT CASE (incl. ranges), GOTO, GOSUB/RETURN, ON…GOTO/GOSUB (computed branch)
 - **Subroutines**: SUB/END SUB, FUNCTION/END FUNCTION, GOSUB/RETURN, STATIC locals (persist across calls). Parameters pass by reference (QB semantics), including TYPE records.
-- **Data**: DIM, REDIM, ERASE, DIM SHARED, COMMON SHARED, DATA/READ/RESTORE, CONST, user-defined TYPE (nested, fixed-length strings), 1-D/2-D/3-D arrays incl. arrays of TYPE
-- **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT, PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
-- **Sound**: PLAY (full MML parser), SOUND, BEEP — wired to `rodio`
-- **I/O**: PRINT, PRINT USING, INPUT, LOCATE, COLOR, CLS, INKEY$, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization
+- **Data**: DIM, REDIM, ERASE, DIM SHARED, COMMON SHARED, DATA/READ/RESTORE, CONST, user-defined TYPE (nested, fixed-length strings, array fields), 1-D/2-D/3-D arrays incl. arrays of TYPE
+- **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT (solid and `CHR$(n)` pattern tiling), PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
+- **Sound**: PLAY (full MML parser, foreground + background mode, `PLAY(n)` notes-remaining query), SOUND, BEEP — wired to `rodio`
+- **I/O**: PRINT, PRINT USING, INPUT, LOCATE, COLOR, CLS, INKEY$, `MID$(s,p,l) = v` in-place assignment, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization
 - **Memory**: POKE (simulated byte store via `HashMap<u32, u8>`), PEEK (reads back stored byte or 0), DEF SEG (parsed/ignored)
 
 ### GOTO → state machine
@@ -229,7 +232,7 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
 - **Authentic QB RNG** — 24-bit LCG (`x = (x*16598013 + 12820163) AND &HFFFFFF`); first `RND` from power-on seed is the canonical QB value 0.7055475; `RND(0)` repeats the last value, `RND(negative)` reseeds deterministically
 - **Palette-indexed framebuffer** — `POINT(x,y)` returns a palette index, enabling QB-style collision detection
 - **SHARED variables** → `GameState` struct passed as `&mut __gs` to every SUB
-- **Arrays of TYPE** → flattened to one parallel `Vec` per field (`gg(r,c).player` → `gg__player[r][c]`); N-D arrays nest `Vec<Vec<…>>`
+- **Arrays of TYPE** → flattened to one parallel `Vec` per field (`gg(r,c).player` → `gg__player[r][c]`); N-D arrays nest `Vec<Vec<…>>`; TYPE body array fields (`Bar(4) AS INTEGER`) fully supported — `arr(i).Field(j)` emits `arr__field[i][j]`
 - **GOSUB targets** → named Rust `fn` (clean path, covers all of gorilla.bas)
 - **GOTO** → `match __pc` state machine (fallback for line-numbered programs)
 - **Coordinate systems** — `WINDOW` (Cartesian, Y-up) vs `WINDOW SCREEN` (screen Y-down); both map a logical rect onto the VIEW/screen with `POINT`/`PMAP` round-tripping

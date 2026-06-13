@@ -936,6 +936,49 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M17 — blackjack.bas + QB language fixes (build-all 42/42, 30/30 tests) ✅
+
+`blackjack.bas` (SCREEN 12 VGA casino blackjack) uncovered five transpiler/runtime
+gaps. All fixed; build-all now 42/42, integration suite 30/30, 96 unit tests.
+
+- **Single-line IF stealing outer block-IF's ELSE** (`src/parser.rs`) — when a
+  block-IF's THEN body ends with a single-line IF, `parse_stmt` consumes the
+  trailing newline, making the outer ELSE "adjacent" and wrongly stolen by the
+  inner IF. Caused blackjack's `AnimateDeal` to loop forever (card never slid).
+  Fix: capture `if_line` at `parse_if` entry; only attach single-line ELSE when
+  it is on the same source line. Regression test: `tests/programs/if_single.bas`.
+
+- **minifb use-after-free segfault** (`runtime/src/lib.rs`) — minifb's macOS
+  backend stores the raw pointer from `update_with_buffer` without copying; a
+  per-call local `Vec<u32>` was freed on `present()` return, leaving a dangling
+  pointer that triggered `EXC_BAD_ACCESS` in `drawInMTKView` during the next idle
+  `INKEY$` poll. Fix: `present_buf: Vec<u32>` persistent field on `Runtime`.
+
+- **`PLAY(n)` function form** (`src/parser.rs`, `src/emitter.rs`,
+  `runtime/src/lib.rs`) — QB's `PLAY(n)` is both a statement and a function
+  returning notes remaining in the background queue. The function form was hitting
+  `parse_primary`'s error arm. Fix: `Token::Play` in expression context →
+  `Expr::Call { "PLAY" }`; both `emit_expr_inner` and `lift_expr` map it to
+  `__rt.play_count()`. The runtime adds `bg_playing: Arc<AtomicBool>` set on
+  background play start and cleared when the thread finishes; `play_count()`
+  returns 10 while playing (≥5 = "don't refill"), 0 when done. Without this the
+  title-screen music loop spawned a new background thread every ~0.9 s → doubled
+  audio.
+
+- **`MID$(var$, pos[, len]) = val`** statement form (`src/parser.rs`,
+  `src/emitter.rs`, `runtime/src/lib.rs`) — in-place substring replacement with
+  no string-length change. Was parsed as a 3-D array assignment. Fix: new
+  `Stmt::MidAssign`; early detection in `parse_assign_or_call`; emitted as
+  `qb_mid_assign(&mut var, pos, len_opt, &val)`.
+
+- **TYPE body array fields** (`src/parser.rs`, `src/emitter.rs`) — `Bar(4) AS
+  INTEGER` within a `TYPE` block was silently dropping the dimension. Four
+  emission sites fixed: `emit_game_state`, `emit_dim` (shared and local typed
+  array paths), `FieldIndex` lvalue emitter, and both `parse_assign_or_call` and
+  `parse_primary` dot-chain subscript paths. `DIM boards(2) AS Grid` where `Grid`
+  has `Cell(4)` now correctly emits `boards__cell: Vec<Vec<f64>>` and
+  `boards(i).Cell(j)` round-trips. Integration test: `tests/programs/type_array_field.bas`.
+
 ### M16 — INVADERS.BAS support: QB4.5 line continuation, AS STRING params, local string arrays ✅
 Full support for `INVADERS.BAS`, a 1730-line QB4.5 Space Invaders port (build-all 38/38).
 
@@ -955,8 +998,8 @@ Full support for `INVADERS.BAS`, a 1730-line QB4.5 Space Invaders port (build-al
   array declared as 1D in the param list gets `Vec<Vec<f64>>` correctly.
 
 ### M15 — QB-fidelity transpiler fixes (code review June 2026) ✅
-Ten correctness fixes from a full src/ + runtime/ review (build-all 39/39,
-28/28 integration, 91 runtime unit tests, 9/9 graphics goldens).
+Ten correctness fixes from a full src/ + runtime/ review (build-all 39/39 at
+the time; now 42/42 after M16–M17).
 
 - **`*`/`\`/`MOD` precedence corrected** (`src/parser.rs`) — chain was inverted;
   `2 * 3 MOD 4` now correctly yields 2 (was 6).
@@ -1164,29 +1207,23 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **39/39** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **42/42** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
-palette256_expanded, random-pixel, qblocks, kitchen_sink-gw, kitchen_sink-qbasic,
-loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze, duck, etto, invaders,
-toccata, gotorama). The integration suite is **28/28**, with 91 runtime unit tests
-and 9 graphics golden tests.
+palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
+duck, etto, invaders, toccata, gotorama, blackjack, textpaint). The integration
+suite is **30/30**, with 96 runtime unit tests and 9 graphics golden tests.
 
-Remaining work is verification and a few rarely-used features:
+Remaining work is a few rarely-used features:
 
-1. **gorilla.bas full playthrough (prime target)** — compiles and links;
-   needs interactive + visual + audio verification of a complete game:
-   skyline render, banana physics, POINT() collision, explosion sound, scoring,
-   wind. The one acceptance test that can't be checked headlessly.
-2. **PAINT tiling patterns** — `PAINT (x,y), CHR$(n), border` (B&W dither fill)
-   emits a solid-foreground stub + warning, not real pattern tiling. Dead code
-   on reversi's EGA path; no color-mode program needs it.
-3. **Array fields inside a TYPE body** — `Bar(10) AS SINGLE` within a `TYPE`
-   block: the parser discards the dimension. Rare; no bundled program uses it.
-4. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
+1. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
    (asterisk fill) print literally. `^^^^` scientific notation and wide-field
    `%` overflow are implemented (see Feature Support Notes).
-5. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
+2. **`OUT &H3C8/&H3C9` VGA DAC port writes** — some programs write palette
+   entries via hardware port knocks instead of the `PALETTE` statement. Not
+   modelled; out of scope until a program needs it.
+3. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
    source pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`, via
    `parse_qbc_config` in `emitter.rs`) are baked in at transpile time; the
    headless-driver env vars (`HEADLESS/KEYS/SEED/DUMP/CHECKSUM/FBSTATS/

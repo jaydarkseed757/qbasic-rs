@@ -513,7 +513,7 @@ impl Emitter {
         self.emit_key_event_helper()?;
 
         self.emit_main(&main_stmts, &globals)?;
-        Ok(self.out.clone())
+        Ok(inline_single_use_tmps(&self.out))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {
@@ -6313,4 +6313,100 @@ fn collect_dim_shared_names(stmts: &[Stmt]) -> HashSet<String> {
 
 pub fn emit(prog: &AnalyzedProgram) -> Result<String> {
     Emitter::new().emit(prog)
+}
+
+// ── Post-processing: collapse single-use __tmpN temporaries ──────────────────
+//
+// lift_expr() hoists every user-fn call and __rt.* built-in call into a
+// `let __tmpN = expr;` temporary so that args to `__rt.method(...)` calls don't
+// double-borrow `__rt` or `__gs`.  That's correct when the result ends up as
+// an argument to another `__rt.*` call, but when the result is immediately
+// assigned to a plain variable (`y = __tmp1;`) the temp is unnecessary.
+//
+// This pass detects the pattern:
+//   let __tmpN = expr;          (immutable, plain __tmp prefix, no __tmp_*)
+//   ...
+//   lhs = __tmpN;               (__tmpN appears exactly once in the rest)
+// and collapses it to:
+//   lhs = expr;
+//
+// Safety:
+// - Only immutable `let` (not `let mut`) are collapsed.
+// - Exactly-two-occurrence check: if __tmpN is used anywhere else (as an arg
+//   to an __rt call, in a complex expression, etc.) count > 2 → left alone.
+// - The use must be a standalone assignment (`lhs = __tmpN;`), not embedded in
+//   a larger expression — checked by matching the entire trimmed RHS.
+
+fn count_word_occurrences(s: &str, word: &str) -> usize {
+    let sb = s.as_bytes();
+    let wb = word.as_bytes();
+    let wlen = wb.len();
+    let mut count = 0;
+    let mut i = 0;
+    while i + wlen <= sb.len() {
+        if &sb[i..i + wlen] == wb {
+            let before_ok = i == 0 || !sb[i - 1].is_ascii_alphanumeric() && sb[i - 1] != b'_';
+            let after_ok = i + wlen >= sb.len()
+                || !sb[i + wlen].is_ascii_alphanumeric() && sb[i + wlen] != b'_';
+            if before_ok && after_ok {
+                count += 1;
+            }
+        }
+        i += 1;
+    }
+    count
+}
+
+fn inline_single_use_tmps(out: &str) -> String {
+    let lines: Vec<&str> = out.lines().collect();
+    let mut deletions: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    let mut replacements: std::collections::HashMap<usize, String> =
+        std::collections::HashMap::new();
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        // Only immutable, only plain __tmp (not __tmp_num, __tmp_gs, __tmp_str, etc.)
+        if !trimmed.starts_with("let __tmp") { continue; }
+        if trimmed.starts_with("let mut __tmp") { continue; }
+
+        // Parse: "let __tmpN = expr;"
+        let after_let = &trimmed["let ".len()..];
+        let eq_pos = match after_let.find(" = ") { Some(p) => p, None => continue };
+        let tmp_name = &after_let[..eq_pos];
+        // tmp_name must be __tmp followed by ONLY digits (e.g. __tmp42, not __tmp_num3)
+        let digits_part = match tmp_name.strip_prefix("__tmp") { Some(d) => d, None => continue };
+        if digits_part.is_empty() || !digits_part.chars().all(|c| c.is_ascii_digit()) { continue; }
+        let expr = after_let[eq_pos + 3..].trim_end_matches(';').trim();
+
+        // Count total word-boundary occurrences — must be exactly 2 (def + one use)
+        if count_word_occurrences(out, tmp_name) != 2 { continue; }
+
+        // Find the other line and verify it's a standalone `lhs = __tmpN;`
+        let use_suffix = format!(" = {};", tmp_name);
+        for (j, other) in lines.iter().enumerate() {
+            if j == i { continue; }
+            let ot = other.trim_start();
+            if !ot.ends_with(use_suffix.as_str()) { continue; }
+            // lhs is everything before " = __tmpN;"
+            let lhs = &ot[..ot.len() - use_suffix.len()];
+            // lhs must not itself contain __tmpN (edge-case guard)
+            if lhs.contains(tmp_name) { continue; }
+            let indent: &str = &other[..other.len() - other.trim_start().len()];
+            replacements.insert(j, format!("{indent}{lhs} = {expr};"));
+            deletions.insert(i);
+            break;
+        }
+    }
+
+    if deletions.is_empty() {
+        return out.to_string();
+    }
+
+    let mut result = String::with_capacity(out.len());
+    for (i, line) in lines.iter().enumerate() {
+        if deletions.contains(&i) { continue; }
+        result.push_str(replacements.get(&i).map(String::as_str).unwrap_or(line));
+        result.push('\n');
+    }
+    result
 }

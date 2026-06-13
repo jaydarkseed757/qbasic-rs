@@ -16,6 +16,7 @@ qbasic-rust/
 ├── ARCHITECTURE.md             # Full architectural reference — read this first
 ├── gorillas.md                 # Line-by-line walkthrough of gorilla.bas
 ├── money.md                    # Line-by-line walkthrough of money.bas
+├── BLACKJACK.md                # Deep-dive walkthrough of blackjack.bas (card encoding, state machine, dealer art, sound, high scores)
 │
 ├── src/                        # Transpiler (qbc binary) — all in one crate
 │   ├── main.rs                 # CLI: qbc <file.bas> [-o out.rs] [--emit-only] [--dump-ast]

@@ -85,7 +85,7 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
-| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) | ✅ |
+| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](BLACKJACK.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 

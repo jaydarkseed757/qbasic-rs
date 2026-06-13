@@ -513,7 +513,7 @@ impl Emitter {
         self.emit_key_event_helper()?;
 
         self.emit_main(&main_stmts, &globals)?;
-        Ok(inline_single_use_tmps(&self.out))
+        Ok(remove_unnecessary_mut(&inline_single_use_tmps(&self.out)))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {
@@ -6406,6 +6406,117 @@ fn inline_single_use_tmps(out: &str) -> String {
     for (i, line) in lines.iter().enumerate() {
         if deletions.contains(&i) { continue; }
         result.push_str(replacements.get(&i).map(String::as_str).unwrap_or(line));
+        result.push('\n');
+    }
+    result
+}
+
+// ── Post-processing: remove unnecessary `mut` from local declarations ─────────
+//
+// emit_locals() marks ALL collected QB locals `let mut` because QB variables are
+// all re-assignable by language spec.  But many locals are assigned exactly once
+// and then only read — they don't need `mut`.  This pass scans each `let mut`
+// binding for actual mutation evidence in the same function scope; if none is
+// found the `mut` is stripped.
+//
+// "Mutation evidence" (keeps `mut`):
+//   varname =   / varname +=  / varname -=  / varname *=  / varname /=  / varname %=
+//   &mut varname  (passed byref)
+//   for varname in  (range-for rebinding)
+//
+// Scope boundary: the next `fn ` or `pub fn ` line at column 0 (or EOF).
+// Infrastructure bindings (__gs, __rt, __fn_ret, __pc, __for_*, __tmp_*, …)
+// are always left alone.
+//
+// Safety: if we ever wrongly drop `mut` from a variable that IS assigned, rustc
+// will emit "cannot assign to immutable variable" at generated-program compile
+// time — making any false negative immediately visible and easy to fix.
+
+fn is_mutated_in_scope(lines: &[&str], varname: &str) -> bool {
+    let assign   = format!("{varname} =");
+    let add_eq   = format!("{varname} +");
+    let sub_eq   = format!("{varname} -");
+    let mul_eq   = format!("{varname} *");
+    let div_eq   = format!("{varname} /");
+    let mod_eq   = format!("{varname} %");
+    let index    = format!("{varname}[");   // index-assignment: arr[i] = …
+    let byref    = format!("&mut {varname}");
+    let for_in   = format!("for {varname} in");
+    for line in lines {
+        let t = line.trim_start();
+        if t.starts_with(assign.as_str())
+            || t.starts_with(add_eq.as_str())
+            || t.starts_with(sub_eq.as_str())
+            || t.starts_with(mul_eq.as_str())
+            || t.starts_with(div_eq.as_str())
+            || t.starts_with(mod_eq.as_str())
+            || t.starts_with(index.as_str())
+            || t.contains(byref.as_str())
+            || t.starts_with(for_in.as_str())
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn remove_unnecessary_mut(out: &str) -> String {
+    // Infrastructure prefixes — always keep mut regardless of apparent usage.
+    const SKIP: &[&str] = &[
+        "__gs", "__rt", "__fn_ret", "__pc", "__for_", "__tmp_",
+        "__pu_", "__file_", "__put_", "__fa", "__handle",
+    ];
+
+    let lines: Vec<&str> = out.lines().collect();
+    let n = lines.len();
+    let mut demut: std::collections::HashSet<usize> = std::collections::HashSet::new();
+
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("let mut ") { continue; }
+
+        // Extract varname: text between "let mut " and the first ":"
+        let after = &trimmed["let mut ".len()..];
+        let colon = match after.find(':') { Some(p) => p, None => continue };
+        let varname = after[..colon].trim();
+
+        // Only plain rust identifiers
+        if varname.is_empty()
+            || varname.contains(' ')
+            || varname.contains('.')
+            || !varname.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            continue;
+        }
+
+        // Leave infrastructure bindings alone
+        if SKIP.iter().any(|p| varname.starts_with(p)) { continue; }
+
+        // Scope end: next unindented `fn ` / `pub fn ` line, or EOF
+        let scope_end = lines[i + 1..].iter()
+            .position(|l| {
+                let t = l.trim_start();
+                (t.starts_with("fn ") || t.starts_with("pub fn "))
+                    && !l.starts_with(' ')
+                    && !l.starts_with('\t')
+            })
+            .map(|p| i + 1 + p)
+            .unwrap_or(n);
+
+        if !is_mutated_in_scope(&lines[i + 1..scope_end], varname) {
+            demut.insert(i);
+        }
+    }
+
+    if demut.is_empty() { return out.to_string(); }
+
+    let mut result = String::with_capacity(out.len());
+    for (i, line) in lines.iter().enumerate() {
+        if demut.contains(&i) {
+            result.push_str(&line.replacen("let mut ", "let ", 1));
+        } else {
+            result.push_str(line);
+        }
         result.push('\n');
     }
     result

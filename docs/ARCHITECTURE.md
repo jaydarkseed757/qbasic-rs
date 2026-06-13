@@ -14,7 +14,7 @@ game shipped with MS-DOS QBasic — running at 100% fidelity.
 qbasic-rust/
 ├── Cargo.toml                  # Workspace (members: transpiler crate + runtime crate)
 ├── CLAUDE.md                   # AI assistant instructions and design rules
-├── ARCHITECTURE.md             # This file
+├── docs/ARCHITECTURE.md        # This file
 │
 ├── src/                        # Transpiler (qbc binary)
 │   ├── main.rs                 # CLI, pipeline orchestration, --verbose stats
@@ -1099,18 +1099,18 @@ Expanded coverage to the remaining graphics-heavy DOS QBasic programs.
 
 - **donkey.bas** (CGA SCREEN 1): authentic 2-bpp packed-INTEGER sprite GET/PUT
   layout; PUT action verbs (PSET/PRESET/AND/OR/XOR, default XOR); DRAW fixes
-  (M-command relativity, N no-advance, color-follows-COLOR). See `donkey.md`.
+  (M-command relativity, N no-advance, color-follows-COLOR). See `docs/donkey.md`.
 - **torus.bas** (SCREEN 12): arrays of a user TYPE flattened to per-field Vecs;
   `SHARED … AS type` inside SUBs; `PAINT STEP`; typed-array element passed to a
   SUB; **FUNCTION parameters pass by reference** (QB semantics — `Inside()`
   mutates a TYPE arg the caller reads back); `WINDOW`-without-`VIEW` maps to the
   full screen; **Y-axis inversion** for Cartesian `WINDOW`; SCREEN 11/12 PALETTE
-  decodes the 18-bit VGA DAC value. See `torus.md`.
+  decodes the 18-bit VGA DAC value. See `docs/torus.md`.
 - **reversi.bas** (SCREEN 9): `WINDOW SCREEN` (screen-orientation, magnitude-
   mapped so reversed corners don't flip); `ERASE`; **3-D arrays**
   (`nested_vec_type`/`nested_vec_init`); 2-D arrays of a TYPE; shared-field args
   to user FUNCTIONs hoisted to avoid borrow conflicts; scalar/array same-name
-  coexistence (`A$` vs `A$()`). See `reversi.md`.
+  coexistence (`A$` vs `A$()`). See `docs/reversi.md`.
 - **screen13.bas / 256c / palette256_expanded** (SCREEN 13, MCGA 256-color):
   256-entry `palette_rgb`, VGA BIOS default palette, 18-bit DAC `PALETTE`.
 

@@ -358,7 +358,7 @@ retains keyboard focus throughout throws and animations.
 > built-in 4 ms rate limiter (`set_target_fps(0)`) and `inkey()` only blits the
 > framebuffer once per frame interval (otherwise just pumps events + harvests
 > keys), so these loops run at full speed and stay responsive — see
-> `ARCHITECTURE.md §Key input`.
+> `docs/ARCHITECTURE.md §Key input`.
 
 > **Other runtime pacing levers:** the `REM QBC FPS N` and `REM QBC SLOWMO N`
 > pragmas in the source can trim frame rate further if needed without touching
@@ -479,7 +479,7 @@ not the C/Rust "round half away from zero". Gorillas relies on this in spots
 where getting it wrong yields *subtly wrong graphics rather than a crash*, so
 the runtime must match QB exactly. The runtime maps `CINT`→`qb_cint` (banker's),
 `\`→`qb_idiv`, and `MOD`→`qb_mod`; the latter two `qb_cint`-round both operands
-before the i64 op. (See `ARCHITECTURE.md §Arithmetic operators`.)
+before the i64 op. (See `docs/ARCHITECTURE.md §Arithmetic operators`.)
 
 The two that actually matter for fidelity:
 

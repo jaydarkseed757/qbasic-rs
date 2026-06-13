@@ -62,11 +62,11 @@ cargo run -- basic-src/gorilla.bas --emit-only
 
 | Program | Description | Status |
 |---------|-------------|--------|
-| `gorilla.bas` | Classic gorilla-throwing game (SCREEN 9 EGA, CIRCLE/PAINT/GET/PUT sprites, PLAY audio) — [walkthrough](gorillas.md) | ✅ |
-| `torus.bas` | Interactive 3-D torus (arrays of TYPE, WINDOW/PMAP, VGA DAC palette cycling) — [walkthrough](torus.md) | ✅ |
-| `reversi.bas` | Reversi/Othello with an AI opponent (2-D TYPE array, 3-D array, WINDOW SCREEN, ERASE) — [walkthrough](reversi.md) | ✅ |
+| `gorilla.bas` | Classic gorilla-throwing game (SCREEN 9 EGA, CIRCLE/PAINT/GET/PUT sprites, PLAY audio) — [walkthrough](docs/gorillas.md) | ✅ |
+| `torus.bas` | Interactive 3-D torus (arrays of TYPE, WINDOW/PMAP, VGA DAC palette cycling) — [walkthrough](docs/torus.md) | ✅ |
+| `reversi.bas` | Reversi/Othello with an AI opponent (2-D TYPE array, 3-D array, WINDOW SCREEN, ERASE) — [walkthrough](docs/reversi.md) | ✅ |
 | `mandel.bas` | Mandelbrot renderer (VIEW/WINDOW coords, PALETTE cycling, PACE) | ✅ |
-| `donkey.bas` | Q-BASIC Donkey game (GOTO state machine, DRAW sprites, CGA SCREEN 1) — [walkthrough](donkey.md) | ✅ |
+| `donkey.bas` | Q-BASIC Donkey game (GOTO state machine, DRAW sprites, CGA SCREEN 1) — [walkthrough](docs/donkey.md) | ✅ |
 | `sortdemo.bas` | Animated sorting visualizer (SHARED vars, animation) | ✅ |
 | `money.bas` | Money manager (DATA/READ, SELECT CASE, arrays) | ✅ |
 | `pi.bas` | Arbitrary-precision pi via Machin's formula | ✅ |
@@ -85,7 +85,7 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
-| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](BLACKJACK.md) | ✅ |
+| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
@@ -192,7 +192,7 @@ qbasic-rust/
 └── basic-src/             # .bas source files
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a full description of the pipeline, design decisions, and runtime internals.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full description of the pipeline, design decisions, and runtime internals.
 
 ---
 

@@ -13,10 +13,15 @@ shipped with MS-DOS QBasic — running at 100% fidelity.
 qbasic-rust/
 ├── Cargo.toml                  # Workspace (members: transpiler crate + runtime crate)
 ├── CLAUDE.md                   # This file
-├── ARCHITECTURE.md             # Full architectural reference — read this first
-├── gorillas.md                 # Line-by-line walkthrough of gorilla.bas
-├── money.md                    # Line-by-line walkthrough of money.bas
-├── BLACKJACK.md                # Deep-dive walkthrough of blackjack.bas (card encoding, state machine, dealer art, sound, high scores)
+├── docs/
+│   ├── ARCHITECTURE.md         # Full architectural reference — read this first
+│   ├── gorillas.md             # Line-by-line walkthrough of gorilla.bas
+│   ├── money.md                # Line-by-line walkthrough of money.bas
+│   ├── BLACKJACK.md            # Deep-dive walkthrough of blackjack.bas (card encoding, state machine, dealer art, sound, high scores)
+│   ├── torus.md                # Walkthrough of torus.bas
+│   ├── reversi.md              # Walkthrough of reversi.bas
+│   ├── donkey.md               # Walkthrough of donkey.bas
+│   └── screenshots/            # PNG screenshots of rendered programs
 │
 ├── src/                        # Transpiler (qbc binary) — all in one crate
 │   ├── main.rs                 # CLI: qbc <file.bas> [-o out.rs] [--emit-only] [--dump-ast]
@@ -79,7 +84,7 @@ gorilla.bas is **fully verified** — headless golden for the banana-throw frame
 and audio (PLAY explosion/victory fanfares), victory animations, and multi-round
 scoring have all been confirmed working via human play-through.
 
-See `ARCHITECTURE.md §Milestone Status` (M1–M11) and `§What's Left`.
+See `docs/ARCHITECTURE.md §Milestone Status` (M1–M11) and `§What's Left`.
 
 ---
 
@@ -190,7 +195,7 @@ the program draws, so tune `N` (lower = slower). `mandel.bas` uses `REM QBC PACE
 
 ## GORILLA.BAS Specific Facts
 
-Read `gorillas.md` for the full architectural walkthrough. Key facts:
+Read `docs/gorillas.md` for the full architectural walkthrough. Key facts:
 
 - **SCREEN 9 first, fallback to SCREEN 1** — gorilla.bas negotiates EGA (640×350)
   via `ON ERROR GOTO` and falls back to CGA (320×200). It does NOT use SCREEN 7.
@@ -453,7 +458,7 @@ The bundled programs in `basic-src/` are for manual/visual verification only.
   `PAINT STEP(dx,dy)`; passing a typed-array ELEMENT to a SUB (`TileDraw
   T(Index(Til))`); scalar UserType → per-field GameState fields; `REDIM … AS Tile`
   resizes each field Vec; per-sub `shared_names` scoping (DIM SHARED vs explicit
-  `SHARED` in a sub); `SCREEN n, , m` empty middle args. Walkthrough: `torus.md`.
+  `SHARED` in a sub); `SCREEN n, , m` empty middle args. Walkthrough: `docs/torus.md`.
 
 ### From reversi.bas (SCREEN 9 — game, 2-D/3-D arrays, WINDOW SCREEN)
 - **`WINDOW SCREEN`** = screen-orientation Y (NO inversion) AND mapped by
@@ -470,7 +475,7 @@ The bundled programs in `basic-src/` are for manual/visual verification only.
   variables (reversi's DisplayHelp). `local_scalar_name()` suffixes the colliding
   scalar binding `__sc`.
 - Shared-field args to user FUNCTIONs are hoisted to temps in a block expr to
-  avoid the `&mut __gs` borrow conflict. Walkthrough: `reversi.md`.
+  avoid the `&mut __gs` borrow conflict. Walkthrough: `docs/reversi.md`.
 
 ### From qblocks.bas (SCREEN 7/8 — last bundled program; build-all 24/24)
 - **Zero-arg FUNCTION called WITHOUT parens is a CALL.** `IF CheckFit = FALSE`
@@ -922,7 +927,7 @@ Three more fixes landed after the initial blackjack port:
   pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`) are compile-time, baked into
   the binary via `parse_qbc_config` (emitter). The `QBC_*` env vars are run-time
   (the headless driver, runtime). They share the "QBC" name but don't overlap.
-  *Review idea (in `ARCHITECTURE.md §What's Left`):* let the behavioral pragmas
+  *Review idea (in `docs/ARCHITECTURE.md §What's Left`):* let the behavioral pragmas
   also be env-overridable (`QBC_PACE`, `QBC_SCALE`, …) for tuning without
   re-transpiling; the debug knobs do NOT belong as pragmas.
 - **`GET`/`PUT` sprite layouts — all depths supported:** EGA 4-plane planar
@@ -945,8 +950,8 @@ Three more fixes landed after the initial blackjack port:
 
 ## When You Are Unsure
 
-- Read `gorillas.md` for gorilla.bas specifics — it is the ground truth
-- Read `ARCHITECTURE.md` for the full feature/limitation inventory
+- Read `docs/gorillas.md` for gorilla.bas specifics — it is the ground truth
+- Read `docs/ARCHITECTURE.md` for the full feature/limitation inventory
 - QB documentation: assume Microsoft QBasic 1.1 (DOS) behaviour
 - For numeric edge cases, prefer matching QB output over mathematical purity
 - Never silently drop an unimplemented statement — emit `// TODO: <stmt>` in

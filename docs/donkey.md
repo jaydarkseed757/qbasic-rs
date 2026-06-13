@@ -384,6 +384,6 @@ SCREEN 2 (CGA 640×200, 1-bpp) sprites — no bundled program uses them.
 
 ---
 
-*See `gorillas.md` for the structured-flow counterpart (EGA, SUB/FUNCTION-based).
+*See `docs/gorillas.md` for the structured-flow counterpart (EGA, SUB/FUNCTION-based).
 donkey.bas is the CGA / GOTO / vector-DRAW stress test; gorilla.bas is the
 EGA / structured / GET-captured-sprite target.*

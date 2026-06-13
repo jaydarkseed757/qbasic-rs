@@ -2557,6 +2557,12 @@ fn fmt_exponential(
     format!("{}{}{}", sign, mantissa_str, exp_str)
 }
 
+/// Replace the leading run of spaces in `s` with `*` (for `**` PRINT USING prefix).
+fn replace_leading_stars(s: &str) -> String {
+    let first_non_space = s.find(|c: char| c != ' ').unwrap_or(s.len());
+    format!("{}{}", "*".repeat(first_non_space), &s[first_non_space..])
+}
+
 /// PRINT USING with mixed numeric and string values.
 pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
     let mut result = String::new();
@@ -2614,14 +2620,29 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
             continue;
         }
 
-        // ── Numeric field: #, +, -, ##.##, .## etc. ─────────────────────────────
+        // ── Numeric field: **/$$ prefixes, #, +, -, ##.##, .## etc. ─────────────
         let is_num_start = chars[i] == '#'
             || chars[i] == '+'
             || (chars[i] == '-' && i + 1 < chars.len() && chars[i+1] == '#')
-            || (chars[i] == '.' && i + 1 < chars.len() && chars[i+1] == '#');
+            || (chars[i] == '.' && i + 1 < chars.len() && chars[i+1] == '#')
+            || (chars[i] == '*' && i + 1 < chars.len() && chars[i+1] == '*')
+            || (chars[i] == '$' && i + 1 < chars.len() && chars[i+1] == '$');
         if is_num_start {
-            let field_start = i;
-            let has_leading_sign = chars[i] == '+' || chars[i] == '-';
+            // ── Prefix tokens: ** (asterisk fill) and $$ / **$ (floating dollar)
+            let has_star_fill = chars[i] == '*';
+            if has_star_fill { i += 2; }  // consume **
+            let (has_floating_dollar, dollar_prefix) =
+                if has_star_fill && i < chars.len() && chars[i] == '$' {
+                    i += 1; (true, 1usize)   // **$: one $ char, contributes 1 to width
+                } else if !has_star_fill && i < chars.len() && chars[i] == '$' {
+                    i += 2; (true, 2usize)   // $$: two $ chars, contribute 2 to width
+                } else {
+                    (false, 0usize)
+                };
+            let star_count: usize = if has_star_fill { 2 } else { 0 };
+
+            let has_leading_sign = i < chars.len() && (chars[i] == '+' || chars[i] == '-');
+            let force_plus = has_leading_sign && chars[i] == '+';
             if has_leading_sign { i += 1; }
             let mut int_digits = 0usize;
             let mut has_comma = false;
@@ -2657,8 +2678,6 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
                 None => 0.0,
             };
             val_idx += 1;
-
-            let force_plus = has_leading_sign && chars[field_start] == '+';
 
             // ── Exponential (scientific) branch ─────────────────────────────────
             if exponential {
@@ -2700,10 +2719,9 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
                 int_part.to_string()
             };
 
-            // ── Overflow: value too wide for the field → QB prepends `%` and
-            //    prints the number in full, unpadded (the "wide field" case).
-            //    No leading sign-space here: `%123`, not `% 123`. ──
-            if int_part.len() > total_int_width {
+            // ── Overflow: value too wide for digit capacity → QB prepends `%`.
+            //    Star positions (**) extend digit capacity; dollar prefix does not.
+            if int_part.len() > star_count + total_int_width {
                 let sign_ov = if v < 0.0 { "-" } else if force_plus { "+" } else { "" };
                 result.push('%');
                 result.push_str(&format!("{}{}{}", sign_ov, int_str, frac_part));
@@ -2714,7 +2732,32 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
             }
 
             let frac_w = if frac_digits > 0 { frac_digits + 1 } else { 0 };
-            if has_leading_sign || has_trailing_sign {
+            // Total output width includes all prefix contributions.
+            let total_w = star_count + dollar_prefix + total_int_width + frac_w;
+
+            if has_floating_dollar {
+                // $ floats immediately left of the first digit.
+                // Compute padding: total_w - len(num_str) - 1 (for $) [- 1 more for sign if negative]
+                let num_str_body = format!("{}{}", int_str, frac_part);
+                let out = if v < 0.0 {
+                    let pad = total_w.saturating_sub(num_str_body.len() + 2);
+                    format!("{}-${}", " ".repeat(pad), num_str_body)
+                } else {
+                    let pad = total_w.saturating_sub(num_str_body.len() + 1);
+                    format!("{}${}", " ".repeat(pad), num_str_body)
+                };
+                result.push_str(&if has_star_fill { replace_leading_stars(&out) } else { out });
+            } else if has_star_fill {
+                // Leading spaces replaced with '*'. Star slots extend the field.
+                let sign = if v < 0.0 { "-" } else if force_plus { "+" } else { "" };
+                let signed = format!("{}{}{}", sign, int_str, frac_part);
+                let padded = if signed.len() < total_w {
+                    format!("{:>width$}", signed, width = total_w)
+                } else {
+                    signed
+                };
+                result.push_str(&replace_leading_stars(&padded));
+            } else if has_leading_sign || has_trailing_sign {
                 // Explicit-sign formats reserve one extra column for the sign,
                 // which is included in the (unchanged) original layout.
                 let sign = if v < 0.0 { "-" } else if force_plus { "+" } else { " " };
@@ -3538,6 +3581,38 @@ mod print_using_tests {
     #[test]
     fn string_amp_field() {
         assert_eq!(qb_print_using("&", &[QbVal::Str("hi")]), "hi");
+    }
+}
+
+#[cfg(test)]
+mod print_using_prefix_tests {
+    use super::{qb_print_using, QbVal};
+    fn pu(fmt: &str, n: f64) -> String { qb_print_using(fmt, &[QbVal::Num(n)]) }
+
+    // ── $$ floating dollar ───────────────────────────────────────────────────
+    #[test] fn dollar_dollar_one()      { assert_eq!(pu("$$###", 1.0),    "   $1"); }
+    #[test] fn dollar_dollar_two()      { assert_eq!(pu("$$###", 12.0),   "  $12"); }
+    #[test] fn dollar_dollar_full()     { assert_eq!(pu("$$###", 123.0),  " $123"); }
+    #[test] fn dollar_dollar_negative() { assert_eq!(pu("$$###", -12.0),  " -$12"); }
+    #[test] fn dollar_dollar_frac()     { assert_eq!(pu("$$##.##", 1.23), "  $1.23"); }
+    #[test] fn dollar_dollar_overflow() { assert_eq!(pu("$$###", 1234.0), "%1234"); }
+
+    // ── ** asterisk fill ─────────────────────────────────────────────────────
+    #[test] fn star_star_one()          { assert_eq!(pu("**###", 1.0),      "****1"); }
+    #[test] fn star_star_two()          { assert_eq!(pu("**###", 12.0),     "***12"); }
+    #[test] fn star_star_three()        { assert_eq!(pu("**###", 123.0),    "**123"); }
+    #[test] fn star_star_fill_all()     { assert_eq!(pu("**###", 12345.0),  "12345"); }
+    #[test] fn star_star_negative()     { assert_eq!(pu("**###", -12.0),    "**-12"); }
+    #[test] fn star_star_overflow()     { assert_eq!(pu("**###", 123456.0), "%123456"); }
+
+    // ── **$ combination ──────────────────────────────────────────────────────
+    #[test] fn star_dollar_basic()      { assert_eq!(pu("**$###", 12.0),    "***$12"); }
+    #[test] fn star_dollar_full()       { assert_eq!(pu("**$###", 12345.0), "$12345"); }
+    #[test] fn star_dollar_overflow()   { assert_eq!(pu("**$###", 123456.0),"%123456"); }
+
+    // ── money.bas-style format ───────────────────────────────────────────────
+    #[test] fn money_format() {
+        assert_eq!(pu("$$###,###.##", 1234.56), "  $1,234.56");
     }
 }
 

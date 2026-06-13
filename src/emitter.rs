@@ -584,7 +584,7 @@ impl Emitter {
 
     fn emit_consts(&mut self, consts: &[(String, f64)], str_consts: &[(String, String)]) {
         for (name, val) in consts {
-            self.line(&format!("const {}: f64 = {val}_f64;", rust_ident(name)));
+            self.line(&format!("const {}: f64 = {};", rust_ident(name), emit_f64_lit(*val)));
         }
         for (name, val) in str_consts {
             // String constants: emit as &str. Name may conflict with Rust keywords.
@@ -1005,7 +1005,7 @@ impl Emitter {
             self.indent();
             self.line("let __last = f64::from_bits(__TIMER_LAST_FIRED.load(std::sync::atomic::Ordering::Relaxed));");
             self.line("let __now = qb_timer();");
-            self.line(&format!("if __now - __last >= {secs}_f64 {{"));
+            self.line(&format!("if __now - __last >= {secs}.0 {{"));
             self.indent();
             self.line("__TIMER_LAST_FIRED.store(__now.to_bits(), std::sync::atomic::Ordering::Relaxed);");
             self.line(&format!("{fn_name}(__rt{gs_arg});"));
@@ -1043,9 +1043,9 @@ impl Emitter {
 
         // Emit post-construction directive setters.
         if self.qbc.fullspeed { self.line("__rt.set_fullspeed(true);"); }
-        if let Some(fps)    = self.qbc.fps    { self.line(&format!("__rt.set_fps({fps}_f64);")); }
-        if let Some(pace)   = self.qbc.pace   { self.line(&format!("__rt.set_pace({pace}_f64);")); }
-        if let Some(slowmo) = self.qbc.slowmo { self.line(&format!("__rt.set_slowmo({slowmo}_f64);")); }
+        if let Some(fps)    = self.qbc.fps    { self.line(&format!("__rt.set_fps({fps}.0);")); }
+        if let Some(pace)   = self.qbc.pace   { self.line(&format!("__rt.set_pace({pace}.0);")); }
+        if let Some(slowmo) = self.qbc.slowmo { self.line(&format!("__rt.set_slowmo({slowmo}.0);")); }
 
         if self.gamestate_emitted {
             self.line("let mut __gs = GameState::default();");
@@ -1191,7 +1191,7 @@ impl Emitter {
                 }
                 _ => {
                     let rust_ty = qb_type_to_rust(ty);
-                    self.line(&format!("let mut {name}: {rust_ty} = 0.0_{rust_ty};"));
+                    self.line(&format!("let mut {name}: {rust_ty} = 0.0;"));
                 }
             }
         }
@@ -1305,14 +1305,14 @@ impl Emitter {
             }
 
             Stmt::If { cond, then_body, elseif_branches, else_body } => {
-                let c = self.emit_expr(cond)?;
-                self.line(&format!("if qb_bool({c}) {{"));
+                let c = self.emit_cond_expr(cond)?;
+                self.line(&format!("if {c} {{"));
                 self.indent();
                 self.emit_stmts(then_body)?;
                 self.dedent();
                 for (ec, eb) in elseif_branches {
-                    let ec = self.emit_expr(ec)?;
-                    self.line(&format!("}} else if qb_bool({ec}) {{"));
+                    let ec = self.emit_cond_expr(ec)?;
+                    self.line(&format!("}} else if {ec} {{"));
                     self.indent();
                     self.emit_stmts(eb)?;
                     self.dedent();
@@ -1336,7 +1336,7 @@ impl Emitter {
                 let f = self.emit_expr(from)?;
                 let t = self.emit_expr(to)?;
                 let s = step.as_ref().map(|e| self.emit_expr(e).unwrap())
-                            .unwrap_or_else(|| "1.0_f64".into());
+                            .unwrap_or_else(|| "1.0".into());
                 // FOR var is pre-declared by collect_locals (or promoted to GameState) — just assign.
                 self.line(&format!("{vref} = {f};"));
                 self.line(&format!("let __for_to_{v}: f64 = {t};"));
@@ -1353,8 +1353,8 @@ impl Emitter {
             }
 
             Stmt::While { cond, body } => {
-                let c = self.emit_expr(cond)?;
-                self.line(&format!("while qb_bool({c}) {{"));
+                let c = self.emit_cond_expr(cond)?;
+                self.line(&format!("while {c} {{"));
                 self.indent();
                 self.emit_stmts(body)?;
                 self.dedent();
@@ -1476,7 +1476,7 @@ impl Emitter {
                 self.line(&format!("__rt.locate({r}, {c}, {cur});"));
             }
             Stmt::Color { fg, bg } => {
-                let f = fg.as_ref().map(|e| self.emit_expr(e).unwrap()).unwrap_or("7.0_f64".into());
+                let f = fg.as_ref().map(|e| self.emit_expr(e).unwrap()).unwrap_or("7.0".into());
                 let b = bg.as_ref()
                     .map(|e| format!("Some({})", self.emit_expr(e).unwrap()))
                     .unwrap_or("None".into());
@@ -1842,7 +1842,7 @@ impl Emitter {
                     // SLEEP n → __rt.sleep(n) so present() is called first
                     let a = args.first()
                         .map(|e| self.emit_expr(e).unwrap())
-                        .unwrap_or_else(|| "0_f64".into());
+                        .unwrap_or_else(|| "0.0".into());
                     self.line(&format!("__rt.sleep({a});"));
                 } else if matches!(fn_lower.as_str(), "chain" | "shell" | "environ") {
                     // CHAIN loads another BASIC program — treat as program end
@@ -1886,7 +1886,7 @@ impl Emitter {
                 // Hoist each argument and wrap in QbVal::Num / QbVal::Str
                 let mut qb_vals: Vec<String> = Vec::new();
                 for e in args {
-                    let v = self.emit_expr(e).unwrap_or_else(|_| "0.0_f64".into());
+                    let v = self.emit_expr(e).unwrap_or_else(|_| "0.0".into());
                     if self.is_str_expr_ctx(e) {
                         // Lift to a named String temp so we can take a &str of it
                         let sn = format!("__pu_s{}", self.lift_counter);
@@ -1983,8 +1983,8 @@ impl Emitter {
                     _ => {
                         // Numeric constant: fold to literal if possible, else evaluate.
                         let val_s = match val {
-                            Expr::IntLit(n)   => format!("{n}_f64"),
-                            Expr::FloatLit(f) => format!("{f}_f64"),
+                            Expr::IntLit(n)   => format!("{n}.0f64"),
+                            Expr::FloatLit(f) => emit_f64_lit(*f),
                             other             => self.emit_expr(other).unwrap_or_else(|_| "0.0".into()),
                         };
                         self.line(&format!("let {rname}: f64 = {val_s};"));
@@ -2304,7 +2304,7 @@ impl Emitter {
                         if is_shared {
                             // Shared: emit Vec init into GameState (default gives empty Vec)
                             if let Some(upper) = field_upper {
-                                let default_val = if frust == "String" { "String::new()" } else { "0.0_f64" };
+                                let default_val = if frust == "String" { "String::new()" } else { "0.0" };
                                 self.line(&format!(
                                     "__gs.{name}__{fname} = vec![{default_val}; {}];",
                                     upper + 1
@@ -2312,7 +2312,7 @@ impl Emitter {
                             }
                             // Scalar shared fields are already default-initialized in GameState
                         } else if let Some(upper) = field_upper {
-                            let default_val = if frust == "String" { "String::new()" } else { "0.0_f64" };
+                            let default_val = if frust == "String" { "String::new()" } else { "0.0" };
                             self.line(&format!(
                                 "let mut {name}__{fname}: Vec<{frust}> = vec![{default_val}; {}];",
                                 upper + 1
@@ -2358,7 +2358,7 @@ impl Emitter {
                         let elem_ty = flat_map.get(field.as_str())
                             .map(|t| qb_type_to_rust(t))
                             .unwrap_or("f64");
-                        let default_val = if elem_ty == "String" { "String::new()" } else { "0.0_f64" };
+                        let default_val = if elem_ty == "String" { "String::new()" } else { "0.0" };
                         // Check if the TYPE field is itself an array; if so add inner alloc.
                         let field_upper = self.type_field_dims.get(&type_name)
                             .and_then(|fd| fd.get(field.as_str()))
@@ -2397,7 +2397,7 @@ impl Emitter {
                         let elem_ty = flat_map.get(field.as_str())
                             .map(|t| qb_type_to_rust(t))
                             .unwrap_or("f64");
-                        let default_val = if elem_ty == "String" { "String::new()" } else { "0.0_f64" };
+                        let default_val = if elem_ty == "String" { "String::new()" } else { "0.0" };
                         // Check if the TYPE field is itself an array; if so add inner alloc.
                         let field_upper = self.type_field_dims.get(&type_name)
                             .and_then(|fd| fd.get(field.as_str()))
@@ -2587,22 +2587,22 @@ impl Emitter {
 
         match kind {
             DoKind::WhilePre(c) => {
-                let c = self.emit_expr(c)?;
-                self.line(&format!("{loop_prefix}while qb_bool({c}) {{"));
+                let c = self.emit_cond_expr(c)?;
+                self.line(&format!("{loop_prefix}while {c} {{"));
                 self.indent(); self.emit_stmts(body)?; self.dedent();
                 self.line("}");
             }
             DoKind::UntilPre(c) => {
-                let c = self.emit_expr(c)?;
-                self.line(&format!("{loop_prefix}while !qb_bool({c}) {{"));
+                let c = self.emit_cond_expr(c)?;
+                self.line(&format!("{loop_prefix}while !({c}) {{"));
                 self.indent(); self.emit_stmts(body)?; self.dedent();
                 self.line("}");
             }
             DoKind::WhilePost(c) => {
                 self.line(&format!("{loop_prefix}loop {{"));
                 self.indent(); self.emit_stmts(body)?;
-                let c = self.emit_expr(c)?;
-                self.line(&format!("if !qb_bool({c}) {{ break; }}"));
+                let c = self.emit_cond_expr(c)?;
+                self.line(&format!("if !({c}) {{ break; }}"));
                 self.dedent(); self.line("}");
             }
             DoKind::UntilPost(c) => {
@@ -2627,8 +2627,8 @@ impl Emitter {
                 } else {
                     self.line(&format!("{loop_prefix}loop {{"));
                     self.indent(); self.emit_stmts(body)?;
-                    let c = self.emit_expr(c)?;
-                    self.line(&format!("if qb_bool({c}) {{ break; }}"));
+                    let c = self.emit_cond_expr(c)?;
+                    self.line(&format!("if {c} {{ break; }}"));
                     self.dedent(); self.line("}");
                 }
             }
@@ -3606,7 +3606,7 @@ impl Emitter {
                     if borrowed.contains(&borrow_key) {
                         // Alias: copy into a temp; writeback would require more bookkeeping,
                         // but aliased byref is undefined behavior in QB anyway
-                        let val = self.emit_expr_inner(expr).unwrap_or_else(|_| "0.0_f64".into());
+                        let val = self.emit_expr_inner(expr).unwrap_or_else(|_| "0.0".into());
                         let tmp = format!("__tmp_num{}", self.lift_counter);
                         self.lift_counter += 1;
                         self.line(&format!("let mut {tmp}: f64 = {val};"));
@@ -3637,7 +3637,7 @@ impl Emitter {
             // ── Default: numeric expression — hoist to temp so we can &mut it ──
             {
                 let val = self.emit_expr_inner(expr)
-                    .unwrap_or_else(|_| "0.0_f64".into());
+                    .unwrap_or_else(|_| "0.0".into());
                 let tmp = format!("__tmp_num{}", self.lift_counter);
                 self.lift_counter += 1;
                 self.line(&format!("let mut {tmp}: f64 = {val};"));
@@ -3648,6 +3648,43 @@ impl Emitter {
     }
 
     fn emit_expr(&self, expr: &Expr) -> Result<String> { self.emit_expr_inner(expr) }
+
+    /// Emit a condition expression for use directly in `if`/`while`.
+    /// When the top-level expression is a comparison BinOp, emits the Rust comparison
+    /// directly (e.g. `x == 9.0`) instead of the double-wrap `qb_bool(qb_from_bool(x == 9.0))`.
+    /// AND/OR and all other QB expressions still go through `qb_bool(...)`.
+    fn emit_cond_expr(&self, expr: &Expr) -> Result<String> {
+        if let Expr::BinOp { op, lhs, rhs } = expr {
+            let rust_op = match op {
+                BinOp::Eq => Some("=="),
+                BinOp::Ne => Some("!="),
+                BinOp::Lt => Some("<"),
+                BinOp::Le => Some("<="),
+                BinOp::Gt => Some(">"),
+                BinOp::Ge => Some(">="),
+                _ => None,
+            };
+            if let Some(op_str) = rust_op {
+                let l = self.emit_expr_inner(lhs)?;
+                let r = self.emit_expr_inner(rhs)?;
+                // String comparison: normalize both sides to &str
+                let (l_cmp, r_cmp) = if is_str_expr(lhs) || is_str_expr(rhs) {
+                    let lc = if is_str_expr(lhs) && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
+                        format!("({l}).as_str()")
+                    } else { l.clone() };
+                    let rc = if is_str_expr(rhs) && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
+                        format!("({r}).as_str()")
+                    } else { r.clone() };
+                    (lc, rc)
+                } else {
+                    (l.clone(), r.clone())
+                };
+                return Ok(format!("{l_cmp} {op_str} {r_cmp}"));
+            }
+        }
+        let c = self.emit_expr(expr)?;
+        Ok(format!("qb_bool({c})"))
+    }
 
     /// Like emit_expr but lifts user-fn call sub-expressions to `let __tmp_N`
     /// temporaries, emitting those bindings inline. Use this when the expression
@@ -3825,7 +3862,7 @@ impl Emitter {
                     let lo = if arr_qb_lc.is_empty() { 0_i64 }
                              else { self.arr_lo(&arr_qb_lc, dim_idx) };
                     if name_lc == "lbound" {
-                        return format!("{lo}.0_f64");
+                        return format!("{lo}.0");
                     }
                     // UBOUND: wasted-slots means Vec has (upper+1) elements, so
                     // arr.len() - 1 == upper exactly — no lo adjustment needed.
@@ -3862,7 +3899,7 @@ impl Emitter {
                         }
                         return format!("(({arr_name_raw}.len() as f64) - 1.0)");
                     }
-                    return "0.0_f64".to_string();
+                    return "0.0".to_string();
                 }
                 let fn_name = rust_fn_name(name);
                 // INSTR 2-arg form
@@ -4058,8 +4095,8 @@ impl Emitter {
 
     fn emit_expr_inner(&self, expr: &Expr) -> Result<String> {
         Ok(match expr {
-            Expr::IntLit(n)   => format!("{n}_f64"),
-            Expr::FloatLit(f) => format!("{f}_f64"),
+            Expr::IntLit(n)   => format!("{n}.0f64"),
+            Expr::FloatLit(f) => emit_f64_lit(*f),
             Expr::StrLit(s)   => {
                 let escaped: String = s.chars().map(|c| {
                     if c == '"' { "\\\"".into() }
@@ -4196,7 +4233,7 @@ impl Emitter {
                     let lo = if arr_qb_lc.is_empty() { 0_i64 }
                              else { self.arr_lo(&arr_qb_lc, dim_idx) };
                     if upper == "LBOUND" {
-                        return Ok(format!("{lo}.0_f64"));
+                        return Ok(format!("{lo}.0"));
                     }
                     // UBOUND: wasted-slots → Vec has (upper+1) slots, so len-1 == upper.
                     if let Some(arr_expr) = args.first() {
@@ -4235,7 +4272,7 @@ impl Emitter {
                         }
                         return Ok(format!("(({arr_name}.len() as f64) - 1.0)"));
                     }
-                    return Ok("0.0_f64".to_string()); // fallback
+                    return Ok("0.0".to_string()); // fallback
                 }
 
                 // Array disambiguation: shared array or local/param array.
@@ -4953,6 +4990,19 @@ fn collect_local_string_arrays(stmts: &[Stmt]) -> HashSet<String> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Format an f64 value as an unambiguous Rust f64 literal (e.g. `42.0f64`, `3.14f64`).
+/// Using the `f64` type suffix avoids ambiguity when the literal is the receiver of a
+/// method call (e.g. `2.0f64.powf(10.0f64)`) — bare `2.0` would make rustc error with
+/// "can't call method `powf` on ambiguous numeric type `{float}`".
+fn emit_f64_lit(f: f64) -> String {
+    let s = format!("{f}");
+    if s.contains('.') || s.contains('e') || s.contains('E') {
+        format!("{s}f64")   // e.g. "3.14f64", "1.0f64"
+    } else {
+        format!("{s}.0f64") // e.g. "2.0f64" (float Display dropped the .0)
+    }
+}
 
 fn rust_ident(name: &str) -> String {
     // String variables get an `_s` suffix so that QB variables `A` and `A$`

@@ -183,6 +183,8 @@ pub enum Stmt {
     DefFn { name: String, params: Vec<VarDecl>, expr: Expr },
     /// Multiple statements from one source line (e.g. multi-var DIM)
     Block(Vec<Stmt>),
+    /// MID$(var$, pos[, len]) = val  — in-place substring replacement.
+    MidAssign { var: LValue, pos: Expr, len: Option<Expr>, val: Expr },
 
     /// ON expr GOTO/GOSUB label1, label2, …  — computed branch. `expr` (1-based,
     /// rounded) selects the Nth label; 0 or out-of-range falls through.
@@ -1111,6 +1113,27 @@ impl Parser {
     fn parse_assign_or_call(&mut self) -> Result<Stmt> {
         let (name, ty) = self.parse_ident_with_sigil()?;
 
+        // MID$(var$, pos[, len]) = val — in-place substring replacement.
+        if name.to_uppercase() == "MID" && matches!(ty, QbType::String)
+            && self.peek() == &Token::LParen
+        {
+            self.advance(); // consume (
+            // First arg is the string variable (lvalue)
+            let var = self.parse_lvalue()?;
+            self.expect(&Token::Comma)?;
+            let pos = self.parse_expr()?;
+            let len = if self.peek() == &Token::Comma {
+                self.advance();
+                Some(self.parse_expr()?)
+            } else {
+                None
+            };
+            self.expect(&Token::RParen)?;
+            self.expect(&Token::Eq)?;
+            let val = self.parse_expr()?;
+            return Ok(Stmt::MidAssign { var, pos, len, val });
+        }
+
         if self.peek() == &Token::LParen {
             self.advance();
             let mut exprs = Vec::new();
@@ -1124,12 +1147,26 @@ impl Parser {
             self.expect(&Token::RParen)?;
 
             if self.peek() == &Token::Dot {
-                // TYPE field assignment: arr(i).Field = val  (chained dots ok)
+                // TYPE field assignment: arr(i).Field[(idx)] = val  (chained dots ok)
                 let mut lv = LValue::Index { name, ty, indices: exprs };
                 while self.peek() == &Token::Dot {
                     self.advance();
                     let (field, _) = self.parse_ident_with_sigil()?;
                     lv = LValue::Field { base: Box::new(lv), field };
+                }
+                // Check for subscript on array-typed TYPE field: arr(i).Cell(j) = val
+                if self.peek() == &Token::LParen {
+                    self.advance();
+                    let mut indices = vec![self.parse_expr()?];
+                    while self.peek() == &Token::Comma {
+                        self.advance();
+                        indices.push(self.parse_expr()?);
+                    }
+                    self.expect(&Token::RParen)?;
+                    lv = match lv {
+                        LValue::Field { base, field } => LValue::FieldIndex { base, field, indices },
+                        other => other,
+                    };
                 }
                 self.expect(&Token::Eq)?;
                 let expr = self.parse_expr()?;
@@ -1279,6 +1316,7 @@ impl Parser {
     }
 
     fn parse_if(&mut self) -> Result<Stmt> {
+        let if_line = self.line();
         self.expect(&Token::If)?;
         let cond = self.parse_expr()?;
         self.expect(&Token::Then)?;
@@ -1342,7 +1380,13 @@ impl Parser {
                 self.parse_single_line_body()
             };
 
-            let else_body = if self.peek() == &Token::Else {
+            // Only attach an ELSE that's on the SAME source line as this single-line
+            // IF.  When the THEN body is itself a nested single-line IF (e.g.
+            // `IF py < dy THEN py = dy`), parse_stmt consumes the trailing newline,
+            // so a following block-IF `ELSE` on the next line would otherwise be
+            // stolen here — pulling the enclosing IF's else-body into the wrong
+            // branch (blackjack.bas AnimateDeal infinite-loop bug).
+            let else_body = if self.peek() == &Token::Else && self.line() == if_line {
                 self.advance();
                 // Same rule applies after ELSE
                 let stmts = if let Token::IntLit(n) = self.peek().clone() {
@@ -2370,13 +2414,27 @@ impl Parser {
                         }
                     }
                     self.expect(&Token::RParen)?;
-                    // Check for TYPE member access: arr(i).Field  (chained dots ok)
+                    // Check for TYPE member access: arr(i).Field[(idx)]  (chained dots ok)
                     if self.peek() == &Token::Dot {
                         let mut lv = LValue::Index { name, ty: lv_ty, indices: args };
                         while self.peek() == &Token::Dot {
                             self.advance();
                             let (field, _) = self.parse_ident_with_sigil()?;
                             lv = LValue::Field { base: Box::new(lv), field };
+                        }
+                        // Check for subscript on array-typed TYPE field: arr(i).Cell(j)
+                        if self.peek() == &Token::LParen {
+                            self.advance();
+                            let mut indices = vec![self.parse_expr()?];
+                            while self.peek() == &Token::Comma {
+                                self.advance();
+                                indices.push(self.parse_expr()?);
+                            }
+                            self.expect(&Token::RParen)?;
+                            lv = match lv {
+                                LValue::Field { base, field } => LValue::FieldIndex { base, field, indices },
+                                other => other,
+                            };
                         }
                         return Ok(Expr::Var(lv));
                     }
@@ -2409,6 +2467,20 @@ impl Parser {
                 } else {
                     Ok(Expr::Var(LValue::Scalar { name, ty: lv_ty }))
                 }
+            }
+
+            // PLAY(n) — function form: returns number of notes remaining in background queue.
+            Token::Play => {
+                self.advance();
+                let arg = if self.peek() == &Token::LParen {
+                    self.advance();
+                    let e = self.parse_expr()?;
+                    self.expect(&Token::RParen)?;
+                    e
+                } else {
+                    Expr::FloatLit(0.0)
+                };
+                Ok(Expr::Call { name: "PLAY".into(), args: vec![arg] })
             }
 
             other => Err(QbError::Parse {

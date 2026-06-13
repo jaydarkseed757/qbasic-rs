@@ -31,12 +31,12 @@ qbasic-rust/
 │       └── sound.rs            # PLAY / SOUND / BEEP via rodio (~300 lines)
 │
 ├── basic-src/                  # Real DOS QBasic programs used for manual testing
-│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (40 programs total)
+│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (42 programs total)
 │
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 28 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 30 tests, all must pass
 ```
 
 ---
@@ -62,14 +62,14 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **40/40** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **42/42** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
-duck, etto, INVADERS, toccata, gotorama). Test suites:
-- **28/28** integration (`tests/run-tests.sh`, stdout-based)
-- **91** runtime unit tests (`cargo test --workspace`)
+duck, etto, invaders, toccata, gotorama, blackjack, textpaint). Test suites:
+- **30/30** integration (`tests/run-tests.sh`, stdout-based)
+- **96** runtime unit tests (`cargo test --workspace`)
 - **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, palette256_expanded, reversi, torus,
   hangman-gfx, duck, gorilla, donkey)
@@ -792,6 +792,108 @@ Ten fixes from a full src/+runtime/ review; regression-tested by
   KEY/TIMER ON/OFF/STOP, CLEAR, WIDTH print a stderr warning instead of
   vanishing silently (per the "never silently drop" rule).
 
+### blackjack.bas full support (SCREEN 12 VGA casino game — build-all 42/42)
+`blackjack.bas` is a QBasic 1.1 casino blackjack game in SCREEN 12 (640×480, 16
+colors) with GET/PUT-free vector card rendering, deck shuffle, and a TIMER-based
+deal animation. Three interlocking fixes were needed:
+
+- **Zero-arg string FUNCTION call-site naming** (`src/emitter.rs`) — `FUNCTION
+  GetKey$()` has its `$` stripped by the parser, so the AST stores the bare name
+  `GetKey` (`Expr::Var(Scalar{name:"GetKey", ty:String})`) while `user_fns`
+  holds `getkey_s` (from `rust_ident("GetKey$")`). Both the `lift_expr` zero-arg
+  path and the `emit_expr_inner` bare-reference guard checked only
+  `rust_ident(name)` (`getkey`) → missed the function → emitted a call to the
+  nonexistent `getkey()`. Fixed: both paths now also check
+  `rust_ident_typed(name, ty)` (`getkey_s`) and emit the call with the matching
+  typed name.
+- **SCREEN 12/11 character cell height** (`runtime/src/lib.rs` `screen()`) —
+  `char_h` was 8 for mode 12 (fell through the `_ => 8` arm), but VGA 640×480
+  uses an 8×16 text font (80×30 grid). Every `LOCATE row` landed at half its
+  correct y-pixel, so all text rendered in the middle of the screen instead of
+  the top/bottom status lines. Fixed: `char_h = match mode { 0|11|12 => 16, 9 =>
+  14, _ => 8 }`. SCREEN 11 (640×480 mono) shares the 8×16 font.
+- **Single-line IF stealing an enclosing block-IF's ELSE** (`src/parser.rs`
+  `parse_if`) — the most serious bug, an infinite deal loop. In
+  ```basic
+  IF dy < py THEN
+     py = py - 24
+     IF py < dy THEN py = dy      ' single-line IF ends the THEN body
+  ELSE                            ' belongs to the OUTER block IF
+     py = py + 24
+     ...
+  END IF
+  ```
+  the trailing single-line `IF py < dy THEN py = dy` has its then-body parsed by
+  `parse_stmt`, which **consumes the trailing newline**. The single-line IF's
+  `else_body` check (`if self.peek() == &Token::Else`) then saw the *outer*
+  block-IF's `ELSE` (now adjacent) and stole it with an empty body, collapsing
+  the outer else-branch (`py = py + 24`) into the outer THEN. For a player deal
+  (`dy=304 > py=224`), `dy < py` was false → `py` never advanced → the
+  `DO WHILE py <> dy` slide loop in `AnimateDeal` spun forever on the very first
+  card. Fix: capture `if_line = self.line()` at the top of `parse_if` and only
+  attach a single-line ELSE when `self.line() == if_line` (i.e. the ELSE is on
+  the *same physical line*; a newline-separated ELSE belongs to an enclosing
+  block IF). Regression-tested by the extended `tests/programs/if_single.bas`.
+- **Persistent blit buffer — minifb use-after-free segfault** (`runtime/src/lib.rs`)
+  — `blackjack.bas` crashed with `EXC_BAD_ACCESS` in
+  `drawInMTKView`/`replaceRegion` on the FarewellScreen (the `GetKey$` idle wait
+  after quitting with money left). Root cause: minifb 0.27's macOS backend
+  *stores the raw buffer pointer* from `update_with_buffer` (`MacMiniFB.m:509`
+  `win->draw_parameters->buffer = buffer;` — no copy) and re-reads it from
+  `drawInMTKView` on *every* later `update()` event-pump. `present()` (and the
+  `quit()` wait loop) passed a **local** `out: Vec<u32>` that was freed on
+  return, so minifb held a dangling pointer; the next idle `INKEY$` poll
+  (`inkey` → `pump_events`/`update`) drove an MTKView redraw from freed memory.
+  It only crashed once the freed page was actually unmapped/reused, which is why
+  it surfaced during FarewellScreen's long idle wait (after `SndWin` churned the
+  allocator) rather than mid-game. Fix: render into a persistent `present_buf:
+  Vec<u32>` field on `Runtime` (resized once to `win_w*win_h`, overwritten each
+  blit) so the pointer minifb retains stays valid for the window's whole
+  lifetime. Headless runs are unaffected (`present()` early-returns before
+  touching it). Belongs to the runtime, so it fixes this class of crash for
+  *every* transpiled program that idles on `INKEY$` after a graphics blit, not
+  just blackjack.
+
+### Additional blackjack fixes (title-screen music + QB language gaps)
+Three more fixes landed after the initial blackjack port:
+
+- **`PLAY(n)` function form** (`src/parser.rs`, `src/emitter.rs`, `runtime/src/lib.rs`)
+  — QB's `PLAY(n)` is both a statement (`PLAY "MBL2G"`) and a function
+  (`IF PLAY(0) < 5 THEN …`). The function form returns the number of notes
+  remaining in the background music buffer. Previously `Token::Play` in expression
+  context hit `parse_primary`'s error arm. Fix: `parse_primary` handles
+  `Token::Play` followed by `(…)` → `Expr::Call { name: "PLAY", … }`; both
+  `emit_expr_inner` and `lift_expr` map `PLAY` → `__rt.play_count()`. The runtime
+  tracks a `bg_playing: Arc<AtomicBool>` flag: set when background PLAY fires,
+  cleared by the thread when it finishes. `play_count()` returns 10 while playing
+  (≥5 → throttle), 0 when done (< 5 → queue more). Without this the title-screen
+  music loop queued a new background thread every ~0.9 s → doubled/stacked audio.
+
+- **`MID$(var$, pos[, len]) = val`** statement form (`src/parser.rs`,
+  `src/emitter.rs`, `runtime/src/lib.rs`) — QB's MID$ has a function form
+  `MID$(s, 1, 3)` (already handled) and a *statement* form `MID$(ini$, nch, 1) =
+  k$` that replaces characters in-place without changing string length. The
+  statement form was being parsed as a 3D array assignment `mid_s[ini$][nch][1] =
+  k$`. Fix: new `Stmt::MidAssign { var, pos, len, val }` AST node; early detection
+  in `parse_assign_or_call` when name is `MID` with `$` sigil; emitted as
+  `qb_mid_assign(&mut var, pos, len_opt, &val)`; runtime `pub fn qb_mid_assign`
+  replaces characters in-place, preserving string length.
+
+- **TYPE body array fields** (`src/parser.rs`, `src/emitter.rs`) — `TYPE Foo /
+  Bar(4) AS INTEGER / END TYPE` was silently dropping the `(4)` dimension; `Bar`
+  became a scalar `f64`. The parser already stored upper bounds in
+  `type_field_dims`, but four emission sites ignored it. Fixes: (1) `emit_game_state`
+  typed-array path now adds one extra `Vec<>` wrapping for each array field, so
+  `DIM boards(2) AS Grid` with `Grid.Cell(4)` → `boards__cell: Vec<Vec<f64>>`;
+  (2) `emit_dim` shared and local array paths emit `vec![vec![…; field_upper+1];
+  outer_size]`; (3) `emit_lvalue` `FieldIndex` branch has a new `LValue::Index`
+  base arm that emits `arr__field[outer_idx][inner_idx]`; (4) parser fixes for
+  `arr(i).Field(j)` in both assignment (`parse_assign_or_call`) and expression
+  (`parse_primary`) contexts — the dot chain now checks for a trailing `(index)`
+  before expecting `=`, wrapping the result in `LValue::FieldIndex`. Integration
+  test: `tests/programs/type_array_field.bas` (scalar, shared, and outer-array
+  forms, 30/30 pass).
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a
@@ -827,10 +929,9 @@ Ten fixes from a full src/+runtime/ review; regression-tested by
   mode-13 path (`get_sprite_mode13`/`put_sprite_mode13`, gated on
   `screen_mode == 13`) uses `data[0]=width*8`, `data[1]=height`, one full color
   byte per pixel (2/INTEGER). Covered by `mode13_sprite_tests` + `screen13-sprite.bas`.
-- **Open gaps (none block the bundled set):** PAINT `CHR$()` tiling-pattern fill
-  is a solid-foreground stub (dead on EGA/VGA color paths); `PRINT USING` `$$`/`**`
-  floating tokens print literally; array fields *inside* a TYPE body discard the
-  dimension.
+- **Open gaps (none block the bundled set):** `PRINT USING` `$$`/`**`
+  floating tokens print literally; `OUT &H3C8/&H3C9` VGA DAC port writes are not
+  modelled — out of scope until a program needs them.
 - **gorilla is now golden-tested** — seed 42, scripted intro + one banana throw
   (angle 45°, velocity 50), captures mid-flight frame (`presents:80`).
   The `DRAIN` sentinel stops two `WHILE INKEY$<>"":WEND` drain-loops (SparklePause

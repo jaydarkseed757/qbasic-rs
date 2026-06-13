@@ -279,6 +279,21 @@ pub fn play_events_background(events: Vec<PlayEvent>) {
     });
 }
 
+/// Background play that clears `flag` when the thread finishes.
+/// Used by Runtime::play() so play_count() can report whether music is still running.
+pub fn play_events_background_flagged(
+    events: Vec<PlayEvent>,
+    flag: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) {
+    if events.is_empty() { flag.store(false, std::sync::atomic::Ordering::Relaxed); return; }
+    let pcm = events_to_pcm(&events);
+    if pcm.is_empty() { flag.store(false, std::sync::atomic::Ordering::Relaxed); return; }
+    std::thread::spawn(move || {
+        let _ = play_pcm_blocking(pcm);
+        flag.store(false, std::sync::atomic::Ordering::Relaxed);
+    });
+}
+
 /// SOUND statement: freq Hz for duration/18.2 seconds.
 pub fn play_sound(freq: f64, duration_ticks: f64) {
     if freq < 37.0 || freq > 32_767.0 || duration_ticks <= 0.0 { return; }

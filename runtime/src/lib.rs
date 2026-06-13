@@ -435,6 +435,13 @@ pub struct Runtime {
     slowmo: f64,                       // SLEEP duration multiplier (REM QBC SLOWMO n); default 1.0
     win_w: usize,                      // output window width  (REM QBC SCALE n); default 960
     win_h: usize,                      // output window height (REM QBC SCALE n); default 600
+    /// Persistent blit scratch buffer handed to minifb's `update_with_buffer`.
+    /// minifb's macOS backend stores the RAW pointer (no copy) and re-reads it on
+    /// every later `update()` (event pump). A per-call local Vec would be freed on
+    /// return, leaving minifb a dangling pointer → use-after-free segfault in
+    /// `drawInMTKView`/`replaceRegion` during the next idle `INKEY$` poll. Keeping
+    /// it on the Runtime makes the pointer valid for the window's whole lifetime.
+    present_buf: Vec<u32>,
     /// Keys harvested from the window on every update — never lost between frames.
     key_queue: std::collections::VecDeque<String>,
     // RNG (LCG matching QB's generator)
@@ -456,6 +463,9 @@ pub struct Runtime {
     draw_color: u8,    // C value (current DRAW color)
     // PLAY MML state: persists across PLAY calls (tempo, octave, length, mode)
     mml_state: MmlState,
+    /// True while a background PLAY thread is still running.
+    /// Used by play_count() to throttle re-triggering from PLAY(0) checks.
+    bg_playing: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Open file handles — keyed by QB file number (1-255).
     files: std::collections::HashMap<u8, QbFile>,
     /// VIEW PRINT text viewport — 1-based row numbers (inclusive).
@@ -623,6 +633,7 @@ impl Runtime {
             slowmo:             1.0,
             win_w:              DEFAULT_WIN_W,
             win_h:              DEFAULT_WIN_H,
+            present_buf:  Vec::new(),
             key_queue:    std::collections::VecDeque::new(),
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
@@ -632,6 +643,7 @@ impl Runtime {
             draw_scale: 4.0,
             draw_color: 7,
             mml_state: MmlState::default(),
+            bg_playing: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             had_screen_call: false,
             files: std::collections::HashMap::new(),
             vp_top: 1,
@@ -701,6 +713,7 @@ impl Runtime {
             slowmo:            1.0,
             win_w,
             win_h,
+            present_buf:  Vec::new(),
             key_queue:    std::collections::VecDeque::new(),
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
@@ -710,6 +723,7 @@ impl Runtime {
             draw_scale: 4.0,
             draw_color: 7,
             mml_state: MmlState::default(),
+            bg_playing: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             had_screen_call: false,
             files: std::collections::HashMap::new(),
             vp_top: 1,
@@ -773,7 +787,11 @@ impl Runtime {
         self.fb     = vec![0u8; (w * h) as usize];
         self.palette_rgb = if mode as u8 == 13 { vga256_default() } else { DEFAULT_PALETTE_256 };
         self.char_w = 8;
-        self.char_h = match mode as u8 { 0 => 16, 9 => 14, _ => 8 };
+        // Character cell height per mode.  VGA hardware text layer:
+        // SCREEN 0/11/12 → 8×16 (80×30 or 80×25 grid depending on scanlines)
+        // SCREEN 9 → 8×14 (EGA alphanumeric font, 80×25)
+        // All other modes (1,7,8,13) → 8×8 (CGA/VGA low-res text)
+        self.char_h = match mode as u8 { 0 | 11 | 12 => 16, 9 => 14, _ => 8 };
         // Window is now opened eagerly in new_configured(); nothing to do here
         // except ensure it's alive (creation may have failed on headless systems).
         self.cursor_row = 1;
@@ -1475,7 +1493,12 @@ impl Runtime {
         let palette = self.palette_rgb;
         let win_w = self.win_w;
         let win_h = self.win_h;
-        let mut out = vec![0u32; win_w * win_h];
+        // Render into the PERSISTENT buffer (not a local Vec): minifb's macOS
+        // backend keeps the raw pointer and re-reads it on later update() calls,
+        // so the buffer must outlive every event pump (see `present_buf` doc).
+        if self.present_buf.len() != win_w * win_h {
+            self.present_buf.resize(win_w * win_h, 0);
+        }
         for oy in 0..win_h {
             let fy = (oy * fh) / win_h;
             let row_base = fy * fw;
@@ -1483,14 +1506,15 @@ impl Runtime {
             for ox in 0..win_w {
                 let fx = (ox * fw) / win_w;
                 let (r, g, b) = palette[self.fb[row_base + fx] as usize];
-                out[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
+                self.present_buf[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
             }
         }
         // Borrow window in a nested block so it's released before we touch key_queue.
         // get_keys_pressed returns owned Vec<Key> so new_keys doesn't borrow the window.
         let new_keys: Vec<Key> = {
+            let out = &self.present_buf;
             let win = self.window.as_mut().unwrap();
-            let _ = win.update_with_buffer(&out, win_w, win_h);
+            let _ = win.update_with_buffer(out, win_w, win_h);
             if !win.is_open() { std::process::exit(0); }
             win.get_keys_pressed(KeyRepeat::No)
         }; // window borrow released here
@@ -2205,10 +2229,22 @@ impl Runtime {
     pub fn play(&mut self, mml: &str) {
         let events = sound::parse_mml(mml, &mut self.mml_state);
         if self.mml_state.background {
-            sound::play_events_background(events);
+            // Don't stack a new play on top of one already running.
+            if self.bg_playing.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+            self.bg_playing.store(true, std::sync::atomic::Ordering::Relaxed);
+            let flag = self.bg_playing.clone();
+            sound::play_events_background_flagged(events, flag);
         } else {
             sound::play_events_blocking(&events);
         }
+    }
+
+    /// PLAY(n) function — returns number of notes remaining in the background music queue.
+    /// Returns 10 while a background PLAY thread is active (≥5 → throttle), 0 when done.
+    pub fn play_count(&self) -> f64 {
+        if self.bg_playing.load(std::sync::atomic::Ordering::Relaxed) { 10.0 } else { 0.0 }
     }
 
     /// BEEP — short 800 Hz tone (~220 ms).
@@ -2398,7 +2434,12 @@ impl Runtime {
             let win_w = self.win_w;
             let win_h = self.win_h;
             let palette = self.palette_rgb;
-            let mut out = vec![0u32; win_w * win_h];
+            // Persistent buffer — see `present_buf` doc; a local Vec here would be
+            // freed each iteration, leaving minifb a dangling pointer to redraw
+            // from during the 16ms sleep (use-after-free segfault).
+            if self.present_buf.len() != win_w * win_h {
+                self.present_buf.resize(win_w * win_h, 0);
+            }
             for oy in 0..win_h {
                 let fy = (oy * fh) / win_h;
                 let row_base = fy * fw;
@@ -2406,12 +2447,13 @@ impl Runtime {
                 for ox in 0..win_w {
                     let fx = (ox * fw) / win_w;
                     let (r, g, b) = palette[self.fb[row_base + fx] as usize];
-                    out[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
+                    self.present_buf[out_base + ox] = ((r as u32) << 16) | ((g as u32) << 8) | (b as u32);
                 }
             }
             let new_keys: Vec<Key> = {
+                let out = &self.present_buf;
                 let win = match self.window.as_mut() { Some(w) => w, None => break 'wait };
-                let _ = win.update_with_buffer(&out, win_w, win_h);
+                let _ = win.update_with_buffer(out, win_w, win_h);
                 if !win.is_open() { break 'wait; }
                 win.get_keys_pressed(KeyRepeat::No)
             };
@@ -3012,6 +3054,21 @@ pub fn qb_mid(s: &str, pos: f64, len: Option<f64>) -> String {
         Some(l) => slice.iter().take(l.max(0.0) as usize).collect(),
         None    => slice.iter().collect(),
     }
+}
+
+/// MID$(var$, pos[, len]) = val — in-place substring replacement.
+/// Replaces up to `len` characters in `s` starting at 1-based `pos` with
+/// characters from `val`. The string length is never changed.
+pub fn qb_mid_assign(s: &mut String, pos: f64, len: Option<f64>, val: &str) {
+    let mut chars: Vec<char> = s.chars().collect();
+    let start = (pos as usize).saturating_sub(1);
+    if start >= chars.len() { return; }
+    let max_replace = chars.len() - start;
+    let replace_len = len.map(|l| (l as usize).min(max_replace)).unwrap_or(max_replace);
+    for (i, c) in val.chars().take(replace_len).enumerate() {
+        chars[start + i] = c;
+    }
+    *s = chars.into_iter().collect();
 }
 
 pub fn qb_ucase(s: &str) -> String { s.to_uppercase() }

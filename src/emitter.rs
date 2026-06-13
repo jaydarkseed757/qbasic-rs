@@ -638,11 +638,13 @@ impl Emitter {
                             .map(|(_, t)| t.clone())
                             .unwrap_or(QbType::Single);
                         let rust_elem = qb_type_to_rust(&elem_ty);
-                        if ndims >= 2 {
-                            fields.push(format!("{name}__{field}: Vec<Vec<{rust_elem}>>,"));
-                        } else {
-                            fields.push(format!("{name}__{field}: Vec<{rust_elem}>,"));
-                        }
+                        // An array field inside the TYPE adds one more Vec<> level.
+                        let is_array_field = type_name.as_ref()
+                            .and_then(|tn| self.type_field_dims.get(tn))
+                            .map_or(false, |fd| fd.contains_key(field.as_str()));
+                        let total_dims = ndims + if is_array_field { 1 } else { 0 };
+                        fields.push(format!("{name}__{field}: {},",
+                            nested_vec_type(rust_elem, total_dims)));
                     }
                 } else {
                     // Plain N-D array (1/2/3-D): Vec / Vec<Vec> / Vec<Vec<Vec>>.
@@ -1697,6 +1699,19 @@ impl Emitter {
 
             // ── Sound ─────────────────────────────────────────────────────────
             Stmt::Play(e)  => { let s = self.emit_expr(e)?; self.line(&format!("__rt.play(&{s});")); }
+
+            // MID$(var$, pos[, len]) = val — in-place substring replacement.
+            Stmt::MidAssign { var, pos, len, val } => {
+                let v = self.emit_lvalue(var);
+                let p = self.emit_expr_inline(pos);
+                let rhs = self.emit_expr(val)?;
+                if let Some(l) = len {
+                    let ln = self.emit_expr_inline(l);
+                    self.line(&format!("qb_mid_assign(&mut {v}, {p}, Some({ln}), &{rhs});"));
+                } else {
+                    self.line(&format!("qb_mid_assign(&mut {v}, {p}, None, &{rhs});"));
+                }
+            }
             Stmt::Poke { addr, val } => {
                 let a = self.emit_expr_inline(addr);
                 let v = self.emit_expr_inline(val);
@@ -2344,10 +2359,22 @@ impl Emitter {
                             .map(|t| qb_type_to_rust(t))
                             .unwrap_or("f64");
                         let default_val = if elem_ty == "String" { "String::new()" } else { "0.0_f64" };
+                        // Check if the TYPE field is itself an array; if so add inner alloc.
+                        let field_upper = self.type_field_dims.get(&type_name)
+                            .and_then(|fd| fd.get(field.as_str()))
+                            .copied();
                         if let Some(ref a1) = alloc1 {
+                            // outer array is 2-D: always Vec<Vec<…>>
                             self.line(&format!(
                                 "__gs.{lower}__{field} = \
                                  vec![vec![{default_val}; {a1}]; {alloc0}];"
+                            ));
+                        } else if let Some(fu) = field_upper {
+                            // 1-D outer array + array field → Vec<Vec<…>>
+                            self.line(&format!(
+                                "__gs.{lower}__{field} = \
+                                 vec![vec![{default_val}; {}]; {alloc0}];",
+                                fu + 1
                             ));
                         } else {
                             self.line(&format!(
@@ -2371,10 +2398,22 @@ impl Emitter {
                             .map(|t| qb_type_to_rust(t))
                             .unwrap_or("f64");
                         let default_val = if elem_ty == "String" { "String::new()" } else { "0.0_f64" };
+                        // Check if the TYPE field is itself an array; if so add inner alloc.
+                        let field_upper = self.type_field_dims.get(&type_name)
+                            .and_then(|fd| fd.get(field.as_str()))
+                            .copied();
                         if let Some(ref a1) = alloc1 {
+                            // outer array is 2-D: always Vec<Vec<…>>
                             self.line(&format!(
                                 "let mut {lower}__{field}: Vec<Vec<{elem_ty}>> = \
                                  vec![vec![{default_val}; {a1}]; {alloc0}];"
+                            ));
+                        } else if let Some(fu) = field_upper {
+                            // 1-D outer array + array field → Vec<Vec<…>>
+                            self.line(&format!(
+                                "let mut {lower}__{field}: Vec<Vec<{elem_ty}>> = \
+                                 vec![vec![{default_val}; {}]; {alloc0}];",
+                                fu + 1
                             ));
                         } else {
                             self.line(&format!(
@@ -2919,24 +2958,44 @@ impl Emitter {
                 }
             }
             LValue::FieldIndex { base, field, indices } => {
-                // scalar.arrayField(idx) — array field inside a scalar TYPE variable
+                // scalar.arrayField(idx) — array field inside a TYPE variable.
+                // Two cases:
+                //   scalar:  g.Cell(j)       → g__cell[j]
+                //   indexed: boards(i).Cell(j) → boards__cell[i][j]
                 let field_id = rust_ident(field);
-                let base_flat = match base.as_ref() {
+                let inner_sub: String = indices.iter()
+                    .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                    .collect();
+                match base.as_ref() {
                     LValue::Scalar { name, .. } => {
                         let name_lc = name.to_lowercase();
                         let flat = format!("{}__{field_id}", rust_ident(name));
-                        if self.shared_names.contains(&name_lc) {
+                        let prefix = if self.shared_names.contains(&name_lc) {
                             format!("__gs.{flat}")
                         } else {
                             flat
-                        }
+                        };
+                        format!("{prefix}{inner_sub}")
                     }
-                    other => format!("{}__{field_id}", self.emit_lvalue(other)),
-                };
-                let subscript: String = indices.iter()
-                    .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
-                    .collect();
-                format!("{base_flat}{subscript}")
+                    LValue::Index { name, indices: outer_indices, .. } => {
+                        // arr(i).Field(j) → arr__field[i][j]
+                        let name_lc = name.to_lowercase();
+                        let flat = format!("{}__{field_id}", rust_ident(name));
+                        let prefix = if self.shared_names.contains(&name_lc) {
+                            format!("__gs.{flat}")
+                        } else {
+                            flat
+                        };
+                        let outer_sub: String = outer_indices.iter()
+                            .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                            .collect();
+                        format!("{prefix}{outer_sub}{inner_sub}")
+                    }
+                    other => {
+                        let base_str = self.emit_lvalue(other);
+                        format!("{base_str}__{field_id}{inner_sub}")
+                    }
+                }
             }
         }
     }
@@ -3735,6 +3794,10 @@ impl Emitter {
                 if name_lc == "peek" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_peek({})", a[0]));
                 }
+                // PLAY(n) function form — returns notes remaining in background queue.
+                if name_lc == "play" {
+                    return hoist(self, "__rt.play_count()".into());
+                }
                 if name_lc == "pmap" && a.len() == 2 {
                     return hoist(self, format!("__rt.pmap({}, {})", a[0], a[1]));
                 }
@@ -3902,11 +3965,23 @@ impl Emitter {
             // `computemem(__rt, __gs)`, which double-borrows __rt/__gs when nested
             // inside another __rt method call.  Hoist to a temp here, same as the
             // Expr::Call branch above handles explicit `ComputeMem()`.
-            Expr::Var(LValue::Scalar { name, .. }) => {
+            Expr::Var(LValue::Scalar { name, ty }) => {
                 let lower = rust_ident(name);
-                if self.user_fns.contains(&lower) && !self.user_subs.contains(&lower) {
+                let lower_typed = rust_ident_typed(name, ty);
+                // String-returning functions declared as `FUNCTION Foo$()` have their
+                // `$` stripped by the parser when stored in the AST, so `name` = "Foo"
+                // and `lower` = "foo", but `user_fns` contains "foo_s" (from the `$`
+                // sigil on the definition).  Check the typed variant first.
+                let fn_name = if self.user_fns.contains(&lower_typed) && !self.user_subs.contains(&lower_typed) {
+                    Some(lower_typed)
+                } else if self.user_fns.contains(&lower) && !self.user_subs.contains(&lower) {
+                    Some(lower)
+                } else {
+                    None
+                };
+                if let Some(fn_name) = fn_name {
                     let rt = if self.in_main { "&mut __rt, &mut __gs" } else { "__rt, __gs" };
-                    let call = format!("{lower}({rt})");
+                    let call = format!("{fn_name}({rt})");
                     let tmp = format!("__tmp{}", self.lift_counter);
                     self.lift_counter += 1;
                     self.line(&format!("let {tmp} = {call};"));
@@ -3998,13 +4073,24 @@ impl Emitter {
             // `IF CheckFit = FALSE` calls CheckFit() and compares. (Read path only —
             // assignment to the function's own name is handled in emit_lvalue via
             // current_fn_name_lc → __fn_ret, so this never turns a write into a call.)
-            Expr::Var(LValue::Scalar { name, .. })
-                if self.user_fns.contains(&name.to_lowercase())
-                   && self.sub_params.get(&rust_ident(name)).map_or(false, |p| p.is_empty())
-                   && self.current_fn_name_lc.as_deref() != Some(rust_ident(name).as_str())
-                   && !self.shared_names.contains(&name.to_lowercase()) =>
+            // String-returning functions like `GetKey$` have their `$` stripped by the
+            // parser, so `name` = "GetKey" and `rust_ident` yields "getkey", but
+            // user_fns contains "getkey_s".  Check `rust_ident_typed` as well.
+            Expr::Var(LValue::Scalar { name, ty })
+                if {
+                    let lower = rust_ident(name);
+                    let lower_t = rust_ident_typed(name, ty);
+                    (self.user_fns.contains(&lower) || self.user_fns.contains(&lower_t))
+                    && (self.sub_params.get(&lower).or_else(|| self.sub_params.get(&lower_t))
+                           .map_or(false, |p| p.is_empty()))
+                    && self.current_fn_name_lc.as_deref() != Some(lower.as_str())
+                    && self.current_fn_name_lc.as_deref() != Some(lower_t.as_str())
+                    && !self.shared_names.contains(&name.to_lowercase())
+                } =>
             {
-                format!("{}({})", rust_ident(name), self.rt_args())
+                let lower_t = rust_ident_typed(name, ty);
+                let fn_name = if self.user_fns.contains(&lower_t) { lower_t } else { rust_ident(name) };
+                format!("{}({})", fn_name, self.rt_args())
             }
             Expr::Var(lv) => self.emit_lvalue(lv),
 
@@ -4067,7 +4153,8 @@ impl Emitter {
                 let upper = name.to_uppercase();
                 let lower = rust_ident(name); // sigil-stripped lowercase
 
-                // RND / INKEY$ / INPUT$ / ERR / PMAP need __rt
+                // RND / INKEY$ / INPUT$ / ERR / PMAP / PLAY(n) need __rt
+                if upper == "PLAY" { return Ok("__rt.play_count()".into()); }
                 if upper == "RND" {
                     if let Some(arg0) = args.first() {
                         let av = self.emit_expr_inner(arg0)?;

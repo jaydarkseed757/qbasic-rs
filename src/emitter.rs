@@ -1041,11 +1041,13 @@ impl Emitter {
             self.line("let mut __rt = Runtime::new();");
         }
 
-        // Emit post-construction directive setters.
+        // Emit post-construction directive setters (compile-time pragmas).
         if self.qbc.fullspeed { self.line("__rt.set_fullspeed(true);"); }
         if let Some(fps)    = self.qbc.fps    { self.line(&format!("__rt.set_fps({fps}.0);")); }
         if let Some(pace)   = self.qbc.pace   { self.line(&format!("__rt.set_pace({pace}.0);")); }
         if let Some(slowmo) = self.qbc.slowmo { self.line(&format!("__rt.set_slowmo({slowmo}.0);")); }
+        // Env-var overrides fire after the pragma calls so QBC_* always wins.
+        self.line("__rt.apply_behavioral_env();");
 
         if self.gamestate_emitted {
             self.line("let mut __gs = GameState::default();");

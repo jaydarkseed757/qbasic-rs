@@ -676,6 +676,20 @@ impl Runtime {
     /// Used by `REM QBC TITLE` and/or `REM QBC SCALE` directives; the emitter
     /// calls this constructor instead of `new()` when either is present.
     pub fn new_configured(title: &str, win_w: usize, win_h: usize) -> Self {
+        // QBC_TITLE / QBC_SCALE override the compile-time pragma values.
+        // These must be resolved before the window is created.
+        let title_override = std::env::var("QBC_TITLE").ok();
+        let effective_title = title_override.as_deref().unwrap_or(title);
+        let (effective_w, effective_h) = if let Ok(s) = std::env::var("QBC_SCALE") {
+            if let Ok(n) = s.trim().parse::<usize>() {
+                (960 * n.max(1), 600 * n.max(1))
+            } else {
+                (win_w, win_h)
+            }
+        } else {
+            (win_w, win_h)
+        };
+
         // The headless driver (env-var controlled) suppresses the window so a
         // transpiled binary can run non-interactively for debugging / tests.
         let headless_cfg = parse_headless_env();
@@ -690,7 +704,7 @@ impl Runtime {
                 resize: false,
                 ..minifb::WindowOptions::default()
             };
-            minifb::Window::new(title, win_w, win_h, opts).ok()
+            minifb::Window::new(effective_title, effective_w, effective_h, opts).ok()
         };
         // Disable minifb's built-in frame-rate limiter (default 250 FPS = 4ms).
         // It sleeps inside *both* update() and update_with_buffer(), which makes
@@ -713,15 +727,15 @@ impl Runtime {
             fb:                vec![0u8; 640 * 400],
             palette_rgb:       DEFAULT_PALETTE_256,
             window,
-            win_title:         title.to_string(),
+            win_title:         effective_title.to_string(),
             last_present:      std::time::Instant::now(),
             pset_counter:      0,
             fullspeed:         false,
             frame_interval_ms: 16,
             pace_ms:           0,
             slowmo:            1.0,
-            win_w,
-            win_h,
+            win_w:             effective_w,
+            win_h:             effective_h,
             present_buf:  Vec::new(),
             key_queue:    std::collections::VecDeque::new(),
             rng:          0x50000, // QB power-on seed: first RND = .7055475
@@ -764,15 +778,34 @@ impl Runtime {
                 }
             }
         }
-        // QBC_PACE overrides the compile-time REM QBC PACE pragma at run-time
-        // so you can slow circle/pixel drawing without recompiling:
-        //   QBC_PACE=30 ./bin/gorilla
-        if let Ok(v) = std::env::var("QBC_PACE") {
-            if let Ok(fps) = v.trim().parse::<f64>() {
-                rt.set_pace(fps);
-            }
-        }
         rt
+    }
+
+    /// Apply behavioral env-var overrides after the compile-time pragma calls in main().
+    ///
+    /// Called unconditionally from every generated `main()` immediately after the
+    /// pragma-emitted `set_*` calls, so env always wins over the pragma:
+    ///
+    ///   QBC_PACE=30       — sleep-paced draw at N blits/sec (watchable pixel art)
+    ///   QBC_FPS=60        — frame rate cap for auto_present() throttle
+    ///   QBC_FULLSPEED=1   — skip auto_present() throttle entirely (0 to disable)
+    ///   QBC_SLOWMO=2.5    — slow every frame by N× (multiplicative with FPS)
+    ///
+    /// QBC_SCALE and QBC_TITLE are handled inside new_configured() before window
+    /// creation and are not re-read here.
+    pub fn apply_behavioral_env(&mut self) {
+        if let Ok(v) = std::env::var("QBC_PACE") {
+            if let Ok(fps) = v.trim().parse::<f64>() { self.set_pace(fps); }
+        }
+        if let Ok(v) = std::env::var("QBC_FPS") {
+            if let Ok(fps) = v.trim().parse::<f64>() { self.set_fps(fps); }
+        }
+        if let Ok(v) = std::env::var("QBC_FULLSPEED") {
+            self.set_fullspeed(v.trim() != "0");
+        }
+        if let Ok(v) = std::env::var("QBC_SLOWMO") {
+            if let Ok(f) = v.trim().parse::<f64>() { self.set_slowmo(f); }
+        }
     }
 
     // ── Screen / color / cursor ───────────────────────────────────────────────

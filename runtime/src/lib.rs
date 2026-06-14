@@ -1598,16 +1598,23 @@ impl Runtime {
     /// default verb (no keyword) is XOR. CGA SCREEN 1 uses the authentic 2-bpp
     /// packed INTEGER-array layout; every other mode uses the EGA planar layout.
     pub fn put_sprite(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
-        if self.screen_mode == 0 || data.is_empty() { return; }
+        self.put_sprite_at(data, gx, gy, action, 0);
+    }
+
+    /// PUT with a sprite stored at a non-zero element `offset` into `data`.
+    /// QB packs multiple sprites into one array (`PUT (x,y), Arr(n)`); the sprite
+    /// header lives at `data[offset]`. `put_sprite` is the `offset == 0` case.
+    pub fn put_sprite_at(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction, offset: usize) {
+        if self.screen_mode == 0 || offset >= data.len() { return; }
         if self.screen_mode == 1 {
-            self.put_sprite_cga(data, gx, gy, action);
+            self.put_sprite_cga(data, gx, gy, action, offset);
             return;
         }
         if self.screen_mode == 13 {
-            self.put_sprite_mode13(data, gx, gy, action);
+            self.put_sprite_mode13(data, gx, gy, action, offset);
             return;
         }
-        let header = data[0] as i64 as u32;
+        let header = data[offset] as i64 as u32;
         let width  = ((header & 0xFFFF) + 1) as i32;
         let height = (((header >> 16) & 0xFFFF) + 1) as i32;
         let bytes_per_plane = ((width as usize) + 7) / 8;
@@ -1620,7 +1627,7 @@ impl Runtime {
         for row in 0..height {
             let sy = gy + row;
             if sy < 0 || sy as u32 >= self.height { continue; }
-            let long_start = 1 + row as usize * longs_per_row;
+            let long_start = offset + 1 + row as usize * longs_per_row;
             if long_start + longs_per_row > data.len() { break; }
             // Unpack longs into bytes: byte layout is [p0b0..p0bN, p1b0..p1bN, p2b0..p2bN, p3b0..p3bN]
             let mut row_bytes = vec![0u8; longs_per_row * 4];
@@ -1655,19 +1662,19 @@ impl Runtime {
     /// Layout: data[0] = width_px*2, data[1] = height_px, then a byte stream of
     /// `ceil(width/4)` bytes/row (4 pixels/byte, MSB-first), two bytes per
     /// INTEGER element (little-endian within the 16-bit word).
-    fn put_sprite_cga(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
-        if data.len() < 2 { return; }
-        let width  = (data[0] as i64 as u16 as usize) / 2;
-        let height = data[1] as i64 as u16 as usize;
+    fn put_sprite_cga(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction, offset: usize) {
+        if data.len() < offset + 2 { return; }
+        let width  = (data[offset] as i64 as u16 as usize) / 2;
+        let height = data[offset + 1] as i64 as u16 as usize;
         if width == 0 || height == 0 { return; }
         let bytes_per_row = (width + 3) / 4;            // 4 pixels per byte
         let mask = self.sprite_color_mask();            // = 3 in mode 1
         let gx = gx as i32;
         let gy = gy as i32;
-        // Element-indexed byte fetch: byte b lives in element 2 + b/2,
+        // Element-indexed byte fetch: byte b lives in element offset + 2 + b/2,
         // low byte first (x86 little-endian within each 16-bit INTEGER).
         let get_byte = |b: usize| -> u8 {
-            let elem = 2 + b / 2;
+            let elem = offset + 2 + b / 2;
             if elem >= data.len() { return 0; }
             let w = data[elem] as i64 as u16;
             if b & 1 == 0 { (w & 0xFF) as u8 } else { (w >> 8) as u8 }
@@ -1694,13 +1701,25 @@ impl Runtime {
     /// later PUT can blit it and hand-built arrays interoperate); every other
     /// mode uses the EGA planar layout.
     pub fn get_sprite(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+        self.get_sprite_at(x1, y1, x2, y2, data, 0);
+    }
+
+    /// GET storing the captured sprite at a non-zero element `offset` into `data`.
+    /// QB packs multiple sprites into one array (`GET …, Arr(n)`); the header is
+    /// written at `data[offset]`. `get_sprite` is the `offset == 0` case.
+    ///
+    /// For `offset == 0` the array is resized to the exact sprite size (the
+    /// historical behavior — keeps all existing callers byte-identical). For
+    /// `offset > 0` the resize is **grow-only**, so earlier sprites packed at
+    /// lower offsets are never clobbered.
+    pub fn get_sprite_at(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>, offset: usize) {
         if self.screen_mode == 0 { return; }
         if self.screen_mode == 1 {
-            self.get_sprite_cga(x1, y1, x2, y2, data);
+            self.get_sprite_cga(x1, y1, x2, y2, data, offset);
             return;
         }
         if self.screen_mode == 13 {
-            self.get_sprite_mode13(x1, y1, x2, y2, data);
+            self.get_sprite_mode13(x1, y1, x2, y2, data, offset);
             return;
         }
         let x1 = x1 as i32;
@@ -1712,9 +1731,14 @@ impl Runtime {
         let bytes_per_plane = (width + 7) / 8;
         let longs_per_row   = bytes_per_plane;
         let total_longs     = 1 + height * longs_per_row;
-        data.resize(total_longs, 0.0);
+        if offset == 0 {
+            data.resize(total_longs, 0.0);
+        } else {
+            let need = offset + total_longs;
+            if data.len() < need { data.resize(need, 0.0); }
+        }
         let header = ((width as u32 - 1) | ((height as u32 - 1) << 16)) as i32;
-        data[0] = header as f64;
+        data[offset] = header as f64;
         for row in 0..height {
             let sy = y1 + row as i32;
             let mut row_bytes = vec![0u8; longs_per_row * 4];
@@ -1730,7 +1754,7 @@ impl Runtime {
                     }
                 }
             }
-            let long_start = 1 + row * longs_per_row;
+            let long_start = offset + 1 + row * longs_per_row;
             for i in 0..longs_per_row {
                 let v = (row_bytes[i * 4]     as u32)        |
                         ((row_bytes[i * 4 + 1] as u32) << 8) |
@@ -1743,7 +1767,7 @@ impl Runtime {
 
     /// GET for CGA SCREEN 1 — capture into the authentic 2-bpp packed INTEGER
     /// layout (see `put_sprite_cga`). Symmetric with the CGA PUT path.
-    fn get_sprite_cga(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+    fn get_sprite_cga(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>, offset: usize) {
         let x1 = x1 as i32;
         let y1 = y1 as i32;
         let x2 = x2 as i32;
@@ -1753,10 +1777,15 @@ impl Runtime {
         let bytes_per_row = (width + 3) / 4;
         let total_bytes   = height * bytes_per_row;
         let total_elems   = 2 + (total_bytes + 1) / 2; // 2-byte header words + data
-        data.clear();
-        data.resize(total_elems, 0.0);
-        data[0] = (width * 2) as f64;
-        data[1] = height as f64;
+        if offset == 0 {
+            data.clear();
+            data.resize(total_elems, 0.0);
+        } else {
+            let need = offset + total_elems;
+            if data.len() < need { data.resize(need, 0.0); }
+        }
+        data[offset] = (width * 2) as f64;
+        data[offset + 1] = height as f64;
         // Build the packed byte stream, then fold pairs into 16-bit elements.
         let mut bytes = vec![0u8; total_bytes];
         for row in 0..height {
@@ -1773,7 +1802,7 @@ impl Runtime {
         for (i, chunk) in bytes.chunks(2).enumerate() {
             let lo = chunk[0] as u16;
             let hi = *chunk.get(1).unwrap_or(&0) as u16;
-            data[2 + i] = (lo | (hi << 8)) as i16 as f64;
+            data[offset + 2 + i] = (lo | (hi << 8)) as i16 as f64;
         }
     }
 
@@ -1781,17 +1810,17 @@ impl Runtime {
     /// planar). Layout: data[0] = width_px*8 (x-extent in bits), data[1] =
     /// height_px, then a byte stream of `width` bytes/row (one full color index
     /// per pixel), two bytes per INTEGER element (low byte first).
-    fn put_sprite_mode13(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction) {
-        if data.len() < 2 { return; }
-        let width  = (data[0] as i64 as u16 as usize) / 8;
-        let height = data[1] as i64 as u16 as usize;
+    fn put_sprite_mode13(&mut self, data: &[f64], gx: f64, gy: f64, action: PutAction, offset: usize) {
+        if data.len() < offset + 2 { return; }
+        let width  = (data[offset] as i64 as u16 as usize) / 8;
+        let height = data[offset + 1] as i64 as u16 as usize;
         if width == 0 || height == 0 { return; }
         let mask = self.sprite_color_mask(); // = 255 in mode 13
         let gx = gx as i32;
         let gy = gy as i32;
-        // byte b lives in element 2 + b/2, low byte first (little-endian INTEGER).
+        // byte b lives in element offset + 2 + b/2, low byte first (little-endian INTEGER).
         let get_byte = |b: usize| -> u8 {
-            let elem = 2 + b / 2;
+            let elem = offset + 2 + b / 2;
             if elem >= data.len() { return 0; }
             let w = data[elem] as i64 as u16;
             if b & 1 == 0 { (w & 0xFF) as u8 } else { (w >> 8) as u8 }
@@ -1813,7 +1842,7 @@ impl Runtime {
 
     /// GET for MCGA SCREEN 13 — capture into the 8-bpp chunky INTEGER layout
     /// (see `put_sprite_mode13`). Symmetric with the mode-13 PUT path.
-    fn get_sprite_mode13(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>) {
+    fn get_sprite_mode13(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, data: &mut Vec<f64>, offset: usize) {
         let x1 = x1 as i32;
         let y1 = y1 as i32;
         let x2 = x2 as i32;
@@ -1822,10 +1851,15 @@ impl Runtime {
         let height = ((y2 - y1 + 1).max(1)) as usize;
         let total_bytes = width * height;                 // 1 byte per pixel
         let total_elems = 2 + (total_bytes + 1) / 2;       // 2-word header + data
-        data.clear();
-        data.resize(total_elems, 0.0);
-        data[0] = (width * 8) as f64;                      // x-extent in bits
-        data[1] = height as f64;
+        if offset == 0 {
+            data.clear();
+            data.resize(total_elems, 0.0);
+        } else {
+            let need = offset + total_elems;
+            if data.len() < need { data.resize(need, 0.0); }
+        }
+        data[offset] = (width * 8) as f64;                 // x-extent in bits
+        data[offset + 1] = height as f64;
         let mut bytes = vec![0u8; total_bytes];
         for row in 0..height {
             let sy = y1 + row as i32;
@@ -1839,7 +1873,7 @@ impl Runtime {
         for (i, chunk) in bytes.chunks(2).enumerate() {
             let lo = chunk[0] as u16;
             let hi = *chunk.get(1).unwrap_or(&0) as u16;
-            data[2 + i] = (lo | (hi << 8)) as i16 as f64;
+            data[offset + 2 + i] = (lo | (hi << 8)) as i16 as f64;
         }
     }
 
@@ -4220,6 +4254,49 @@ mod sprite_tests {
         rt.put_sprite(&spr, 0.0, 0.0, PutAction::Preset);
         assert_eq!(rt.point(0.0, 0.0), 2.0); // !1 & 3
         assert_eq!(rt.point(1.0, 0.0), 1.0); // !2 & 3
+    }
+
+    // Two distinct sprites packed into ONE array at element offsets 0 and N
+    // (QB's `GET …, Arr(n)` / `PUT …, Arr(n)` — the qblocks BlockImage idiom).
+    // Each must round-trip from its own offset without clobbering the other.
+    #[test]
+    fn get_put_at_offset_packs_independent_sprites() {
+        let mut rt = setup();
+        // Sprite A at (0,0): pixels colors 1, 2.  Sprite B at (0,2): colors 4, 8.
+        rt.pset(0.0, 0.0, 1.0); rt.pset(1.0, 0.0, 2.0);
+        rt.pset(0.0, 2.0, 4.0); rt.pset(1.0, 2.0, 8.0);
+
+        let mut buf: Vec<f64> = Vec::new();
+        const N: usize = 64; // well past sprite A's footprint
+        rt.get_sprite_at(0.0, 0.0, 1.0, 0.0, &mut buf, 0); // A → offset 0
+        rt.get_sprite_at(0.0, 2.0, 1.0, 2.0, &mut buf, N); // B → offset N
+
+        // Packing B at N must not have shrunk/clobbered A at 0.
+        assert!(buf.len() >= N + 2, "buffer must grow to hold the offset sprite");
+        assert_eq!(buf[0], 1.0, "sprite A header survives");
+
+        // Wipe and blit each back from its own offset.
+        rt.screen(9.0); // clears the framebuffer
+        rt.put_sprite_at(&buf, 10.0, 10.0, PutAction::Pset, 0); // A
+        rt.put_sprite_at(&buf, 10.0, 12.0, PutAction::Pset, N); // B
+        assert_eq!(rt.point(10.0, 10.0), 1.0);
+        assert_eq!(rt.point(11.0, 10.0), 2.0);
+        assert_eq!(rt.point(10.0, 12.0), 4.0);
+        assert_eq!(rt.point(11.0, 12.0), 8.0);
+    }
+
+    // get_sprite_at with offset > 0 is grow-only: a pre-sized buffer must NOT shrink.
+    #[test]
+    fn get_at_offset_does_not_shrink_buffer() {
+        let mut rt = setup();
+        rt.pset(0.0, 0.0, 5.0); rt.pset(1.0, 0.0, 6.0);
+        let mut buf: Vec<f64> = vec![0.0; 4096]; // pre-DIM'd large, like qblocks BlockImage
+        rt.get_sprite_at(0.0, 0.0, 1.0, 0.0, &mut buf, 100);
+        assert_eq!(buf.len(), 4096, "grow-only resize must never shrink the array");
+        rt.screen(9.0);
+        rt.put_sprite_at(&buf, 0.0, 0.0, PutAction::Pset, 100);
+        assert_eq!(rt.point(0.0, 0.0), 5.0);
+        assert_eq!(rt.point(1.0, 0.0), 6.0);
     }
 }
 

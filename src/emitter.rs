@@ -1790,9 +1790,19 @@ impl Emitter {
                     PutAction::Or     => "Or",
                     PutAction::Xor    => "Xor",
                 };
-                self.line(&format!(
-                    "__rt.put_sprite(&{arr_name}, __spx{tc}, __spy{tc}, qbasic_runtime::PutAction::{verb});"
-                ));
+                // QB can pack several sprites into one array: PUT (x,y), Arr(n)
+                // means the sprite starts at element n. Honor that element offset.
+                match self.sprite_offset_expr(arr)? {
+                    Some(off) => {
+                        self.line(&format!("let __soff{tc} = ({off}) as usize;"));
+                        self.line(&format!(
+                            "__rt.put_sprite_at(&{arr_name}, __spx{tc}, __spy{tc}, qbasic_runtime::PutAction::{verb}, __soff{tc});"
+                        ));
+                    }
+                    None => self.line(&format!(
+                        "__rt.put_sprite(&{arr_name}, __spx{tc}, __spy{tc}, qbasic_runtime::PutAction::{verb});"
+                    )),
+                }
             }
 
             Stmt::GetSprite { x1, y1, x2, y2, arr, step1, step2 } => {
@@ -1819,7 +1829,14 @@ impl Emitter {
                     self.line(&format!("let __sgy2_{tc} = {y2v};"));
                 }
                 let arr_name = self.sprite_arr_name(arr);
-                self.line(&format!("__rt.get_sprite(__sgx1_{tc}, __sgy1_{tc}, __sgx2_{tc}, __sgy2_{tc}, &mut {arr_name});"));
+                // GET …, Arr(n) stores the captured sprite starting at element n.
+                match self.sprite_offset_expr(arr)? {
+                    Some(off) => {
+                        self.line(&format!("let __soff{tc} = ({off}) as usize;"));
+                        self.line(&format!("__rt.get_sprite_at(__sgx1_{tc}, __sgy1_{tc}, __sgx2_{tc}, __sgy2_{tc}, &mut {arr_name}, __soff{tc});"));
+                    }
+                    None => self.line(&format!("__rt.get_sprite(__sgx1_{tc}, __sgy1_{tc}, __sgx2_{tc}, __sgy2_{tc}, &mut {arr_name});")),
+                }
             }
 
             Stmt::Swap(a, b) => {
@@ -3288,7 +3305,8 @@ impl Emitter {
                     rn
                 }
             }
-            // For GET/PUT the array is always the whole vec, not an indexed element
+            // For GET/PUT the buffer is the whole vec; any element index is the
+            // sprite's element OFFSET, supplied separately via sprite_offset_expr().
             LValue::Index { name, .. } => {
                 let lower = name.to_lowercase();
                 if self.shared_names.contains(&lower) {
@@ -3299,6 +3317,23 @@ impl Emitter {
             }
             other => self.emit_lvalue(other),
         }
+    }
+
+    /// For a GET/PUT sprite buffer, return the element offset expression when the
+    /// buffer is an indexed array element `Arr(n)` with a single, non-zero index
+    /// (QB packs multiple sprites into one array at distinct offsets). A bare array
+    /// name or an explicit `Arr(0)` returns `None` → the plain offset-0 call, byte-
+    /// identical to before.
+    fn sprite_offset_expr(&mut self, lval: &LValue) -> Result<Option<String>> {
+        fn is_literal_zero(e: &Expr) -> bool {
+            matches!(e, Expr::IntLit(0)) || matches!(e, Expr::FloatLit(f) if *f == 0.0)
+        }
+        if let LValue::Index { indices, .. } = lval {
+            if indices.len() == 1 && !is_literal_zero(&indices[0]) {
+                return Ok(Some(self.emit_expr(&indices[0])?));
+            }
+        }
+        Ok(None)
     }
 
     // ── Emit CALL arguments — expands arrays, creates string temps ────────────

@@ -692,6 +692,7 @@ fn lex_number(
     match chars.peek() {
         Some(&'!') => { chars.next(); /* single — treat as float */ is_float = true; }
         Some(&'#') => { chars.next(); /* double — treat as float */ is_float = true; }
+        Some(&'&') => { chars.next(); /* LONG suffix — treat as float (f64) */ is_float = true; }
         Some(&'%') => {
             chars.next(); // integer suffix
             let n = s.parse::<i32>().map_err(|_| QbError::Lex {

@@ -462,6 +462,15 @@ impl Emitter {
             // rust_ident_typed would suffix a string `A$` to `a_s`, leaving the
             // field orphaned while every reference emitted `__gs.a`.
             let rust_name = rust_ident(name_lc);
+            // Prefer the authoritative declared type from the symbol table — a
+            // sigil-less `DIM k AS STRING` carries its String type there, while the
+            // usage-inferred `ty` from detect_cross_boundary_scalars defaults to
+            // Single. Without this, a promoted string compared to a literal
+            // (`k >= "1"`) emits `String >= &str` and fails to compile.
+            let real_ty = prog.global_scope.symbols.values()
+                .find(|s| s.name.to_lowercase() == *name_lc)
+                .map(|s| s.ty.clone())
+                .unwrap_or_else(|| ty.clone());
             // Avoid double-promotion if already DIM SHARED or promoted as array,
             // and never promote a CONST.
             if !self.shared_names.contains(name_lc.as_str())
@@ -469,8 +478,8 @@ impl Emitter {
                && !const_names.contains(name_lc.as_str())
             {
                 self.shared_names.insert(name_lc.clone());
-                self.shared_types.insert(name_lc.clone(), ty.clone());
-                self.promoted_scalars.push((rust_name, ty.clone()));
+                self.shared_types.insert(name_lc.clone(), real_ty.clone());
+                self.promoted_scalars.push((rust_name, real_ty));
             }
         }
 
@@ -3742,12 +3751,15 @@ impl Emitter {
             if let Some(op_str) = rust_op {
                 let l = self.emit_expr_inner(lhs)?;
                 let r = self.emit_expr_inner(rhs)?;
-                // String comparison: normalize both sides to &str
-                let (l_cmp, r_cmp) = if is_str_expr(lhs) || is_str_expr(rhs) {
-                    let lc = if is_str_expr(lhs) && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
+                // String comparison: normalize both sides to &str (see emit_expr_inner
+                // for why is_str_expr_ctx is consulted alongside is_str_expr).
+                let l_is_str = is_str_expr(lhs) || self.is_str_expr_ctx(lhs);
+                let r_is_str = is_str_expr(rhs) || self.is_str_expr_ctx(rhs);
+                let (l_cmp, r_cmp) = if l_is_str || r_is_str {
+                    let lc = if l_is_str && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
                         format!("({l}).as_str()")
                     } else { l.clone() };
-                    let rc = if is_str_expr(rhs) && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
+                    let rc = if r_is_str && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
                         format!("({r}).as_str()")
                     } else { r.clone() };
                     (lc, rc)
@@ -4021,15 +4033,20 @@ impl Emitter {
                 if *op == BinOp::Add && (is_str_expr(lhs) || is_str_expr(rhs)) {
                     return format!("format!(\"{{}}{{}}\" ,{l},{r})");
                 }
-                // String comparison: normalize both sides to &str
+                // String comparison: normalize both sides to &str. A side is a
+                // string if it's a literal/sigil string (is_str_expr) OR a
+                // context-declared string (sigil-less `DIM … AS STRING`, AS STRING
+                // param, shared string) recognized by is_str_expr_ctx.
+                let l_is_str = is_str_expr(lhs) || self.is_str_expr_ctx(lhs);
+                let r_is_str = is_str_expr(rhs) || self.is_str_expr_ctx(rhs);
                 let (l_cmp, r_cmp) = if matches!(op,
                     BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)
-                    && (is_str_expr(lhs) || is_str_expr(rhs))
+                    && (l_is_str || r_is_str)
                 {
-                    let lc = if is_str_expr(lhs) && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
+                    let lc = if l_is_str && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
                         format!("({l}).as_str()")
                     } else { l.clone() };
-                    let rc = if is_str_expr(rhs) && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
+                    let rc = if r_is_str && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
                         format!("({r}).as_str()")
                     } else { r.clone() };
                     (lc, rc)
@@ -4219,15 +4236,20 @@ impl Emitter {
                 let l = self.emit_expr_inner(lhs)?;
                 let r = self.emit_expr_inner(rhs)?;
                 // String comparison: normalize both sides to &str to avoid
-                // String vs &str ambiguity (Rust can't pick PartialOrd impl)
+                // String vs &str ambiguity (Rust can't pick PartialOrd impl). A side
+                // counts as a string if it's a literal/sigil string OR a context-
+                // declared string (sigil-less `DIM … AS STRING`, AS STRING param,
+                // shared string) per is_str_expr_ctx.
+                let l_is_str = is_str_expr(lhs) || self.is_str_expr_ctx(lhs);
+                let r_is_str = is_str_expr(rhs) || self.is_str_expr_ctx(rhs);
                 let (l_cmp, r_cmp) = if matches!(op,
                     BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge)
-                    && (is_str_expr(lhs) || is_str_expr(rhs))
+                    && (l_is_str || r_is_str)
                 {
-                    let lc = if is_str_expr(lhs) && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
+                    let lc = if l_is_str && !matches!(lhs.as_ref(), Expr::StrLit(_)) {
                         format!("({l}).as_str()")
                     } else { l.clone() };
-                    let rc = if is_str_expr(rhs) && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
+                    let rc = if r_is_str && !matches!(rhs.as_ref(), Expr::StrLit(_)) {
                         format!("({r}).as_str()")
                     } else { r.clone() };
                     (lc, rc)

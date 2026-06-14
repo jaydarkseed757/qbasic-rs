@@ -15,6 +15,9 @@ HALLFAME.*
 # Generated transpiler output (created by build-all.sh)
 /bin
 
+# Stray compiled binary that was accidentally committed; build output belongs in /bin
+/basic-src/gorilla
+
 # Compiled sample binaries (samples/ holds .rs source only)
 /samples/*
 !/samples/*.rs

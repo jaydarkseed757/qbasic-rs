@@ -1295,6 +1295,14 @@ impl Runtime {
         }
     }
 
+    /// QB `ERR` — the code of the most recent trappable error (0 = none).
+    /// Provided as a method so the emitter's generic zero-arg call path
+    /// (`ERR` → `__rt.err_code()`) compiles; the bare field is also read
+    /// directly at other emission sites.
+    pub fn err_code(&self) -> f64 {
+        self.err_code
+    }
+
     /// OPEN path FOR RANDOM AS #n LEN = rec_len
     pub fn open_random(&mut self, path: &str, file_num: u8, record_len: usize) {
         if let Ok(file) = std::fs::OpenOptions::new()

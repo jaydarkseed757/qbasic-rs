@@ -30,7 +30,7 @@ qbasic-rust/
 │       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3875 lines)
 │       └── sound.rs            # PLAY MML parser + SOUND/BEEP via rodio  (~300 lines)
 │
-└── basic-src/                  # Test .bas programs (39 total)
+└── basic-src/                  # Test .bas programs (44 total)
     ├── gorilla.bas             # Primary target: gorilla-throwing game
     ├── torus.bas               # 3-D torus (arrays of TYPE, WINDOW/PMAP, VGA palette)
     ├── reversi.bas             # Reversi/Othello AI (3-D arrays, WINDOW SCREEN)
@@ -47,10 +47,13 @@ qbasic-rust/
     ├── screen13-sprite.bas     # SCREEN 13 GET/PUT 8-bpp sprites
     ├── pi.bas                  # Arbitrary-precision pi via Machin's formula
     ├── evil.bas                # GW-BASIC POKE/PEEK with physical line continuations
+    ├── kingdom.bas             # GW-BASIC kingdom resource-management game
+    ├── vgadac.bas              # VGA DAC port I/O test (OUT/INP vs PALETTE vs readback)
     └── …                       # nibbles, hangman*, pi-gw, q_sort, fuzzbuzz, primes,
                                 #   step, 256c, palette256_expanded, random-pixel, qblocks,
                                 #   loopyloop, pixel-gw, pokeit, pokemix, qmaze, demo1,
-                                #   hello-world, sound, toccata, gotorama, sortdemo
+                                #   hello-world, sound, toccata, gotorama, sortdemo,
+                                #   blackjack, textpaint, qbricks
 ```
 
 ---
@@ -133,7 +136,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
-| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `DEF SEG` (parsed/ignored) |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `DEF SEG` (parsed/ignored) |
 | **Operators** | `AND`, `OR`, `XOR`, `NOT`, `EQV`, `IMP`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
@@ -145,11 +148,28 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **String** | `LEN LEFT$ RIGHT$ MID$ UCASE$ LCASE$ LTRIM$ RTRIM$ STR$ VAL CHR$ ASC INSTR SPACE$ STRING$ HEX$ OCT$` |
 | **Runtime / system** | `RND TIMER INKEY$ INPUT$ POINT PMAP PEEK ERR EOF LOF ENVIRON$ UBOUND LBOUND` |
 
+### `DEF FN` — both single-line and multi-line supported
+- Single-line: `DEF FnName(x) = expr` (emitted as an inline-expression fn).
+- Multi-line: `DEF FNName(args)` … statements … `FNName = result` … `END DEF`
+  (`EXIT DEF` for early return). Converted to a `FuncDef` at parse time and emitted via
+  the standard `FUNCTION` path. Limitation: the body is an isolated fn, so it only sees
+  parameters + shared/global (`GameState`) state, not arbitrary main-module locals
+  (QB's true `DEF FN` shares module scope).
+
+### `ON ERROR GOTO` / `RESUME` — named-label happy path only
+- `ON ERROR GOTO <named label>` + `RESUME NEXT` work: the handler is extracted as a fn
+  and invoked when `__rt.error_pending` is set after a fallible statement; `ERR` returns
+  the error code. The only error the runtime raises is **file-not-found (err 53) on
+  `OPEN`**. Not implemented: bare `RESUME` retry (treated as `RESUME NEXT`), numeric-
+  label handlers in `__pc` state-machine programs (error cleared but no jump), `ERL`,
+  and error triggers beyond file-`OPEN`.
+
 ### Not supported / stubbed
 - `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
 - `PRINT USING` `$$` / `**` floating tokens → printed literally
-- Array fields declared *inside* a `TYPE` body → dimension discarded
-- Direct port I/O (`OUT` / `INP`), `CHAIN` / `SHELL` → not modeled (stubbed to program end)
+- `CHAIN` / `SHELL` → not modeled (stubbed to program end)
+- `OUT` / `INP` — **now supported** for VGA DAC ports (0x3C7/0x3C8/0x3C9); other port
+  addresses are silently ignored (not modeled at the hardware level)
 
 `GET`/`PUT` sprites are fully supported across pixel depths: EGA 4-plane planar
 (SCREEN 9/12), CGA 2bpp packed (SCREEN 1), and MCGA 8bpp chunky (SCREEN 13).
@@ -317,7 +337,7 @@ first definition; the transpiler emits both — flagged on stderr).
 
 ## Emitter (`src/emitter.rs`)
 
-The largest file (~5370 lines). Walks `AnalyzedProgram` and writes Rust source.
+The largest file (~5500 lines). Walks `AnalyzedProgram` and writes Rust source.
 
 ### Emitted file structure
 
@@ -508,6 +528,29 @@ effects). `lift_expr` takes `&mut self` and can emit `let __tmp_N = ...`
 bindings for user-defined function calls that appear inside `__rt.method()`
 argument lists, preventing double-borrow of `__rt`.
 
+### Post-processing passes
+
+Three text passes are chained at `emit()` return (in order):
+
+```rust
+Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&self.out))))
+```
+
+1. **`inline_single_use_tmps(out)`** — inlines `let __tmpN = expr;` when `__tmpN`
+   is referenced exactly once. Folds away hoisting clutter when `lift_expr` was
+   overly conservative.
+
+2. **`remove_unnecessary_mut(out)`** — removes `mut` from `let mut varname:` when
+   `varname` is never mutated within its enclosing function scope (no `varname =`,
+   `varname +=`, `&mut varname`, or `for varname in`). Infrastructure names
+   (`__gs`, `__rt`, `__fn_ret`, `__pc`, `__for_*`, `__tmp_*`) are never touched.
+   If `mut` is incorrectly removed, rustc catches it at compile time of the emitted
+   file — fail-safe. Non-idempotent: a second pass would corrupt `qb_bool(*x)`.
+
+3. **`strip_deref_parens(out)`** — rewrites `(*ident)` → `*ident` unless followed
+   by `.` or `[`. Byte scanner; skips string literals. `idx_sub()` helper at emit
+   sites avoids generating `[((*x)) as usize]` double-wraps before the pass runs.
+
 ---
 
 ## Runtime (`runtime/src/`)
@@ -581,6 +624,16 @@ pub struct Runtime {
     // DRAW state
     draw_scale:      f64,       // S value; pixels_per_unit = draw_scale / 4
     draw_color:      u8,        // C value (current DRAW color)
+
+    // VGA DAC port state (OUT 0x3C8/0x3C9/0x3C7, INP 0x3C9)
+    dac_write_idx:   usize,     // current write index (set by OUT 0x3C8)
+    dac_channel:     u8,        // 0=R 1=G 2=B; auto-advances on OUT 0x3C9
+    dac_pending_r/g/b: u8,      // accumulates R then G then B (6-bit each)
+    dac_read_idx:    usize,     // current read index (set by OUT 0x3C7)
+    dac_read_ch:     u8,        // 0=R 1=G 2=B; auto-advances on INP 0x3C9
+
+    // POKE/PEEK simulated memory
+    poke_mem:        HashMap<u32, u8>,  // byte store for POKE/PEEK
 
     // PLAY MML state
     mml_state:       MmlState,  // persists across PLAY calls
@@ -765,6 +818,12 @@ pub const EGA: [(u8, u8, u8); 16] = [
 `PALETTE attr, color64` remaps entries using the EGA 64-color encoding
 (bits [5:4:3] = RGB high, bits [2:1:0] = RGB low).
 
+`OUT &H3C8, idx` / `OUT &H3C9, val` (VGA DAC protocol) also remaps `palette_rgb`
+entries. Three sequential `OUT &H3C9` writes supply R, G, B (each 6-bit, 0–63);
+the runtime accumulates them and converts via `dac6_to_8(c) = (c << 2) | (c >> 4)`
+on the third write. `INP(&H3C9)` reads back the 6-bit value of R, G, or B from
+`palette_rgb[dac_read_idx]` in the same round-robin order.
+
 ### Arithmetic operators
 
 Most binary operators map directly to Rust on `f64` (`+ - * /`). Three need
@@ -935,6 +994,45 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 ---
 
 ## Milestone Status
+
+### M18 — Emitter quality passes, VGA DAC, behavioral env overrides, kingdom.bas (build-all 44/44) ✅
+
+Three chained post-processing passes now run at `emit()` return:
+
+- **`inline_single_use_tmps`** — inlines `__tmpN` temporaries used exactly once.
+  Reduces clutter from `lift_expr`'s defensive hoisting.
+- **`remove_unnecessary_mut`** — removes `mut` from `let mut varname:` declarations
+  where no mutation (`varname =`, `&mut varname`, compound `+=`, or `for varname in`)
+  appears before the end of the enclosing function scope. Infrastructure names
+  (`__gs`, `__rt`, `__fn_ret`, `__pc`, `__for_*`, `__tmp_*`) are never de-mutted.
+  Non-idempotent (second pass would corrupt `qb_bool(*mouth)` patterns).
+- **`strip_deref_parens`** — rewrites `(*ident)` → `*ident` except when followed
+  by `.` or `[` (field/index access). `idx_sub()` at emit sites prevents generating
+  `[((*x)) as usize]` double-wraps in the first place.
+
+Other emitter quality improvements:
+- **Concrete defaults** — `0.0_f64` / `String::new()` instead of `Default::default()` 
+  everywhere: `__fn_ret`, array element inits, `emit_dim` scalars, `emit_game_state`.
+- **Duplicate DIM suppression** — `locals_declared: HashSet<String>` tracks what
+  `emit_locals` already declared; `emit_dim` skips re-declaring the same numeric
+  scalar. String DIMs always emitted (support sigil-less DIM/shadow patterns).
+
+**VGA DAC hardware port I/O** (`OUT`/`INP`) — `Token::Out`/`Token::Inp` added;
+`Stmt::Out { port, val }` AST node; `qb_out`/`qb_in` on `Runtime`. The DAC state
+machine handles ports 0x3C7 (read index), 0x3C8 (write index), 0x3C9 (R/G/B sequential).
+`OUT` is context-sensitive: not a statement when followed by `(` or `=` (avoids
+breaking array param names like `out()` in pi.bas). `vgadac.bas` tests the full path.
+
+**Behavioral env-var overrides** — `apply_behavioral_env()` called after pragma
+setter calls in `main()` so env vars always override compile-time pragma values.
+`QBC_TITLE`/`QBC_SCALE` resolved inside `new_configured()` before window opens.
+
+**kingdom.bas (GW-BASIC)** — four transpiler bugs fixed and one `.bas` source fix:
+1. DATA raw-capture in lexer (prevents `1ST` from tokenizing as `IntLit + Ident`)
+2. Colon-before-ELSE consumed in single-line IF parser
+3. POKE/OUT args use `lift_expr` to prevent double `&mut __rt` borrow
+4. `collect_scalar_names_stmt` `PrintUsing` arm added (cross-GOSUB promotion)
+5. Source: `KORS` → `K OR S` on line 200 (DOS editor had collapsed the expression)
 
 ### M17 — blackjack.bas + QB language fixes (build-all 42/42, 30/30 tests) ✅
 
@@ -1207,37 +1305,27 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **42/42** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **44/44** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
-duck, etto, invaders, toccata, gotorama, blackjack, textpaint). The integration
-suite is **30/30**, with 96 runtime unit tests and 9 graphics golden tests.
+duck, etto, invaders, toccata, gotorama, blackjack, textpaint, kingdom, vgadac).
+The integration suite is **30/30**, with 119 runtime unit tests and 9 graphics golden tests.
 
-Remaining work is a few rarely-used features:
+Remaining work is one rarely-used feature:
 
 1. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
    (asterisk fill) print literally. `^^^^` scientific notation and wide-field
    `%` overflow are implemented (see Feature Support Notes).
-2. **`OUT &H3C8/&H3C9` VGA DAC port writes** — some programs write palette
-   entries via hardware port knocks instead of the `PALETTE` statement. Not
-   modelled; out of scope until a program needs it.
-3. **Unify `REM QBC` pragmas and `QBC_*` env vars (idea — to review).** The
-   source pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`, via
-   `parse_qbc_config` in `emitter.rs`) are baked in at transpile time; the
-   headless-driver env vars (`HEADLESS/KEYS/SEED/DUMP/CHECKSUM/FBSTATS/
-   EXIT_AFTER`, read by `runtime/src/lib.rs`) are read at run time. The valuable
-   half is one-directional: let the **behavioral** pragmas also be set/overridden
-   by an env var (`QBC_PACE`, `QBC_FPS`, `QBC_SCALE`, `QBC_FULLSPEED`,
-   `QBC_SLOWMO`, `QBC_TITLE`) so they can be tuned without re-transpiling — low
-   effort, since the runtime already exposes the `set_*` methods; read env after
-   the pragma-emitted calls so env wins. The reverse (debug knobs as pragmas) is
-   mostly **not** worth it: `HEADLESS/KEYS/DUMP/CHECKSUM/FBSTATS/EXIT_AFTER` are
-   external observation/test knobs, not program behavior, and `SEED`-as-pragma
-   would defeat real randomness. So: do the env-override half if/when useful;
-   skip full bidirectional unification. Needs a clear precedence rule (env
-   overrides pragma) given the shared "QBC" name.
+
+Previously listed items that are now complete:
+- **`OUT &H3C8/&H3C9` VGA DAC port writes** — ✅ Implemented. `qb_out`/`qb_in`
+  on `Runtime` model the 3-channel VGA DAC state machine. `vgadac.bas` tests
+  PALETTE vs OUT writes vs INP readback.
+- **Behavioral pragma env-var overrides** — ✅ Implemented. `apply_behavioral_env()`
+  (called after pragma setter calls in `main()`) reads `QBC_PACE/FPS/FULLSPEED/
+  SLOWMO` and overwrites the compiled-in pragma values. Env always wins.
 
 ---
 

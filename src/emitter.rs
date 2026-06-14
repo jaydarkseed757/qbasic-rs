@@ -148,6 +148,10 @@ pub struct Emitter {
     /// DIM SHARED string `B$` share the same base name: the local DIM shadows
     /// the shared string for numeric accesses in that scope.
     local_dim_names: HashSet<String>,
+    /// Scalar names (rust_ident_typed form) that emit_locals has already declared
+    /// at the top of the current scope. emit_dim checks this to avoid emitting a
+    /// duplicate `let mut` for a DIM'd scalar that collect_locals already hoisted.
+    locals_declared: HashSet<String>,
     /// Collected ON KEY(n) GOSUB target bindings from all scopes.
     /// key_num → target label (lowercase).  Populated during emit; used to emit
     /// `fn __handle_key_event` before fn main().
@@ -199,6 +203,7 @@ impl Emitter {
             gamestate_emitted: true,
             local_string_arrays: HashSet::new(),
             local_dim_names: HashSet::new(),
+            locals_declared: HashSet::new(),
             on_key_gosubs: Vec::new(),
             on_timer_gosub: None,
         }
@@ -886,7 +891,8 @@ impl Emitter {
             // QB FUNCTION returns by assigning to the function name.
             // Use "__fn_ret" as the local variable so recursive calls to the
             // same function don't get shadowed by the local binding.
-            self.line(&format!("let mut __fn_ret: {ret_ty} = Default::default();"));
+            let ret_default = if ret_ty == "String" { "String::new()" } else { "0.0" };
+            self.line(&format!("let mut __fn_ret: {ret_ty} = {ret_default};"));
             self.current_fn_retvar = Some("__fn_ret".to_string());
             self.current_fn_name_lc = Some(fn_rust_name.clone());
 
@@ -1176,6 +1182,10 @@ impl Emitter {
         // would shadow the fn. (Function names are reserved in QB.)
         combined_exclude.extend(self.user_fns.iter().cloned());
         let locals = collect_locals(body, &combined_exclude);
+        // Record the names declared here (rust_ident_typed form, pre-disambiguation)
+        // so emit_dim can skip re-declaring a DIM'd scalar that's already covered.
+        self.locals_declared.clear();
+        self.locals_declared.extend(locals.iter().map(|(n, _)| n.clone()));
         for (name, ty) in &locals {
             // Disambiguate a scalar that shares its name with a local array.
             let name = self.local_scalar_name(name);
@@ -2325,15 +2335,33 @@ impl Emitter {
                                 upper + 1
                             ));
                         } else {
-                            self.line(&format!("let mut {name}__{fname}: {frust} = Default::default();"));
+                            let dv = if frust == "String" { "String::new()" } else { "0.0" };
+                            self.line(&format!("let mut {name}__{fname}: {frust} = {dv};"));
                         }
                     }
                     return;
                 }
             }
             if is_shared { return; } // plain shared scalar is default-initialized in GameState
+            // Numeric scalar: in sub/function bodies `collect_locals` already hoists
+            // it to a clean `let mut x = 0.0;` at function top (with the
+            // `local_scalar_name` disambiguation), so emitting again here produced a
+            // duplicate shadowing declaration. Skip when emit_locals already covered
+            // the name. (In MAIN, DIM'd scalars are part of `globals` and excluded
+            // from collect_locals, so locals_declared won't contain them and we emit.)
+            //
+            // String DIMs are NOT suppressed: a sigil-less `DIM s AS STRING` with a
+            // sigil-less assignment (`s = INKEY$`) relies on this declaration to
+            // shadow the Single-typed binding collect_locals infers from the bare
+            // name — removing it would re-expose the f64 and break the assignment.
             let ty  = qb_type_to_rust(&decl.ty);
-            self.line(&format!("let mut {name}: {ty} = Default::default();"));
+            if decl.ty != QbType::String {
+                let typed = rust_ident_typed(&decl.name, &decl.ty);
+                if self.locals_declared.contains(&typed) { return; }
+                self.line(&format!("let mut {name}: {ty} = 0.0;"));
+            } else {
+                self.line(&format!("let mut {name}: {ty} = String::new();"));
+            }
         } else {
             // Array — "wasted-slots" strategy: always allocate (upper + 1) elements
             // so that raw QB indices lo..=upper are always valid Vec indices.
@@ -2432,12 +2460,14 @@ impl Emitter {
                 }
             } else if is_shared {
                 // Plain N-D shared array (1/2/3-D) → nested Vec inside GameState.
-                let init = nested_vec_init("Default::default()", &allocs);
+                let elem_default = if decl.ty == QbType::String { "String::new()" } else { "0.0" };
+                let init = nested_vec_init(elem_default, &allocs);
                 self.line(&format!("__gs.{name} = {init};"));
             } else {
                 let ty = qb_type_to_rust(&decl.ty);
                 self.local_arrays.insert(name.clone());
-                let init = nested_vec_init("Default::default()", &allocs);
+                let elem_default = if decl.ty == QbType::String { "String::new()" } else { "0.0" };
+                let init = nested_vec_init(elem_default, &allocs);
                 if self.sm_mode {
                     // In state-machine mode, `let mut` was hoisted before the loop;
                     // just emit the allocation assignment so the arm re-initializes it.
@@ -2471,7 +2501,7 @@ impl Emitter {
                         .and_then(|fts| fts.iter().find(|(f, _)| f == field))
                         .map(|(_, t)| t.clone())
                         .unwrap_or(QbType::Single);
-                    let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+                    let dv = if elem_ty == QbType::String { "String::new()" } else { "0.0" };
                     let base = if is_shared {
                         format!("__gs.{lower}__{field}")
                     } else {
@@ -2489,7 +2519,7 @@ impl Emitter {
             } else {
                 (lower.clone(), QbType::Single)
             };
-            let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+            let dv = if elem_ty == QbType::String { "String::new()" } else { "0.0" };
             self.emit_zero_nested(&base, ndims, dv);
         }
     }
@@ -2527,7 +2557,7 @@ impl Emitter {
         let alloc1 = allocs.get(1).cloned(); // typed path is still 2-D-max
 
         let elem_ty = qb_type_to_rust(&decl.ty);
-        let default_val = if decl.ty == QbType::String { "String::new()" } else { "Default::default()" };
+        let default_val = if decl.ty == QbType::String { "String::new()" } else { "0.0" };
         // Fill value for resizing the outer Vec: the inner (N-1)-D structure.
         let inner_fill = if ndims <= 1 {
             default_val.to_string()
@@ -2551,7 +2581,7 @@ impl Emitter {
                         .and_then(|fts| fts.iter().find(|(f, _)| f == field))
                         .map(|(_, t)| t.clone())
                         .unwrap_or(QbType::Single);
-                    let dv = if elem_ty == QbType::String { "String::new()" } else { "Default::default()" };
+                    let dv = if elem_ty == QbType::String { "String::new()" } else { "0.0" };
                     if let Some(ref a1) = alloc1 {
                         self.line(&format!(
                             "__gs.{name_bare}__{field}.resize({alloc0}, vec![{dv}; {a1}]);"));

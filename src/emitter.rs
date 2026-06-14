@@ -247,7 +247,7 @@ impl Emitter {
     #[allow(dead_code)]
     fn dim_sub(idx_expr: &str, lo: i64) -> String {
         if lo == 0 {
-            format!("[({idx_expr}) as usize]")
+            idx_sub(idx_expr)
         } else {
             format!("[({idx_expr} - {lo}.0) as usize]")
         }
@@ -518,7 +518,7 @@ impl Emitter {
         self.emit_key_event_helper()?;
 
         self.emit_main(&main_stmts, &globals)?;
-        Ok(remove_unnecessary_mut(&inline_single_use_tmps(&self.out)))
+        Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&self.out))))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {
@@ -2929,7 +2929,7 @@ impl Emitter {
                 let lower = name.to_lowercase();
                 // Wasted-slots: raw QB index is the Vec index directly.
                 let subscript: String = indices.iter()
-                    .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                    .map(|e| idx_sub(&self.emit_expr_inline(e)))
                     .collect();
                 // For shared arrays, use the authoritative type from shared_types;
                 // for local string arrays (DIM name(...) AS STRING without $ sigil),
@@ -2972,7 +2972,7 @@ impl Emitter {
                             flat
                         };
                         let subscript: String = indices.iter()
-                            .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                            .map(|e| idx_sub(&self.emit_expr_inline(e)))
                             .collect();
                         format!("{arr_field}{subscript}")
                     }
@@ -3001,7 +3001,7 @@ impl Emitter {
                 //   indexed: boards(i).Cell(j) → boards__cell[i][j]
                 let field_id = rust_ident(field);
                 let inner_sub: String = indices.iter()
-                    .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                    .map(|e| idx_sub(&self.emit_expr_inline(e)))
                     .collect();
                 match base.as_ref() {
                     LValue::Scalar { name, .. } => {
@@ -3024,7 +3024,7 @@ impl Emitter {
                             flat
                         };
                         let outer_sub: String = outer_indices.iter()
-                            .map(|e| format!("[({}) as usize]", self.emit_expr_inline(e)))
+                            .map(|e| idx_sub(&self.emit_expr_inline(e)))
                             .collect();
                         format!("{prefix}{outer_sub}{inner_sub}")
                     }
@@ -3126,7 +3126,7 @@ impl Emitter {
             let lower = rust_ident_typed(name, ty);
             if let Some(fields) = self.typed_fields.get(lower.as_str()) {
                 let subscript: String = indices.iter()
-                    .map(|idx| format!("[({}) as usize]", self.emit_expr_inline(idx)))
+                    .map(|idx| idx_sub(&self.emit_expr_inline(idx)))
                     .collect();
                 return Some((lower, subscript, fields.clone()));
             }
@@ -3148,7 +3148,7 @@ impl Emitter {
             if is_typed_arr {
                 if let Some(fields) = self.typed_fields.get(lower.as_str()) {
                     let subscript: String = args.iter()
-                        .map(|a| format!("[({}) as usize]", self.emit_expr_inline(a)))
+                        .map(|a| idx_sub(&self.emit_expr_inline(a)))
                         .collect();
                     return Some((lower, subscript, fields.clone()));
                 }
@@ -4325,7 +4325,7 @@ impl Emitter {
                     let idx: Vec<_> = args.iter()
                         .map(|e| self.emit_expr_inner(e).unwrap())
                         .collect();
-                    let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
+                    let sub: String = idx.iter().map(|i| idx_sub(i)).collect();
                     // Use typed name so string arrays get _s suffix
                     let rname = if let Some(ty) = self.shared_types.get(&name_bare) {
                         rust_ident_typed(name, ty)
@@ -4338,7 +4338,7 @@ impl Emitter {
                     let idx: Vec<_> = args.iter()
                         .map(|e| self.emit_expr_inner(e).unwrap())
                         .collect();
-                    let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
+                    let sub: String = idx.iter().map(|i| idx_sub(i)).collect();
                     return Ok(format!("{lower}{sub}"));
                 }
                 // Local string array without $ sigil (e.g. DIM rankStr(1 TO 10) AS STRING)
@@ -4346,7 +4346,7 @@ impl Emitter {
                     let idx: Vec<_> = args.iter()
                         .map(|e| self.emit_expr_inner(e).unwrap())
                         .collect();
-                    let sub: String = idx.iter().map(|i| format!("[({i}) as usize]")).collect();
+                    let sub: String = idx.iter().map(|i| idx_sub(i)).collect();
                     let rname = rust_ident_typed(name, &QbType::String);
                     return Ok(format!("{rname}{sub}"));
                 }
@@ -5041,6 +5041,36 @@ fn emit_f64_lit(f: f64) -> String {
         format!("{s}f64")   // e.g. "3.14f64", "1.0f64"
     } else {
         format!("{s}.0f64") // e.g. "2.0f64" (float Display dropped the .0)
+    }
+}
+
+/// True when `s` begins with `(` and that paren's match is the final char — i.e.
+/// the whole string is one parenthesized group, e.g. `(*x)` or `(qb_abs(y))`.
+/// Used to avoid emitting a redundant outer layer when wrapping an index.
+fn starts_with_balanced_paren(s: &str) -> bool {
+    let b = s.as_bytes();
+    if b.first() != Some(&b'(') { return false; }
+    let mut depth = 0i32;
+    for (k, &c) in b.iter().enumerate() {
+        match c {
+            b'(' => depth += 1,
+            b')' => { depth -= 1; if depth == 0 { return k == b.len() - 1; } }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Format an array subscript `[<idx> as usize]`, adding precedence-guarding
+/// parens around `idx` only when it isn't already a single balanced group.
+/// Avoids the `[((*x)) as usize]` double-paren that arises when `idx` is a
+/// deref like `(*x)` (the deref already carries its own parens). The single
+/// inner `(*x)` is later reduced to `*x` by `strip_deref_parens`.
+fn idx_sub(idx: &str) -> String {
+    if starts_with_balanced_paren(idx) {
+        format!("[{idx} as usize]")
+    } else {
+        format!("[({idx}) as usize]")
     }
 }
 
@@ -6560,4 +6590,132 @@ fn remove_unnecessary_mut(out: &str) -> String {
         result.push('\n');
     }
     result
+}
+
+// ── Post-processing: strip redundant parentheses around simple derefs ─────────
+//
+// By-ref scalar params (`&mut f64` / `&mut String`) are read as `(*name)` at
+// every use site. The wrapping parens are emitted defensively, but Rust's deref
+// `*` binds tighter than every binary operator, `as`, and unary minus, so in
+// almost all contexts `*name` is unambiguous and reads far cleaner:
+//   qb_bool((*mouth))         -> qb_bool(*mouth)
+//   ((*x) - __tmp49)          -> (*x - __tmp49)
+//   Some((*row))              -> Some(*row)
+//   (*x) = 5.0                -> *x = 5.0
+//
+// The parens are KEPT only when a postfix `.`/`[` immediately follows, since
+// `*s.clone()` parses as `*(s.clone())` and `*v[i]` as `*(v[i])` — both wrong.
+//
+// Safety: in generated code a deref is always its own parenthesized group
+// `(*ident)` (call args, operands, etc. each wrap their deref), so the leading
+// `(` always belongs to the deref and never to an enclosing call — making the
+// textual rewrite sound. String literals are skipped so a literal `(*x)` inside
+// printed text is never altered.
+fn strip_deref_parens(out: &str) -> String {
+    let b = out.as_bytes();
+    let n = b.len();
+    let mut result = String::with_capacity(n);
+    let mut i = 0;
+    let mut last = 0; // start of the not-yet-copied region
+
+    while i < n {
+        // Skip over Rust string literals verbatim (respecting \" and \\ escapes).
+        if b[i] == b'"' {
+            i += 1;
+            while i < n {
+                match b[i] {
+                    b'\\' => i += 2,
+                    b'"'  => { i += 1; break; }
+                    _     => i += 1,
+                }
+            }
+            continue;
+        }
+
+        // Match a `(*ident)` group.
+        if b[i] == b'(' && i + 1 < n && b[i + 1] == b'*' {
+            let id_start = i + 2;
+            let mut j = id_start;
+            while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_') { j += 1; }
+            if j > id_start && j < n && b[j] == b')' {
+                // Keep the parens if a postfix accessor follows.
+                let keep = matches!(b.get(j + 1), Some(b'.') | Some(b'['));
+                if !keep {
+                    result.push_str(&out[last..i]); // flush text before the group
+                    result.push('*');
+                    result.push_str(&out[id_start..j]); // the identifier (ASCII)
+                    i = j + 1;
+                    last = i;
+                    continue;
+                }
+            }
+        }
+        i += 1;
+    }
+    result.push_str(&out[last..]);
+    result
+}
+
+#[cfg(test)]
+mod deref_paren_tests {
+    use super::{strip_deref_parens, starts_with_balanced_paren, idx_sub};
+
+    #[test]
+    fn strips_simple_arg_and_operand() {
+        assert_eq!(strip_deref_parens("qb_bool((*mouth))"), "qb_bool(*mouth)");
+        assert_eq!(strip_deref_parens("Some((*row))"), "Some(*row)");
+        assert_eq!(strip_deref_parens("((*x) - __tmp49)"), "(*x - __tmp49)");
+        assert_eq!(strip_deref_parens("(*x) = 5.0;"), "*x = 5.0;");
+    }
+
+    #[test]
+    fn keeps_parens_before_method_or_index() {
+        // *s.clone() would parse as *(s.clone()) — must keep the parens.
+        assert_eq!(strip_deref_parens("(*qb_move__bottom).clone()"),
+                   "(*qb_move__bottom).clone()");
+        assert_eq!(strip_deref_parens("(*v)[0]"), "(*v)[0]");
+    }
+
+    #[test]
+    fn pass_is_intentionally_not_idempotent() {
+        // The pass MUST be applied exactly once. After stripping the inner deref of
+        // `qb_bool((*mouth))` we get `qb_bool(*mouth)`, whose remaining `(*mouth)`
+        // belongs to the *call* paren — a second pass would wrongly strip it to the
+        // unbalanced `qb_bool*mouth`. This is why the emitter avoids index
+        // double-parens via `idx_sub` instead of running strip to a fixpoint.
+        let once = strip_deref_parens("qb_bool((*mouth))");
+        assert_eq!(once, "qb_bool(*mouth)");
+        assert_eq!(strip_deref_parens(&once), "qb_bool*mouth"); // corrupts — do NOT do this
+    }
+
+    #[test]
+    fn does_not_touch_string_literals() {
+        assert_eq!(strip_deref_parens(r#"print("(*x)")"#), r#"print("(*x)")"#);
+        // Escaped quote inside the literal must not desync the scanner.
+        assert_eq!(strip_deref_parens(r#"print("a\"b") + (*y)"#),
+                   r#"print("a\"b") + *y"#);
+    }
+
+    #[test]
+    fn index_double_paren_is_avoided_then_stripped() {
+        // idx_sub avoids the `[((*x)) as usize]` double-wrap; strip then cleans it.
+        let sub = idx_sub("(*playernum)");
+        assert_eq!(sub, "[(*playernum) as usize]");
+        assert_eq!(strip_deref_parens(&format!("record{sub} = 1.0;")),
+                   "record[*playernum as usize] = 1.0;");
+    }
+
+    #[test]
+    fn balanced_paren_detection() {
+        assert!(starts_with_balanced_paren("(*x)"));
+        assert!(starts_with_balanced_paren("(qb_abs((y)))"));
+        assert!(!starts_with_balanced_paren("(a) + (b)")); // first ) is not the end
+        assert!(!starts_with_balanced_paren("i"));         // not parenthesized
+    }
+
+    #[test]
+    fn idx_sub_wraps_bare_and_operator_exprs() {
+        assert_eq!(idx_sub("i"), "[(i) as usize]");
+        assert_eq!(idx_sub("a + b"), "[(a + b) as usize]");
+    }
 }

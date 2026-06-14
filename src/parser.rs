@@ -736,7 +736,11 @@ impl Parser {
                 let val = self.parse_expr()?;
                 Ok(Stmt::Poke { addr, val })
             }
-            Token::Out => {
+            // OUT port, val — but only when it's the statement form. QB reserves OUT,
+            // yet some bundled programs (pi.bas) use `out` as an array/variable name.
+            // Disambiguate by the following token: `OUT (...)` or `OUT =` is an
+            // identifier (array access / assignment), anything else is the statement.
+            Token::Out if !matches!(self.peek_next(), Token::LParen | Token::Eq) => {
                 self.advance(); // consume OUT
                 let port = self.parse_expr()?;
                 self.expect(&Token::Comma)?;
@@ -916,6 +920,11 @@ impl Parser {
             Token::Ident(_) | Token::IdentStr(_) |
             Token::IdentInt(_) | Token::IdentSng(_) |
             Token::IdentDbl(_) => self.parse_assign_or_call(),
+
+            // OUT/INP reaching here (the OUT-statement guard above did not fire) are
+            // being used as identifiers — e.g. pi.bas's `out()` array. Route to the
+            // assignment/call parser, which accepts them via parse_ident_with_sigil.
+            Token::Out | Token::Inp => self.parse_assign_or_call(),
 
             // Line-number label (legacy QB line numbers)
             Token::IntLit(n) => {
@@ -2553,6 +2562,10 @@ impl Parser {
             Token::IdentDbl(s) => { self.advance(); Ok((s, QbType::Double))  }
             Token::IdentSng(s) => { self.advance(); Ok((s, QbType::Single))  }
             Token::Ident(s)    => { self.advance(); Ok((s, QbType::Single))  }
+            // OUT/INP are reserved statement/function keywords but appear as plain
+            // identifiers in some programs (pi.bas's `out()` array param). Accept them.
+            Token::Out         => { self.advance(); Ok(("out".into(), QbType::Single)) }
+            Token::Inp         => { self.advance(); Ok(("inp".into(), QbType::Single)) }
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected identifier, got {other:?}"),

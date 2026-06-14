@@ -37,7 +37,7 @@ qbasic-rust/
 │       └── sound.rs            # PLAY / SOUND / BEEP via rodio (~300 lines)
 │
 ├── basic-src/                  # Real DOS QBasic programs used for manual testing
-│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (42 programs total)
+│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (44 programs total)
 │
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
@@ -68,14 +68,14 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **42/42** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **44/44** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
-duck, etto, invaders, toccata, gotorama, blackjack, textpaint). Test suites:
+duck, etto, invaders, toccata, gotorama, blackjack, textpaint, kingdom, vgadac). Test suites:
 - **30/30** integration (`tests/run-tests.sh`, stdout-based)
-- **96** runtime unit tests (`cargo test --workspace`)
+- **119** runtime unit tests (`cargo test --workspace`)
 - **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, palette256_expanded, reversi, torus,
   hangman-gfx, duck, gorilla, donkey)
@@ -84,7 +84,7 @@ gorilla.bas is **fully verified** — headless golden for the banana-throw frame
 and audio (PLAY explosion/victory fanfares), victory animations, and multi-round
 scoring have all been confirmed working via human play-through.
 
-See `docs/ARCHITECTURE.md §Milestone Status` (M1–M11) and `§What's Left`.
+See `docs/ARCHITECTURE.md §Milestone Status` (M1–M18) and `§What's Left`.
 
 ---
 
@@ -122,7 +122,7 @@ boundaries.
 QB FUNCTIONs return by assigning to the function name. Emitted as:
 ```rust
 fn name(__rt: &mut Runtime, __gs: &mut GameState, ...) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     // ... body; assignments to name → __fn_ret ...
     __fn_ret
 }
@@ -900,6 +900,164 @@ Three more fixes landed after the initial blackjack port:
   test: `tests/programs/type_array_field.bas` (scalar, shared, and outer-array
   forms, 30/30 pass).
 
+### Emitter code quality passes + VGA DAC + behavioral env overrides + kingdom.bas (build-all 44/44)
+
+Three chained post-processing passes are now applied at `emit()` return, in order:
+```rust
+Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&self.out))))
+```
+
+- **`inline_single_use_tmps`** — replaces `let __tmpN = expr; ... use(__tmpN)` (where
+  `__tmpN` is used exactly once and `expr` is safe to inline) with the expression
+  directly at the use site. Reduces clutter from `lift_expr`'s defensive hoisting.
+
+- **`remove_unnecessary_mut`** — scans each function body for `let mut varname:` where
+  `varname` is never mutated (no `varname =`, `varname +=`, `&mut varname`, or
+  `for varname in` after the declaration to the function's closing brace). Removes
+  `mut` from those declarations. Reduces compiler noise and clarifies intent.
+  Excluded prefixes (always kept `mut`): `__gs`, `__rt`, `__fn_ret`, `__pc`,
+  `__for_`, `__tmp_`, `__pu_`, `__file_`, `__put_`, `__fa`, `__handle`.
+  **Non-idempotent** — do not run a second pass (would corrupt `qb_bool(*mouth)`).
+  **Also**: `emit_locals` now tracks `locals_declared: HashSet<String>` so a later
+  `emit_dim` for the same numeric scalar (e.g. a `DIM x` inside a GOSUB body) is
+  skipped rather than emitting a duplicate declaration. String DIMs are always emitted.
+
+- **`strip_deref_parens`** — rewrites `(*ident)` → `*ident` everywhere except when
+  followed by `.` or `[` (which need the parens for field/index access). Implemented
+  as a byte scanner that skips string literals. Reduces parenthesis noise around
+  byref parameter dereferences throughout emitted code.
+  **Caution**: `idx_sub(expr)` at emit sites avoids pre-wrapping index expressions
+  that are already balanced parens, preventing double-wrapping `[((*x)) as usize]`.
+
+- **Concrete defaults** — array and scalar `let mut` initializers changed from
+  `Default::default()` to `0.0_f64` (numeric) or `String::new()` (string) everywhere
+  in the emitter: `__fn_ret`, array element inits, `emit_dim` scalars, `emit_game_state`.
+
+### VGA DAC hardware port I/O (`OUT`/`INP`) (build-all 44/44)
+
+- **`OUT port, val`** (`src/lexer.rs`, `src/parser.rs`, `src/emitter.rs`,
+  `runtime/src/lib.rs`) — `Token::Out` added; `Stmt::Out { port, val }` AST node;
+  emitted as `__rt.qb_out(port, val)`. Context-sensitive: `OUT` only becomes a
+  statement when NOT followed by `(` or `=` (avoids breaking `SUB SubArr(out())`
+  parameter lists in pi.bas). Falls through to `parse_assign_or_call` for identifier use.
+- **`INP(port)`** (`src/lexer.rs`, `src/parser.rs`, `src/emitter.rs`) — `Token::Inp`;
+  `parse_primary` → `Expr::Call { name: "INP", args: [port] }`; emitted as
+  `__rt.qb_in(port)`. Added to `lift_expr` hoist table to avoid double-borrow in
+  `PRINT INP(...)`.
+- **`qb_out` / `qb_in`** (`runtime/src/lib.rs`) — DAC state machine on `Runtime`:
+  - Port `0x3C8` (write index): sets `dac_write_idx`, resets `dac_channel` to 0
+  - Port `0x3C9` (R/G/B data): accumulates into `dac_pending_r/g/b`; on the third
+    write commits via `dac6_to_8(c) = (c << 2) | (c >> 4)` (6-bit → 8-bit) and
+    advances `dac_write_idx`. Mirrors the real VGA DAC hardware protocol.
+  - Port `0x3C7` (read index): sets `dac_read_idx`, resets `dac_read_ch` to 0
+  - `INP(0x3C9)`: returns R, G, or B of `palette_rgb[dac_read_idx]` as 6-bit (>>2)
+    and advances `dac_read_ch` / `dac_read_idx`.
+- **`basic-src/vgadac.bas`** — test program comparing `PALETTE` statement vs `OUT`
+  port writes vs `INP` readback in SCREEN 13; confirms both paths produce identical
+  palette entries.
+
+### Behavioral pragma env-var overrides (runtime)
+
+`apply_behavioral_env()` is called unconditionally in emitted `main()` **after** all
+`__rt.set_*()` pragma calls, so env vars always win over compile-time pragmas:
+
+```rust
+__rt.set_pace(30.0);        // REM QBC PACE 30 — baked in at transpile time
+__rt.apply_behavioral_env();// reads QBC_PACE (if set) and overwrites
+```
+
+| Env var | Overrides pragma | Effect |
+|---------|-----------------|--------|
+| `QBC_PACE=N` | `REM QBC PACE N` | Set pace (blits/sec; sleeps to pace draw) |
+| `QBC_FPS=N` | `REM QBC FPS N` | Cap frame rate at N fps |
+| `QBC_FULLSPEED=1` | `REM QBC FULLSPEED` | Disable frame throttle |
+| `QBC_SLOWMO=N` | `REM QBC SLOWMO N` | Multiply SLEEP durations by N |
+| `QBC_TITLE=text` | `REM QBC TITLE text` | Override window title (at creation) |
+| `QBC_SCALE=N` | `REM QBC SCALE N` | Override window scale (at creation) |
+
+`QBC_TITLE` and `QBC_SCALE` are resolved inside `new_configured()` before the window
+opens, so they function as compile-time overrides at run-start. The window is always
+opened exactly once; subsequent env-only changes to title/scale have no effect.
+
+### kingdom.bas (GW-BASIC text game — build-all 44/44)
+
+`kingdom.bas` is a GW-BASIC resource-management kingdom simulation. Four transpiler
+bugs were uncovered, plus one source-level `.bas` fix:
+
+- **GW-BASIC DATA raw capture** (`src/lexer.rs`) — `DATA 1ST,2ND,3RD` was parsed as
+  `IntLit(1)+Ident("ST")` → parse error. The lexer now detects `DATA` in statement
+  position and switches to raw-capture mode: it accumulates characters until colon/
+  newline, splits on commas (respecting quotes), and emits each element as a `StrLit`.
+  Each element is finalized by `finalize_data_elem(elem, quoted)` to strip/preserve
+  quotes. Non-line-numbered programs: byte-identical.
+- **Colon-before-ELSE in single-line IF** (`src/parser.rs`) — `IF … THEN 2330: ELSE`
+  left the `:` unconsumed before `ELSE`, causing a parse error "unexpected token: Else".
+  Fixed: in `parse_if`'s single-line branch, if `peek() == Colon && peek_next() ==
+  Else` consume the colon before checking for ELSE attachment.
+- **POKE/OUT arg lifting** (`src/emitter.rs`) — `POKE x, PEEK(x) OR &H60` double-
+  borrowed `__rt` (`E0499`). Fixed: both `Stmt::Poke` and `Stmt::Out` now use
+  `lift_expr` for their address and value arguments (not `emit_expr_inline`), so
+  `PEEK` inside a `POKE` is hoisted to a `__tmp` first.
+- **PRINT USING cross-GOSUB scalar promotion** (`src/emitter.rs`) — `K` and `S`
+  variables only seen via `PRINT USING "…"; K, S` were not being detected as
+  cross-GOSUB boundary scalars. `collect_scalar_names_stmt` was missing a
+  `Stmt::PrintUsing { fmt, args }` arm. Fixed: both `fmt` and each `arg` are now
+  scanned. This caused kingdom.bas to print `0 KNIGHTS / 0 SERVANTS` instead of
+  the correct values.
+- **Source fix: `KORS` → `K OR S` on line 200** (`basic-src/kingdom.bas`) — the
+  GW-BASIC source had the expression `K OR S` with spaces collapsed to the identifier
+  `KORS` (DOS editor artifact). Restored as `K OR S`; with QB precedence
+  (`*` > relational > `OR`) the condition reads `(S <= 2*K) OR (S < T1)` — "not
+  enough servants relative to knights or land." Player confirmed "tested good here."
+
+### Multi-line `DEF FN` + `ON ERROR`/`RESUME` solidified (build-all 46/46)
+
+- **Multi-line `DEF FN`** (`src/parser.rs` only) — the block form
+  ```basic
+  DEF FNName (args)
+      ... statements ...
+      FNName = result       ' assign to the function name
+  END DEF                   ' EXIT DEF allowed for early return
+  ```
+  is now supported. **Key idea:** a multi-line `DEF FN` is structurally a `FUNCTION`,
+  so `parse_def` converts it into a `FuncDef` and pushes it onto a new
+  `Parser::pending_funcs` side-channel (merged into `Program::functions` at the end of
+  `parse_program`). It then rides the entire existing, tested `emit_functions` path —
+  locals, `let mut __fn_ret`, return type (numeric/string via the name sigil),
+  assignment-to-name → `__fn_ret`, recursion redirect, and `user_fns` call-site
+  resolution — with **no emitter or analyzer changes**. Supporting tweaks: `Token::Def`
+  added to `is_block_end` (so `END DEF` closes the body) and to `parse_exit` (so
+  `EXIT DEF` ≡ `EXIT FUNCTION`). The **single-line** form
+  (`DEF FnName(x) = expr`, e.g. gorilla's `FnRan`, kitchen_sink's `FNSQ`/`FNDB`) is on
+  an untouched branch and emits byte-identical inline-expression fns (golden checksums
+  unchanged). `parse_def` also now recognizes FN-prefixed names of any sigil. **Known
+  limitation** (inherited from the single-line form, not a regression): a body that
+  reads a *main-module local* that wasn't a parameter or promoted to `GameState` won't
+  see it — we emit the body as an isolated fn, whereas QB's true `DEF FN` shares module
+  scope. Bodies using their parameters + shared/global state work. Demo +
+  integration test: `tests/programs/deffn_multi.bas` (iterative Fibonacci) and
+  `basic-src/deffn-multi.bas`.
+
+- **`ON ERROR GOTO <named label>` / `RESUME NEXT` verified end-to-end** — the
+  named-handler + `RESUME NEXT` path (handler extracted as a fn via
+  `collect_gosub_targets`, dispatched by `emit_error_dispatch()` after each fallible
+  statement, `ERR` → the runtime error code) now has a real regression test driven by
+  the one error the runtime actually raises: **file-not-found (err 53) on `OPEN`**
+  (`runtime/src/lib.rs`). `tests/programs/onerror.bas` opens a missing file, traps it,
+  prints `ERR`, and `RESUME NEXT`s past the faulting `OPEN`. One runtime addition:
+  `Runtime::err_code()` getter method (the field `err_code` is read directly at most
+  emission sites, but the generic zero-arg call path emits `__rt.err_code()` with
+  parens, so a method is needed too — field and method coexist legally in Rust).
+  **Deliberately NOT implemented** (Tier-1 scope — no bundled program needs them and
+  the failure paths don't fire on modern hardware):
+  - Bare `RESUME` (retry the faulting statement) is treated as `RESUME NEXT`.
+  - `ON ERROR GOTO <numeric line>` in `__pc` state-machine programs clears the error
+    but cannot jump to the handler (the numeric label lives in a `match` arm, not a fn).
+  - Only file-`OPEN` failure raises a trappable error; `SCREEN`/`PALETTE`/divide-by-
+    zero/out-of-data do not (and adding SCREEN errors would regress programs that rely
+    on us accepting every mode).
+  - `ERL` (error line number) is unimplemented; `ERR` works.
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a
@@ -910,11 +1068,8 @@ Three more fixes landed after the initial blackjack port:
   DAC value (`red + 256*green + 65536*blue`, each channel 0–63) via
   `dac18_to_rgb()` in mode 13, keeping the EGA `irgb` decode otherwise. Covered
   by `screen13_tests` (runtime) and `basic-src/screen13.bas` (visual).
-  Remaining mode-13 gaps: **`GET`/`PUT` sprites** still assume the 16-color EGA
-  *planar* array layout (mode 13 uses 8-bits-per-pixel packed sprites), and
-  direct DAC port writes (`OUT &H3C8/&H3C9`) are not modelled — both out of
-  scope until a program needs them. `SCREEN 12` (640×480, 16 colors) is also
-  supported.
+  `SCREEN 12` (640×480, 16 colors) is also supported. `OUT &H3C8/&H3C9`
+  VGA DAC port writes are now supported (see below).
 - **`INKEY$` FULLSPEED slowness — FIXED.** (Was ~5 min on `mandel.bas`.) Root
   cause was minifb's built-in rate limiter (default 250 FPS / 4 ms), which sleeps
   inside *both* `update()` and `update_with_buffer()` — so an "events-only"
@@ -927,17 +1082,19 @@ Three more fixes landed after the initial blackjack port:
   pragmas (`FULLSPEED/FPS/PACE/SLOWMO/TITLE/SCALE`) are compile-time, baked into
   the binary via `parse_qbc_config` (emitter). The `QBC_*` env vars are run-time
   (the headless driver, runtime). They share the "QBC" name but don't overlap.
-  *Review idea (in `docs/ARCHITECTURE.md §What's Left`):* let the behavioral pragmas
-  also be env-overridable (`QBC_PACE`, `QBC_SCALE`, …) for tuning without
-  re-transpiling; the debug knobs do NOT belong as pragmas.
+  The behavioral pragmas ARE now env-overridable via `apply_behavioral_env()`:
+  `QBC_PACE`, `QBC_FPS`, `QBC_FULLSPEED`, `QBC_SLOWMO` override compile-time
+  pragma settings; `QBC_TITLE` and `QBC_SCALE` override via `new_configured()`
+  pre-creation. Env vars always win. The debug knobs (`HEADLESS/KEYS/SEED/DUMP/
+  CHECKSUM/FBSTATS/EXIT_AFTER`) remain run-time only — they are not pragmas.
 - **`GET`/`PUT` sprite layouts — all depths supported:** EGA 4-plane planar
   (SCREEN 9/12), CGA 2bpp packed (SCREEN 1), MCGA 8bpp chunky (SCREEN 13). The
   mode-13 path (`get_sprite_mode13`/`put_sprite_mode13`, gated on
   `screen_mode == 13`) uses `data[0]=width*8`, `data[1]=height`, one full color
   byte per pixel (2/INTEGER). Covered by `mode13_sprite_tests` + `screen13-sprite.bas`.
 - **Open gaps (none block the bundled set):** `PRINT USING` `$$`/`**`
-  floating tokens print literally; `OUT &H3C8/&H3C9` VGA DAC port writes are not
-  modelled — out of scope until a program needs them.
+  floating tokens print literally (all other PRINT USING formats work). `OUT`/`INP`
+  now supported for VGA DAC ports — see the VGA DAC section above and `vgadac.bas`.
 - **gorilla is now golden-tested** — seed 42, scripted intro + one banana throw
   (angle 45°, velocity 50), captures mid-flight frame (`presents:80`).
   The `DRAIN` sentinel stops two `WHILE INKEY$<>"":WEND` drain-loops (SparklePause

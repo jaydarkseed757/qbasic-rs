@@ -1058,6 +1058,35 @@ bugs were uncovered, plus one source-level `.bas` fix:
     on us accepting every mode).
   - `ERL` (error line number) is unimplemented; `ERR` works.
 
+### farkle.bas (SCREEN 13 dice game — sigil-less `DIM … AS STRING` in comparisons)
+
+`farkle.bas` is a SCREEN 13 push-your-luck dice game. Two transpiler fixes plus one
+source tweak were needed:
+
+- **Promoted scalar keeps its authoritative declared type** (`src/emitter.rs`) — a
+  sigil-less `DIM k AS STRING` used across GOSUB boundaries is promoted to a `GameState`
+  field. The cross-boundary-scalar promotion trusted the *usage-inferred* type from
+  `detect_cross_boundary_scalars` (which defaults to Single), so `shared_types["k"]`
+  came out numeric even though the GameState field was `String`. Fixed: the promotion
+  loop now prefers the symbol-table type (`prog.global_scope.symbols[…].ty`) over the
+  inferred one (mirroring the array-promotion path). Without this, `is_str_expr_ctx`
+  couldn't tell `k` was a string.
+- **All three string-comparison emitters consult `is_str_expr_ctx`** (`src/emitter.rs`)
+  — relational/equality codegen normalizes both sides to `&str` only when a side
+  `is_str_expr` (literal/sigil). A sigil-less declared string (`k >= "1"`) slipped
+  through → `String >= &str`, which doesn't compile. There are **three** comparison
+  emission sites (`emit_cond_expr`, the `BinOp` arm of `lift_expr`, and the `BinOp` arm
+  of `emit_expr_inner` — the last is the one used for operands of `AND`/`OR`); all three
+  now treat a side as a string when `is_str_expr(x) || self.is_str_expr_ctx(x)`, so
+  declared-string vars get `(x).as_str()`. General fix — any program comparing a
+  sigil-less `AS STRING` variable to a literal benefits.
+- **Source: dropped a stray `DIM wt AS SINGLE`** (`basic-src/farkle.bas`) buried inside
+  an `IF frames > 8 THEN` block while `wt` is used across several GOSUB routines. QB
+  scopes a SUB/module DIM procedure-wide, but the emitter placed the `let mut wt` at the
+  inner block, so sibling branches/routines couldn't see it. Removing the misplaced DIM
+  lets the implicit `wt` ride the normal cross-GOSUB promotion (block-scoped DIM hoisting
+  is a known transpiler limitation).
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a

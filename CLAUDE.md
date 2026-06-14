@@ -1092,6 +1092,22 @@ bugs were uncovered, plus one source-level `.bas` fix:
   mode-13 path (`get_sprite_mode13`/`put_sprite_mode13`, gated on
   `screen_mode == 13`) uses `data[0]=width*8`, `data[1]=height`, one full color
   byte per pixel (2/INTEGER). Covered by `mode13_sprite_tests` + `screen13-sprite.bas`.
+- **`GET`/`PUT` honor a packed-array element OFFSET** (`Arr(n)` buffer). QB lets a
+  program pack many sprites into ONE array at distinct element offsets
+  (`GET …, BlockImage(((style-1)*4+rot)*ELEMENTSPERBLOCK)`), then blit each from its
+  offset. The emitter's `sprite_arr_name` used to *drop* the index ("always the whole
+  vec"), so every GET wrote to `arr[0]` (each overwriting the last; `get_sprite`'s
+  `resize` even shrank the array) and every PUT read `arr[0]` — i.e. every sprite was
+  the same wrong image. Fixed: runtime `get_sprite_at`/`put_sprite_at(…, offset: usize)`
+  place the header at `data[offset]` (the old `get_sprite`/`put_sprite` are offset-0
+  wrappers → all other callers byte-identical; `get_sprite_at` resize is **grow-only**
+  for `offset > 0` so packed sprites don't clobber each other). The emitter's
+  `sprite_offset_expr()` emits the `_at` variant with the element offset when the buffer
+  is `Arr(n)` with a non-zero index (bare names / `Arr(0)` → unchanged plain call). This
+  is what broke **qblocks.bas** — every falling piece was the same shape and spilled
+  outside the well (gorilla/donkey use one array per sprite, offset 0, so were spared).
+  Threaded through the cga/mode13 variants too. Covered by `get_put_at_offset_*` in
+  `sprite_tests`.
 - **Open gaps (none block the bundled set):** `PRINT USING` `$$`/`**`
   floating tokens print literally (all other PRINT USING formats work). `OUT`/`INP`
   now supported for VGA DAC ports — see the VGA DAC section above and `vgadac.bas`.

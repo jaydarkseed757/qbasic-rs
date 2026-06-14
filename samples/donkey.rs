@@ -37,7 +37,7 @@ fn lbl_1780(__rt: &mut Runtime, __gs: &mut GameState) {
     // label: 1900
     __rt.paint(1.0f64, 1.0f64, -1.0f64, -1.0f64);
     // label: 1910
-    __gs.car = vec![Default::default(); (900.0f64+1.0) as usize];
+    __gs.car = vec![0.0; (900.0f64+1.0) as usize];
     // label: 1920
     let __sgx1_0 = 1.0f64;
     let __sgy1_0 = 1.0f64;
@@ -82,6 +82,7 @@ fn lbl_1940(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut samples_s: String = String::new();
@@ -349,18 +350,18 @@ fn main() {
                 __pc = 1450; continue '__sm;
             }
             1450 => {
-                q = vec![Default::default(); (500.0f64+1.0) as usize];
+                q = vec![0.0; (500.0f64+1.0) as usize];
                 __pc = 1460; continue '__sm;
             }
             1460 => {
-                d1 = vec![Default::default(); (150.0f64+1.0) as usize];
-                d2 = vec![Default::default(); (150.0f64+1.0) as usize];
-                c1 = vec![Default::default(); (200.0f64+1.0) as usize];
-                c2 = vec![Default::default(); (200.0f64+1.0) as usize];
+                d1 = vec![0.0; (150.0f64+1.0) as usize];
+                d2 = vec![0.0; (150.0f64+1.0) as usize];
+                c1 = vec![0.0; (200.0f64+1.0) as usize];
+                c2 = vec![0.0; (200.0f64+1.0) as usize];
                 __pc = 1470; continue '__sm;
             }
             1470 => {
-                __gs.dnk = vec![Default::default(); (300.0f64+1.0) as usize];
+                __gs.dnk = vec![0.0; (300.0f64+1.0) as usize];
                 __pc = 1480; continue '__sm;
             }
             1480 => {
@@ -376,7 +377,7 @@ fn main() {
                 __pc = 1510; continue '__sm;
             }
             1510 => {
-                b = vec![Default::default(); (300.0f64+1.0) as usize];
+                b = vec![0.0; (300.0f64+1.0) as usize];
                 __pc = 1520; continue '__sm;
             }
             1520 => {

@@ -7,6 +7,7 @@ use qbasic_runtime::*;
 fn main() {
     let mut __rt = Runtime::new();
     __rt.set_fps(30.0);
+    __rt.apply_behavioral_env();
     let mut x: f64 = 0.0;
     let mut y: f64 = 0.0;
     let mut c: f64 = 0.0;

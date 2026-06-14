@@ -60,12 +60,12 @@ struct GameState {
 fn counttiles(__rt: &mut Runtime, __gs: &mut GameState, t1: &mut f64, t2: &mut f64) {
     __rt.locate(Some((trow - 1.0f64)), Some(tcol), None);
     __rt.print(&[qb_str(&(qb_space(19.0f64)))]);
-    if qb_bool(qb_and(qb_from_bool((*t1) > 0.0f64), qb_from_bool((*t2) > 0.0f64))) {
+    if qb_bool(qb_and(qb_from_bool(*t1 > 0.0f64), qb_from_bool(*t2 > 0.0f64))) {
         __rt.locate(Some((trow - 1.0f64)), Some(tcol), None);
         __rt.print(&[qb_str(&("Tile "))]);
-        let __pu0 = qb_print_using(&(" ###"), &[QbVal::Num((*t1))]);
+        let __pu0 = qb_print_using(&(" ###"), &[QbVal::Num(*t1)]);
         __rt.print(&[__pu0]);
-        let __pu1 = qb_print_using(&(" ###"), &[QbVal::Num((*t2))]);
+        let __pu1 = qb_print_using(&(" ###"), &[QbVal::Num(*t2)]);
         __rt.print(&[__pu1]);
     }
 }
@@ -74,7 +74,7 @@ fn delay(__rt: &mut Runtime, __gs: &mut GameState, seconds: &mut f64) {
     let mut begin: f64 = 0.0;
 
     begin = qb_timer();
-    while !(qb_bool(qb_or(qb_from_bool((qb_timer() - begin) > (*seconds)), qb_from_bool((qb_timer() - begin) < 0.0f64)))) {
+    while !(qb_bool(qb_or(qb_from_bool((qb_timer() - begin) > *seconds), qb_from_bool((qb_timer() - begin) < 0.0f64)))) {
     }
 }
 
@@ -106,7 +106,7 @@ fn message(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String) {
 }
 
 fn setconfig(__rt: &mut Runtime, __gs: &mut GameState, mode: &mut f64) {
-    let __sel = (*mode);
+    let __sel = *mode;
     if __sel == 1.0f64 {
         if qb_bool(qb_or(qb_from_bool(__gs.bestmode == cga), qb_from_bool(__gs.bestmode == mcga))) {
             __gs.vc__colors = 0.0f64;
@@ -199,7 +199,7 @@ fn setconfig(__rt: &mut Runtime, __gs: &mut GameState, mode: &mut f64) {
         __gs.vc__scrn = 0.0f64;
         return; // EXIT SUB
     }
-    __gs.vc__scrn = (*mode);
+    __gs.vc__scrn = *mode;
 }
 
 fn setpalette(__rt: &mut Runtime, __gs: &mut GameState) {
@@ -317,35 +317,35 @@ fn tiledraw(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &m
 
     border = (__gs.vc__atribs - 1.0f64);
     if __gs.vc__atribs == 2.0f64 {
-        __rt.line((*t__x1),(*t__y1),(*t__x2),(*t__y2),(*t__tcolor));
-        __rt.line_to((*t__x3),(*t__y3),(*t__tcolor));
-        __rt.line_to((*t__x4),(*t__y4),(*t__tcolor));
-        __rt.line_to((*t__x1),(*t__y1),(*t__tcolor));
+        __rt.line(*t__x1,*t__y1,*t__x2,*t__y2,*t__tcolor);
+        __rt.line_to(*t__x3,*t__y3,*t__tcolor);
+        __rt.line_to(*t__x4,*t__y4,*t__tcolor);
+        __rt.line_to(*t__x1,*t__y1,*t__tcolor);
         return; // EXIT SUB
     } else {
-        __rt.line((*t__x1),(*t__y1),(*t__x2),(*t__y2),border);
-        __rt.line_to((*t__x3),(*t__y3),border);
-        __rt.line_to((*t__x4),(*t__y4),border);
-        __rt.line_to((*t__x1),(*t__y1),border);
+        __rt.line(*t__x1,*t__y1,*t__x2,*t__y2,border);
+        __rt.line_to(*t__x3,*t__y3,border);
+        __rt.line_to(*t__x4,*t__y4,border);
+        __rt.line_to(*t__x1,*t__y1,border);
     }
     if qb_bool(inside(__rt, __gs, &mut *t__x1, &mut *t__x2, &mut *t__x3, &mut *t__x4, &mut *t__y1, &mut *t__y2, &mut *t__y3, &mut *t__y4, &mut *t__z1, &mut *t__xc, &mut *t__yc, &mut *t__tcolor)) {
-        __rt.pset((*t__xc), (*t__yc), __rt.bg_color as f64);
+        __rt.pset(*t__xc, *t__yc, __rt.bg_color as f64);
         let __stpx2 = __rt.cur_x() + (0.0f64);
         let __stpy2 = __rt.cur_y() + (0.0f64);
         __rt.paint(__stpx2, __stpy2, back, border);
         let __stpx3 = __rt.cur_x() + (0.0f64);
         let __stpy3 = __rt.cur_y() + (0.0f64);
-        __rt.paint(__stpx3, __stpy3, (*t__tcolor), border);
+        __rt.paint(__stpx3, __stpy3, *t__tcolor, border);
     }
     if __gs.tor__bord == "YES" {
         border = back;
     } else {
-        border = (*t__tcolor);
+        border = *t__tcolor;
     }
-    __rt.line((*t__x1),(*t__y1),(*t__x2),(*t__y2),border);
-    __rt.line_to((*t__x3),(*t__y3),border);
-    __rt.line_to((*t__x4),(*t__y4),border);
-    __rt.line_to((*t__x1),(*t__y1),border);
+    __rt.line(*t__x1,*t__y1,*t__x2,*t__y2,border);
+    __rt.line_to(*t__x3,*t__y3,border);
+    __rt.line_to(*t__x4,*t__y4,border);
+    __rt.line_to(*t__x1,*t__y1,border);
 }
 
 fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__x2: &mut Vec<f64>, t__x3: &mut Vec<f64>, t__x4: &mut Vec<f64>, t__y1: &mut Vec<f64>, t__y2: &mut Vec<f64>, t__y3: &mut Vec<f64>, t__y4: &mut Vec<f64>, t__z1: &mut Vec<f64>, t__xc: &mut Vec<f64>, t__yc: &mut Vec<f64>, t__tcolor: &mut Vec<f64>) {
@@ -367,8 +367,6 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
     let mut ty: f64 = 0.0;
     let mut tz: f64 = 0.0;
 
-    let mut xsect: f64 = Default::default();
-    let mut ypanel: f64 = Default::default();
     let __fa4 = __gs.tor__xdegree;
     xrot = degtorad(__rt, __gs, __fa4);
     let __fa6 = __gs.tor__ydegree;
@@ -381,13 +379,13 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
     yinc = ((2.0f64 * pi) / __gs.tor__panel);
     firsty = ((__gs.tor__thick + 1.0f64) * cyrot);
     t__x1[(0.0f64) as usize] = firsty;
-    t__x2[((__gs.tor__sect - 1.0f64)) as usize] = firsty;
-    t__x3[((__gs.max - 1.0f64)) as usize] = firsty;
-    t__x4[((__gs.max - __gs.tor__sect)) as usize] = firsty;
+    t__x2[(__gs.tor__sect - 1.0f64) as usize] = firsty;
+    t__x3[(__gs.max - 1.0f64) as usize] = firsty;
+    t__x4[(__gs.max - __gs.tor__sect) as usize] = firsty;
     t__y1[(0.0f64) as usize] = 0.0f64;
-    t__y2[((__gs.tor__sect - 1.0f64)) as usize] = 0.0f64;
-    t__y3[((__gs.max - 1.0f64)) as usize] = 0.0f64;
-    t__y4[((__gs.max - __gs.tor__sect)) as usize] = 0.0f64;
+    t__y2[(__gs.tor__sect - 1.0f64) as usize] = 0.0f64;
+    t__y3[(__gs.max - 1.0f64) as usize] = 0.0f64;
+    t__y4[(__gs.max - __gs.tor__sect) as usize] = 0.0f64;
     t__z1[(0.0f64) as usize] = ((-(__gs.tor__thick + 1.0f64)) * syrot);
     xsect = 1.0f64;
     let __for_to_xsect: f64 = (__gs.tor__sect - 1.0f64);
@@ -398,13 +396,13 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
         sz = (((__gs.tor__thick + 1.0f64) * qb_sin((xsect * xinc))) * sxrot);
         ssx = ((sz * syrot) + (sx * cyrot));
         t__x1[(xsect) as usize] = ssx;
-        t__x2[((xsect - 1.0f64)) as usize] = ssx;
-        t__x3[((((__gs.max - __gs.tor__sect) + xsect) - 1.0f64)) as usize] = ssx;
-        t__x4[(((__gs.max - __gs.tor__sect) + xsect)) as usize] = ssx;
+        t__x2[(xsect - 1.0f64) as usize] = ssx;
+        t__x3[(((__gs.max - __gs.tor__sect) + xsect) - 1.0f64) as usize] = ssx;
+        t__x4[((__gs.max - __gs.tor__sect) + xsect) as usize] = ssx;
         t__y1[(xsect) as usize] = sy;
-        t__y2[((xsect - 1.0f64)) as usize] = sy;
-        t__y3[((((__gs.max - __gs.tor__sect) + xsect) - 1.0f64)) as usize] = sy;
-        t__y4[(((__gs.max - __gs.tor__sect) + xsect)) as usize] = sy;
+        t__y2[(xsect - 1.0f64) as usize] = sy;
+        t__y3[(((__gs.max - __gs.tor__sect) + xsect) - 1.0f64) as usize] = sy;
+        t__y4[((__gs.max - __gs.tor__sect) + xsect) as usize] = sy;
         t__z1[(xsect) as usize] = ((sz * cyrot) - (sx * syrot));
         xsect += __for_step_xsect;
     }
@@ -416,15 +414,15 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
         sy = ((-qb_sin((ypanel * yinc))) * sxrot);
         sz = (qb_sin((ypanel * yinc)) * cxrot);
         ssx = ((sz * syrot) + (sx * cyrot));
-        t__x1[((__gs.tor__sect * ypanel)) as usize] = ssx;
-        t__x2[(((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64)) as usize] = ssx;
-        t__x3[(((__gs.tor__sect * ypanel) - 1.0f64)) as usize] = ssx;
-        t__x4[((__gs.tor__sect * (ypanel - 1.0f64))) as usize] = ssx;
-        t__y1[((__gs.tor__sect * ypanel)) as usize] = sy;
-        t__y2[(((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64)) as usize] = sy;
-        t__y3[(((__gs.tor__sect * ypanel) - 1.0f64)) as usize] = sy;
-        t__y4[((__gs.tor__sect * (ypanel - 1.0f64))) as usize] = sy;
-        t__z1[((__gs.tor__sect * ypanel)) as usize] = ((sz * cyrot) - (sx * syrot));
+        t__x1[(__gs.tor__sect * ypanel) as usize] = ssx;
+        t__x2[((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64) as usize] = ssx;
+        t__x3[((__gs.tor__sect * ypanel) - 1.0f64) as usize] = ssx;
+        t__x4[(__gs.tor__sect * (ypanel - 1.0f64)) as usize] = ssx;
+        t__y1[(__gs.tor__sect * ypanel) as usize] = sy;
+        t__y2[((__gs.tor__sect * (ypanel + 1.0f64)) - 1.0f64) as usize] = sy;
+        t__y3[((__gs.tor__sect * ypanel) - 1.0f64) as usize] = sy;
+        t__y4[(__gs.tor__sect * (ypanel - 1.0f64)) as usize] = sy;
+        t__z1[(__gs.tor__sect * ypanel) as usize] = ((sz * cyrot) - (sx * syrot));
         xsect = 1.0f64;
         let __for_to_xsect: f64 = (__gs.tor__sect - 1.0f64);
         let __for_step_xsect: f64 = 1.0;
@@ -436,15 +434,15 @@ fn toruscalc(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut Vec<f64>, t__
             sy = ((ty * cxrot) - (tz * sxrot));
             sz = ((ty * sxrot) + (tz * cxrot));
             ssx = ((sz * syrot) + (sx * cyrot));
-            t__x1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = ssx;
-            t__x2[((((__gs.tor__sect * ypanel) + xsect) - 1.0f64)) as usize] = ssx;
-            t__x3[((((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64)) as usize] = ssx;
-            t__x4[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect)) as usize] = ssx;
-            t__y1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = sy;
-            t__y2[((((__gs.tor__sect * ypanel) + xsect) - 1.0f64)) as usize] = sy;
-            t__y3[((((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64)) as usize] = sy;
-            t__y4[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect)) as usize] = sy;
-            t__z1[(((__gs.tor__sect * ypanel) + xsect)) as usize] = ((sz * cyrot) - (sx * syrot));
+            t__x1[((__gs.tor__sect * ypanel) + xsect) as usize] = ssx;
+            t__x2[(((__gs.tor__sect * ypanel) + xsect) - 1.0f64) as usize] = ssx;
+            t__x3[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64) as usize] = ssx;
+            t__x4[((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) as usize] = ssx;
+            t__y1[((__gs.tor__sect * ypanel) + xsect) as usize] = sy;
+            t__y2[(((__gs.tor__sect * ypanel) + xsect) - 1.0f64) as usize] = sy;
+            t__y3[(((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) - 1.0f64) as usize] = sy;
+            t__y4[((__gs.tor__sect * (ypanel - 1.0f64)) + xsect) as usize] = sy;
+            t__z1[((__gs.tor__sect * ypanel) + xsect) as usize] = ((sz * cyrot) - (sx * syrot));
             xsect += __for_step_xsect;
         }
         ypanel += __for_step_ypanel;
@@ -656,9 +654,8 @@ fn torusrotate(__rt: &mut Runtime, __gs: &mut GameState, first: &mut f64) {
     let mut i: f64 = 0.0;
     let mut toggle: f64 = 0.0;
 
-    let temp: f64 = Default::default();
     if qb_bool(__gs.vc__colors) {
-        let __sel = (*first);
+        let __sel = *first;
         if __sel == rndm {
             let __tmp40 = __rt.rnd();
             firstclr = qb_int((__tmp40 * __gs.vc__colors));
@@ -747,22 +744,21 @@ fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
     let mut i: f64 = 0.0;
     let mut j: f64 = 0.0;
 
-    let mut partition: f64 = Default::default();
-    if (*low) < (*high) {
-        if ((*high) - (*low)) == 1.0f64 {
-            if __gs.t__z1[(__gs.index[((*low)) as usize]) as usize] > __gs.t__z1[(__gs.index[((*high)) as usize]) as usize] {
+    if *low < *high {
+        if (*high - *low) == 1.0f64 {
+            if __gs.t__z1[(__gs.index[*low as usize]) as usize] > __gs.t__z1[(__gs.index[*high as usize]) as usize] {
                 counttiles(__rt, __gs, high, low);
-                __gs.index.swap(((*low)) as usize, ((*high)) as usize);
+                __gs.index.swap((*low) as usize, (*high) as usize);
             }
         } else {
             let __tmp54 = __rt.rnd();
-            randindex = (qb_int((__tmp54 * (((*high) - (*low)) + 1.0f64))) + (*low));
+            randindex = (qb_int((__tmp54 * ((*high - *low) + 1.0f64))) + *low);
             counttiles(__rt, __gs, high, low);
-            __gs.index.swap(((*high)) as usize, (randindex) as usize);
-            partition = __gs.t__z1[(__gs.index[((*high)) as usize]) as usize];
+            __gs.index.swap((*high) as usize, (randindex) as usize);
+            partition = __gs.t__z1[(__gs.index[*high as usize]) as usize];
             loop {
-                i = (*low);
-                j = (*high);
+                i = *low;
+                j = *high;
                 while qb_bool(qb_and(qb_from_bool(i < j), qb_from_bool(__gs.t__z1[(__gs.index[(i) as usize]) as usize] <= partition))) {
                     i = (i + 1.0f64);
                 }
@@ -776,8 +772,8 @@ fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
                 if !(i < j) { break; }
             }
             counttiles(__rt, __gs, high, low);
-            __gs.index.swap((i) as usize, ((*high)) as usize);
-            if (i - (*low)) < ((*high) - i) {
+            __gs.index.swap((i) as usize, (*high) as usize);
+            if (i - *low) < (*high - i) {
                 let mut __tmp_num55: f64 = (i - 1.0f64);
                 torussort(__rt, __gs, low, &mut __tmp_num55);
                 let mut __tmp_num56: f64 = (i + 1.0f64);
@@ -793,13 +789,13 @@ fn torussort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
 }
 
 fn degtorad(__rt: &mut Runtime, __gs: &mut GameState, mut degrees: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     __fn_ret = (((degrees * 2.0f64) * pi) / 360.0f64);
     __fn_ret
 }
 
 fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut f64, t__x3: &mut f64, t__x4: &mut f64, t__y1: &mut f64, t__y2: &mut f64, t__y3: &mut f64, t__y4: &mut f64, t__z1: &mut f64, t__xc: &mut f64, t__yc: &mut f64, t__tcolor: &mut f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut highest: f64 = 0.0;
     let mut lowest: f64 = 0.0;
     let mut border: f64 = 0.0;
@@ -811,37 +807,35 @@ fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut
     let mut isup: f64 = 0.0;
     let mut isdown: f64 = 0.0;
 
-    let mut highest: f64 = Default::default();
-    let mut lowest: f64 = Default::default();
     border = (__gs.vc__atribs - 1.0f64);
-    (*t__xc) = ((*t__x2) + ((((*t__x3) + (((*t__x4) - (*t__x3)) / 2.0f64)) - (*t__x2)) / 2.0f64));
-    (*t__yc) = ((*t__y2) + ((((*t__y3) + (((*t__y4) - (*t__y3)) / 2.0f64)) - (*t__y2)) / 2.0f64));
-    if __rt.point((*t__xc), (*t__yc)) == border {
+    *t__xc = (*t__x2 + (((*t__x3 + ((*t__x4 - *t__x3) / 2.0f64)) - *t__x2) / 2.0f64));
+    *t__yc = (*t__y2 + (((*t__y3 + ((*t__y4 - *t__y3) / 2.0f64)) - *t__y2) / 2.0f64));
+    if __rt.point(*t__xc, *t__yc) == border {
         __fn_ret = qb_false;
         return __fn_ret; // EXIT FUNCTION
     }
-    highest = (*t__y1);
-    lowest = (*t__y1);
-    if (*t__y2) > highest {
-        highest = (*t__y2);
+    highest = *t__y1;
+    lowest = *t__y1;
+    if *t__y2 > highest {
+        highest = *t__y2;
     }
-    if (*t__y2) < lowest {
-        lowest = (*t__y2);
+    if *t__y2 < lowest {
+        lowest = *t__y2;
     }
-    if (*t__y3) > highest {
-        highest = (*t__y3);
+    if *t__y3 > highest {
+        highest = *t__y3;
     }
-    if (*t__y3) < lowest {
-        lowest = (*t__y3);
+    if *t__y3 < lowest {
+        lowest = *t__y3;
     }
-    if (*t__y4) > highest {
-        highest = (*t__y4);
+    if *t__y4 > highest {
+        highest = *t__y4;
     }
-    if (*t__y4) < lowest {
-        lowest = (*t__y4);
+    if *t__y4 < lowest {
+        lowest = *t__y4;
     }
-    x = __rt.pmap((*t__xc), 0.0f64);
-    yu = __rt.pmap((*t__yc), 1.0f64);
+    x = __rt.pmap(*t__xc, 0.0f64);
+    yu = __rt.pmap(*t__yc, 1.0f64);
     yd = yu;
     h = __rt.pmap(highest, 1.0f64);
     l = __rt.pmap(lowest, 1.0f64);
@@ -851,12 +845,12 @@ fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut
         yu = (yu - 1.0f64);
         yd = (yd + 1.0f64);
         if qb_bool(qb_not(isup)) {
-            if __rt.point((*t__xc), __rt.pmap(yu, 3.0f64)) == border {
+            if __rt.point(*t__xc, __rt.pmap(yu, 3.0f64)) == border {
                 isup = qb_true;
             }
         }
         if qb_bool(qb_not(isdown)) {
-            if __rt.point((*t__xc), __rt.pmap(yd, 3.0f64)) == border {
+            if __rt.point(*t__xc, __rt.pmap(yd, 3.0f64)) == border {
                 isdown = qb_true;
             }
         }
@@ -871,7 +865,7 @@ fn inside(__rt: &mut Runtime, __gs: &mut GameState, t__x1: &mut f64, t__x2: &mut
 }
 
 fn rotated(__rt: &mut Runtime, __gs: &mut GameState, mut lower: f64, mut upper: f64, mut current: f64, mut inc: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     current = (current + inc);
     if current > upper {
         current = lower;
@@ -905,13 +899,14 @@ fn memerr(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let available_s: String = String::new();
     let mut tmp: f64 = 0.0;
     let mut til: f64 = 0.0;
 
-    __gs.pal = vec![Default::default(); (300.0f64+1.0) as usize];
+    __gs.pal = vec![0.0; (300.0f64+1.0) as usize];
     __gs.tor__thick = 3.0f64;
     __gs.tor__bord = ("YES").to_string();
     __gs.tor__panel = 8.0f64;
@@ -925,19 +920,19 @@ fn main() {
         loop {
             tmp = __gs.tor__panel;
             __gs.max = (__gs.tor__panel * __gs.tor__sect);
-            __gs.index.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__x1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__x2.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__x3.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__x4.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__y1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__y2.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__y3.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__y4.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__z1.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__xc.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__yc.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
-            __gs.t__tcolor.resize(((__gs.max - 1.0f64)+1.0) as usize, Default::default());
+            __gs.index.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__x1.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__x2.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__x3.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__x4.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__y1.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__y2.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__y3.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__y4.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__z1.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__xc.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__yc.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
+            __gs.t__tcolor.resize(((__gs.max - 1.0f64)+1.0) as usize, 0.0);
             if tmp == __gs.tor__panel { break; }
         }
         til = 0.0f64;

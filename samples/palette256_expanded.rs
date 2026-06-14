@@ -6,6 +6,7 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     __rt.cls(0u8);
     __rt.screen(13.0f64);
     __rt.line_box_fill(0.0f64,0.0f64,19.0f64,11.0f64,0.0f64);

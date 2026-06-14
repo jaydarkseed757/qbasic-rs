@@ -52,6 +52,7 @@ fn lbl_700(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut wd_s: String = String::new();
@@ -76,7 +77,7 @@ fn main() {
                 __pc = 30; continue '__sm;
             }
             30 => {
-                w_s = vec![Default::default(); (10.0f64+1.0) as usize];
+                w_s = vec![String::new(); (10.0f64+1.0) as usize];
                 __pc = 40; continue '__sm;
             }
             40 => {
@@ -120,7 +121,7 @@ fn main() {
                 __pc = 140; continue '__sm;
             }
             140 => {
-                wd_s = (w_s[((qb_int((__rt.rnd() * 10.0f64)) + 1.0f64)) as usize]).to_string();
+                wd_s = (w_s[(qb_int((__rt.rnd() * 10.0f64)) + 1.0f64) as usize]).to_string();
                 __pc = 150; continue '__sm;
             }
             150 => {

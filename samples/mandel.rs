@@ -29,22 +29,22 @@ fn shiftpalette(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn screentest(__rt: &mut Runtime, __gs: &mut GameState, em: &mut f64, cr: &mut f64, vl: &mut f64, vr: &mut f64, vt: &mut f64, vb: &mut f64) {
-    (*em) = qb_true;
+    *em = qb_true;
     __rt.screen(8.0f64);
     if __rt.error_pending { __rt.error_pending = false; }
-    if qb_bool((*em)) {
-        (*vl) = 110.0f64;
-        (*vr) = 529.0f64;
-        (*vt) = 5.0f64;
-        (*vb) = 179.0f64;
-        (*cr) = 15.0f64;
+    if qb_bool(*em) {
+        *vl = 110.0f64;
+        *vr = 529.0f64;
+        *vt = 5.0f64;
+        *vb = 179.0f64;
+        *cr = 15.0f64;
     } else {
         __rt.screen(1.0f64);
-        (*vl) = 55.0f64;
-        (*vr) = 264.0f64;
-        (*vt) = 5.0f64;
-        (*vb) = 179.0f64;
-        (*cr) = 3.0f64;
+        *vl = 55.0f64;
+        *vr = 264.0f64;
+        *vt = 5.0f64;
+        *vb = 179.0f64;
+        *cr = 3.0f64;
     }
 }
 
@@ -65,36 +65,37 @@ fn windowvals(__rt: &mut Runtime, __gs: &mut GameState, wl: &mut f64, wr: &mut f
     if (resp_s).as_str() != (qb_chr(13.0f64)).as_str() {
         __rt.println(&[]);
         __rt.print_str("X coordinate of upper left corner: ? ");
-        (*wl) = __rt.input_line().trim().parse().unwrap_or_default();
+        *wl = __rt.input_line().trim().parse().unwrap_or_default();
         loop {
             __rt.print_str("X coordinate of lower right corner: ? ");
-            (*wr) = __rt.input_line().trim().parse().unwrap_or_default();
-            if (*wr) <= (*wl) {
+            *wr = __rt.input_line().trim().parse().unwrap_or_default();
+            if *wr <= *wl {
                 __rt.println(&[qb_str(&("Right corner must be greater than left corner."))]);
             }
-            if !((*wr) <= (*wl)) { break; }
+            if !(*wr <= *wl) { break; }
         }
         __rt.print_str("Y coordinate of upper left corner: ? ");
-        (*wt) = __rt.input_line().trim().parse().unwrap_or_default();
+        *wt = __rt.input_line().trim().parse().unwrap_or_default();
         loop {
             __rt.print_str("Y coordinate of lower right corner: ? ");
-            (*wb) = __rt.input_line().trim().parse().unwrap_or_default();
-            if (*wb) >= (*wt) {
+            *wb = __rt.input_line().trim().parse().unwrap_or_default();
+            if *wb >= *wt {
                 __rt.println(&[qb_str(&("Bottom corner must be less than top corner."))]);
             }
-            if !((*wb) >= (*wt)) { break; }
+            if !(*wb >= *wt) { break; }
         }
     } else {
-        (*wl) = (-1000.0f64);
-        (*wr) = 250.0f64;
-        (*wt) = 625.0f64;
-        (*wb) = (-625.0f64);
+        *wl = (-1000.0f64);
+        *wr = 250.0f64;
+        *wt = 625.0f64;
+        *wb = (-625.0f64);
     }
 }
 
 fn main() {
     let mut __rt = Runtime::new();
     __rt.set_pace(30.0);
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut i: f64 = 0.0;
@@ -121,7 +122,7 @@ fn main() {
     let mut imagnum: f64 = 0.0;
     let mut pcolor: f64 = 0.0;
 
-    __gs.palettearray = vec![Default::default(); (15.0f64+1.0) as usize];
+    __gs.palettearray = vec![0.0; (15.0f64+1.0) as usize];
     i = 0.0f64;
     let __for_to_i: f64 = 15.0f64;
     let __for_step_i: f64 = 1.0;

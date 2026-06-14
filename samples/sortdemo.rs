@@ -80,16 +80,16 @@ fn bubblesort(__rt: &mut Runtime, __gs: &mut GameState) {
         let __for_to_row: f64 = (limit - 1.0f64);
         let __for_step_row: f64 = 1.0;
         while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-            if __gs.sortarray__length[(row) as usize] > __gs.sortarray__length[((row + 1.0f64)) as usize] {
+            if __gs.sortarray__length[(row) as usize] > __gs.sortarray__length[(row + 1.0f64) as usize] {
                 { let __swap_tmp6 = __gs.sortarray__length[(row) as usize].clone();
-                  __gs.sortarray__length[(row) as usize] = __gs.sortarray__length[((row + 1.0f64)) as usize].clone();
-                  __gs.sortarray__length[((row + 1.0f64)) as usize] = __swap_tmp6; }
+                  __gs.sortarray__length[(row) as usize] = __gs.sortarray__length[(row + 1.0f64) as usize].clone();
+                  __gs.sortarray__length[(row + 1.0f64) as usize] = __swap_tmp6; }
                 { let __swap_tmp7 = __gs.sortarray__colorval[(row) as usize].clone();
-                  __gs.sortarray__colorval[(row) as usize] = __gs.sortarray__colorval[((row + 1.0f64)) as usize].clone();
-                  __gs.sortarray__colorval[((row + 1.0f64)) as usize] = __swap_tmp7; }
+                  __gs.sortarray__colorval[(row) as usize] = __gs.sortarray__colorval[(row + 1.0f64) as usize].clone();
+                  __gs.sortarray__colorval[(row + 1.0f64) as usize] = __swap_tmp7; }
                 { let __swap_tmp8 = __gs.sortarray__barstring[(row) as usize].clone();
-                  __gs.sortarray__barstring[(row) as usize] = __gs.sortarray__barstring[((row + 1.0f64)) as usize].clone();
-                  __gs.sortarray__barstring[((row + 1.0f64)) as usize] = __swap_tmp8; }
+                  __gs.sortarray__barstring[(row) as usize] = __gs.sortarray__barstring[(row + 1.0f64) as usize].clone();
+                  __gs.sortarray__barstring[(row + 1.0f64) as usize] = __swap_tmp8; }
                 let mut __tmp_num9: f64 = (row + 1.0f64);
                 swapbars(__rt, __gs, &mut row, &mut __tmp_num9);
                 switch = row;
@@ -130,18 +130,18 @@ fn drawframe(__rt: &mut Runtime, __gs: &mut GameState, topside: &mut f64, bottom
     let lright: f64 = 188.0f64;
     let vertical: f64 = 186.0f64;
     let horizontal: f64 = 205.0f64;
-    framewidth = (((*rightside) - (*leftside)) - 1.0f64);
-    __rt.locate(Some((*topside)), Some((*leftside)), None);
+    framewidth = ((*rightside - *leftside) - 1.0f64);
+    __rt.locate(Some(*topside), Some(*leftside), None);
     __rt.print(&[qb_str(&(qb_chr(uleft))), qb_str(&(qb_string(framewidth, horizontal))), qb_str(&(qb_chr(uright)))]);
-    row = ((*topside) + 1.0f64);
-    let __for_to_row: f64 = ((*bottomside) - 1.0f64);
+    row = (*topside + 1.0f64);
+    let __for_to_row: f64 = (*bottomside - 1.0f64);
     let __for_step_row: f64 = 1.0;
     while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-        __rt.locate(Some(row), Some((*leftside)), None);
+        __rt.locate(Some(row), Some(*leftside), None);
         __rt.print(&[qb_str(&(qb_chr(vertical))), qb_space(framewidth), qb_str(&(qb_chr(vertical)))]);
         row += __for_step_row;
     }
-    __rt.locate(Some((*bottomside)), Some((*leftside)), None);
+    __rt.locate(Some(*bottomside), Some(*leftside), None);
     __rt.print(&[qb_str(&(qb_chr(lleft))), qb_str(&(qb_string(framewidth, horizontal))), qb_str(&(qb_chr(lright)))]);
 }
 
@@ -157,7 +157,7 @@ fn elapsedtime(__rt: &mut Runtime, __gs: &mut GameState, currentrow: &mut f64) {
         let __sd12: f64 = __gs.pause;
         __rt.sound(__sf12, __sd12);
     } else {
-        let __sf13: f64 = (60.0f64 * (*currentrow));
+        let __sf13: f64 = (60.0f64 * *currentrow);
         let __sd13: f64 = __gs.pause;
         __rt.sound(__sf13, __sd13);
     }
@@ -237,7 +237,7 @@ fn initialize(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut index: f64 = 0.0;
     let mut barlength: f64 = 0.0;
 
-    let mut temparray: Vec<f64> = vec![Default::default(); (43.0f64+1.0) as usize];
+    let mut temparray: Vec<f64> = vec![0.0; (43.0f64+1.0) as usize];
     checkscreen(__rt, __gs);
     i = 1.0f64;
     let __for_to_i: f64 = __gs.maxrow;
@@ -285,9 +285,9 @@ fn insertionsort(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut templength: f64 = 0.0;
     let mut j: f64 = 0.0;
 
-    let mut tempval__length: f64 = Default::default();
-    let mut tempval__colorval: f64 = Default::default();
-    let mut tempval__barstring: String = Default::default();
+    let mut tempval__length: f64 = 0.0;
+    let mut tempval__colorval: f64 = 0.0;
+    let mut tempval__barstring: String = String::new();
     row = 2.0f64;
     let __for_to_row: f64 = __gs.maxrow;
     let __for_step_row: f64 = 1.0;
@@ -300,10 +300,10 @@ fn insertionsort(__rt: &mut Runtime, __gs: &mut GameState) {
         let __for_to_j: f64 = 2.0f64;
         let __for_step_j: f64 = (-1.0f64);
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if __gs.sortarray__length[((j - 1.0f64)) as usize] > templength {
-                __gs.sortarray__length[(j) as usize] = __gs.sortarray__length[((j - 1.0f64)) as usize].clone();
-                __gs.sortarray__colorval[(j) as usize] = __gs.sortarray__colorval[((j - 1.0f64)) as usize].clone();
-                __gs.sortarray__barstring[(j) as usize] = __gs.sortarray__barstring[((j - 1.0f64)) as usize].clone();
+            if __gs.sortarray__length[(j - 1.0f64) as usize] > templength {
+                __gs.sortarray__length[(j) as usize] = __gs.sortarray__length[(j - 1.0f64) as usize].clone();
+                __gs.sortarray__colorval[(j) as usize] = __gs.sortarray__colorval[(j - 1.0f64) as usize].clone();
+                __gs.sortarray__barstring[(j) as usize] = __gs.sortarray__barstring[(j - 1.0f64) as usize].clone();
                 printonebar(__rt, __gs, &mut j);
                 elapsedtime(__rt, __gs, &mut j);
             } else {
@@ -327,11 +327,11 @@ fn percolatedown(__rt: &mut Runtime, __gs: &mut GameState, maxlevel: &mut f64) {
     i = 1.0f64;
     loop {
         child = (2.0f64 * i);
-        if child > (*maxlevel) {
+        if child > *maxlevel {
             break; // EXIT DO
         }
-        if (child + 1.0f64) <= (*maxlevel) {
-            if __gs.sortarray__length[((child + 1.0f64)) as usize] > __gs.sortarray__length[(child) as usize] {
+        if (child + 1.0f64) <= *maxlevel {
+            if __gs.sortarray__length[(child + 1.0f64) as usize] > __gs.sortarray__length[(child) as usize] {
                 child = (child + 1.0f64);
             }
         }
@@ -357,7 +357,7 @@ fn percolateup(__rt: &mut Runtime, __gs: &mut GameState, maxlevel: &mut f64) {
     let mut i: f64 = 0.0;
     let mut parent: f64 = 0.0;
 
-    i = (*maxlevel);
+    i = *maxlevel;
     while !(i == 1.0f64) {
         parent = qb_idiv(i, 2.0f64);
         if __gs.sortarray__length[(i) as usize] > __gs.sortarray__length[(parent) as usize] {
@@ -379,9 +379,9 @@ fn percolateup(__rt: &mut Runtime, __gs: &mut GameState, maxlevel: &mut f64) {
 }
 
 fn printonebar(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64) {
-    __rt.locate(Some((*row)), Some(1.0f64), None);
-    __rt.color(__gs.sortarray__colorval[((*row)) as usize], None);
-    __rt.print(&[qb_str(&(__gs.sortarray__barstring[((*row)) as usize]))]);
+    __rt.locate(Some(*row), Some(1.0f64), None);
+    __rt.color(__gs.sortarray__colorval[*row as usize], None);
+    __rt.print(&[qb_str(&(__gs.sortarray__barstring[*row as usize]))]);
 }
 
 fn quicksort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut f64) {
@@ -390,36 +390,36 @@ fn quicksort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
     let mut i: f64 = 0.0;
     let mut j: f64 = 0.0;
 
-    if (*low) < (*high) {
-        if ((*high) - (*low)) == 1.0f64 {
-            if __gs.sortarray__length[((*low)) as usize] > __gs.sortarray__length[((*high)) as usize] {
-                { let __swap_tmp29 = __gs.sortarray__length[((*low)) as usize].clone();
-                  __gs.sortarray__length[((*low)) as usize] = __gs.sortarray__length[((*high)) as usize].clone();
-                  __gs.sortarray__length[((*high)) as usize] = __swap_tmp29; }
-                { let __swap_tmp30 = __gs.sortarray__colorval[((*low)) as usize].clone();
-                  __gs.sortarray__colorval[((*low)) as usize] = __gs.sortarray__colorval[((*high)) as usize].clone();
-                  __gs.sortarray__colorval[((*high)) as usize] = __swap_tmp30; }
-                { let __swap_tmp31 = __gs.sortarray__barstring[((*low)) as usize].clone();
-                  __gs.sortarray__barstring[((*low)) as usize] = __gs.sortarray__barstring[((*high)) as usize].clone();
-                  __gs.sortarray__barstring[((*high)) as usize] = __swap_tmp31; }
+    if *low < *high {
+        if (*high - *low) == 1.0f64 {
+            if __gs.sortarray__length[*low as usize] > __gs.sortarray__length[*high as usize] {
+                { let __swap_tmp29 = __gs.sortarray__length[*low as usize].clone();
+                  __gs.sortarray__length[*low as usize] = __gs.sortarray__length[*high as usize].clone();
+                  __gs.sortarray__length[*high as usize] = __swap_tmp29; }
+                { let __swap_tmp30 = __gs.sortarray__colorval[*low as usize].clone();
+                  __gs.sortarray__colorval[*low as usize] = __gs.sortarray__colorval[*high as usize].clone();
+                  __gs.sortarray__colorval[*high as usize] = __swap_tmp30; }
+                { let __swap_tmp31 = __gs.sortarray__barstring[*low as usize].clone();
+                  __gs.sortarray__barstring[*low as usize] = __gs.sortarray__barstring[*high as usize].clone();
+                  __gs.sortarray__barstring[*high as usize] = __swap_tmp31; }
                 swapbars(__rt, __gs, low, high);
             }
         } else {
-            randindex = randint(__rt, __gs, (*low), (*high));
-            { let __swap_tmp33 = __gs.sortarray__length[((*high)) as usize].clone();
-              __gs.sortarray__length[((*high)) as usize] = __gs.sortarray__length[(randindex) as usize].clone();
+            randindex = randint(__rt, __gs, *low, *high);
+            { let __swap_tmp33 = __gs.sortarray__length[*high as usize].clone();
+              __gs.sortarray__length[*high as usize] = __gs.sortarray__length[(randindex) as usize].clone();
               __gs.sortarray__length[(randindex) as usize] = __swap_tmp33; }
-            { let __swap_tmp34 = __gs.sortarray__colorval[((*high)) as usize].clone();
-              __gs.sortarray__colorval[((*high)) as usize] = __gs.sortarray__colorval[(randindex) as usize].clone();
+            { let __swap_tmp34 = __gs.sortarray__colorval[*high as usize].clone();
+              __gs.sortarray__colorval[*high as usize] = __gs.sortarray__colorval[(randindex) as usize].clone();
               __gs.sortarray__colorval[(randindex) as usize] = __swap_tmp34; }
-            { let __swap_tmp35 = __gs.sortarray__barstring[((*high)) as usize].clone();
-              __gs.sortarray__barstring[((*high)) as usize] = __gs.sortarray__barstring[(randindex) as usize].clone();
+            { let __swap_tmp35 = __gs.sortarray__barstring[*high as usize].clone();
+              __gs.sortarray__barstring[*high as usize] = __gs.sortarray__barstring[(randindex) as usize].clone();
               __gs.sortarray__barstring[(randindex) as usize] = __swap_tmp35; }
             swapbars(__rt, __gs, high, &mut randindex);
-            partition = __gs.sortarray__length[((*high)) as usize];
+            partition = __gs.sortarray__length[*high as usize];
             loop {
-                i = (*low);
-                j = (*high);
+                i = *low;
+                j = *high;
                 while qb_bool(qb_and(qb_from_bool(i < j), qb_from_bool(__gs.sortarray__length[(i) as usize] <= partition))) {
                     i = (i + 1.0f64);
                 }
@@ -441,16 +441,16 @@ fn quicksort(__rt: &mut Runtime, __gs: &mut GameState, low: &mut f64, high: &mut
                 if !(i < j) { break; }
             }
             { let __swap_tmp39 = __gs.sortarray__length[(i) as usize].clone();
-              __gs.sortarray__length[(i) as usize] = __gs.sortarray__length[((*high)) as usize].clone();
-              __gs.sortarray__length[((*high)) as usize] = __swap_tmp39; }
+              __gs.sortarray__length[(i) as usize] = __gs.sortarray__length[*high as usize].clone();
+              __gs.sortarray__length[*high as usize] = __swap_tmp39; }
             { let __swap_tmp40 = __gs.sortarray__colorval[(i) as usize].clone();
-              __gs.sortarray__colorval[(i) as usize] = __gs.sortarray__colorval[((*high)) as usize].clone();
-              __gs.sortarray__colorval[((*high)) as usize] = __swap_tmp40; }
+              __gs.sortarray__colorval[(i) as usize] = __gs.sortarray__colorval[*high as usize].clone();
+              __gs.sortarray__colorval[*high as usize] = __swap_tmp40; }
             { let __swap_tmp41 = __gs.sortarray__barstring[(i) as usize].clone();
-              __gs.sortarray__barstring[(i) as usize] = __gs.sortarray__barstring[((*high)) as usize].clone();
-              __gs.sortarray__barstring[((*high)) as usize] = __swap_tmp41; }
+              __gs.sortarray__barstring[(i) as usize] = __gs.sortarray__barstring[*high as usize].clone();
+              __gs.sortarray__barstring[*high as usize] = __swap_tmp41; }
             swapbars(__rt, __gs, &mut i, high);
-            if (i - (*low)) < ((*high) - i) {
+            if (i - *low) < (*high - i) {
                 let mut __tmp_num42: f64 = (i - 1.0f64);
                 quicksort(__rt, __gs, low, &mut __tmp_num42);
                 let mut __tmp_num43: f64 = (i + 1.0f64);
@@ -504,16 +504,16 @@ fn shellsort(__rt: &mut Runtime, __gs: &mut GameState) {
             let __for_to_row: f64 = limit;
             let __for_step_row: f64 = 1.0;
             while (__for_step_row > 0.0 && row <= __for_to_row) || (__for_step_row < 0.0 && row >= __for_to_row) {
-                if __gs.sortarray__length[(row) as usize] > __gs.sortarray__length[((row + offset)) as usize] {
+                if __gs.sortarray__length[(row) as usize] > __gs.sortarray__length[(row + offset) as usize] {
                     { let __swap_tmp46 = __gs.sortarray__length[(row) as usize].clone();
-                      __gs.sortarray__length[(row) as usize] = __gs.sortarray__length[((row + offset)) as usize].clone();
-                      __gs.sortarray__length[((row + offset)) as usize] = __swap_tmp46; }
+                      __gs.sortarray__length[(row) as usize] = __gs.sortarray__length[(row + offset) as usize].clone();
+                      __gs.sortarray__length[(row + offset) as usize] = __swap_tmp46; }
                     { let __swap_tmp47 = __gs.sortarray__colorval[(row) as usize].clone();
-                      __gs.sortarray__colorval[(row) as usize] = __gs.sortarray__colorval[((row + offset)) as usize].clone();
-                      __gs.sortarray__colorval[((row + offset)) as usize] = __swap_tmp47; }
+                      __gs.sortarray__colorval[(row) as usize] = __gs.sortarray__colorval[(row + offset) as usize].clone();
+                      __gs.sortarray__colorval[(row + offset) as usize] = __swap_tmp47; }
                     { let __swap_tmp48 = __gs.sortarray__barstring[(row) as usize].clone();
-                      __gs.sortarray__barstring[(row) as usize] = __gs.sortarray__barstring[((row + offset)) as usize].clone();
-                      __gs.sortarray__barstring[((row + offset)) as usize] = __swap_tmp48; }
+                      __gs.sortarray__barstring[(row) as usize] = __gs.sortarray__barstring[(row + offset) as usize].clone();
+                      __gs.sortarray__barstring[(row + offset) as usize] = __swap_tmp48; }
                     let mut __tmp_num49: f64 = (row + offset);
                     swapbars(__rt, __gs, &mut row, &mut __tmp_num49);
                     switch = row;
@@ -595,7 +595,7 @@ fn swapbars(__rt: &mut Runtime, __gs: &mut GameState, row1: &mut f64, row2: &mut
 
 fn togglesound(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, column: &mut f64) {
     __gs.nosound = qb_not(__gs.nosound);
-    __rt.locate(Some((*row)), Some((*column)), None);
+    __rt.locate(Some(*row), Some(*column), None);
     if qb_bool(__gs.nosound) {
         __rt.print(&[qb_str(&(": OFF"))]);
     } else {
@@ -604,7 +604,7 @@ fn togglesound(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, column: 
 }
 
 fn randint(__rt: &mut Runtime, __gs: &mut GameState, mut lower: f64, mut upper: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let __tmp56 = __rt.rnd();
     __fn_ret = (qb_int((__tmp56 * ((upper - lower) + 1.0f64))) + lower);
     __fn_ret
@@ -612,6 +612,7 @@ fn randint(__rt: &mut Runtime, __gs: &mut GameState, mut lower: f64, mut upper: 
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     __gs.sortarray__length = vec![0.0; (43.0f64+1.0) as usize];
@@ -620,7 +621,7 @@ fn main() {
     __gs.sortbackup__length = vec![0.0; (43.0f64+1.0) as usize];
     __gs.sortbackup__colorval = vec![0.0; (43.0f64+1.0) as usize];
     __gs.sortbackup__barstring = vec![String::new(); (43.0f64+1.0) as usize];
-    __gs.optiontitle_s = vec![Default::default(); (numoptions+1.0) as usize];
+    __gs.optiontitle_s = vec![String::new(); (numoptions+1.0) as usize];
     initialize(&mut __rt, &mut __gs);
     sortmenu(&mut __rt, &mut __gs);
     __rt.color(7.0f64, Some(0.0f64));

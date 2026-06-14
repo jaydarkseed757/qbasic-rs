@@ -65,6 +65,7 @@ fn lbl_9500(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut c: f64 = 0.0;
@@ -94,11 +95,11 @@ fn main() {
                 __pc = 40; continue '__sm;
             }
             40 => {
-                n = vec![Default::default(); (10.0f64+1.0) as usize];
+                n = vec![0.0; (10.0f64+1.0) as usize];
                 __pc = 50; continue '__sm;
             }
             50 => {
-                name_s = vec![Default::default(); (5.0f64+1.0) as usize];
+                name_s = vec![String::new(); (5.0f64+1.0) as usize];
                 __pc = 60; continue '__sm;
             }
             60 => {

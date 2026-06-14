@@ -6,6 +6,7 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     __rt.screen(9.0f64);
     __rt.cls(0u8);
     __rt.pset(100.0f64, 100.0f64, 15.0f64);
@@ -53,7 +54,7 @@ fn main() {
     let __stx8 = __rt.cur_x() + (30.0f64);
     let __sty8 = __rt.cur_y() + (20.0f64);
     __rt.circle(__stx8, __sty8, 18.0f64, 13.0f64);
-    let mut spr: Vec<f64> = vec![Default::default(); (100.0f64+1.0) as usize];
+    let mut spr: Vec<f64> = vec![0.0; (100.0f64+1.0) as usize];
     let __sgx1_9 = 100.0f64;
     let __sgy1_9 = 100.0f64;
     let __sgx2_9 = 160.0f64;

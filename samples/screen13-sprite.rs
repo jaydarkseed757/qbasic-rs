@@ -6,6 +6,7 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut y: f64 = 0.0;
     let mut x: f64 = 0.0;
 
@@ -24,7 +25,7 @@ fn main() {
         }
         y += __for_step_y;
     }
-    let mut spra: Vec<f64> = vec![Default::default(); (200.0f64+1.0) as usize];
+    let mut spra: Vec<f64> = vec![0.0; (200.0f64+1.0) as usize];
     let __sgx1_0 = 2.0f64;
     let __sgy1_0 = 2.0f64;
     let __sgx2_0 = 25.0f64;
@@ -56,7 +57,7 @@ fn main() {
     __rt.pset(4.0f64, 6.0f64, 132.0f64);
     __rt.pset(5.0f64, 6.0f64, 204.0f64);
     __rt.pset(6.0f64, 6.0f64, 250.0f64);
-    let mut sprb: Vec<f64> = vec![Default::default(); (30.0f64+1.0) as usize];
+    let mut sprb: Vec<f64> = vec![0.0; (30.0f64+1.0) as usize];
     let __sgx1_1 = 2.0f64;
     let __sgy1_1 = 2.0f64;
     let __sgx2_1 = 8.0f64;

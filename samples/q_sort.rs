@@ -6,12 +6,13 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut i: f64 = 0.0;
     let mut j: f64 = 0.0;
     let mut temp: f64 = 0.0;
 
     __rt.cls(0u8);
-    let mut numbers: Vec<f64> = vec![Default::default(); (10.0f64+1.0) as usize];
+    let mut numbers: Vec<f64> = vec![0.0; (10.0f64+1.0) as usize];
     __rt.println(&[qb_str(&("Enter 10 numbers:"))]);
     i = 1.0f64;
     let __for_to_i: f64 = 10.0f64;
@@ -28,10 +29,10 @@ fn main() {
         let __for_to_j: f64 = (10.0f64 - i);
         let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if numbers[(j) as usize] > numbers[((j + 1.0f64)) as usize] {
+            if numbers[(j) as usize] > numbers[(j + 1.0f64) as usize] {
                 temp = numbers[(j) as usize];
-                numbers[(j) as usize] = numbers[((j + 1.0f64)) as usize];
-                numbers[((j + 1.0f64)) as usize] = temp;
+                numbers[(j) as usize] = numbers[(j + 1.0f64) as usize];
+                numbers[(j + 1.0f64) as usize] = temp;
             }
             j += __for_step_j;
         }

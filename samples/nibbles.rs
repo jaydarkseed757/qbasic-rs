@@ -24,7 +24,7 @@ struct GameState {
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, text_s: &mut String) {
-    __rt.locate(Some((*row)), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
+    __rt.locate(Some(*row), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
@@ -66,13 +66,13 @@ fn erasesnake(__rt: &mut Runtime, __gs: &mut GameState, snake__length: &mut Vec<
     let __for_to_c: f64 = 9.0f64;
     let __for_step_c: f64 = 1.0;
     while (__for_step_c > 0.0 && c <= __for_to_c) || (__for_step_c < 0.0 && c >= __for_to_c) {
-        b = (snake__length[((*snakenum)) as usize] - c);
+        b = (snake__length[*snakenum as usize] - c);
         let __for_to_b: f64 = 0.0f64;
         let __for_step_b: f64 = (-10.0f64);
         while (__for_step_b > 0.0 && b <= __for_to_b) || (__for_step_b < 0.0 && b >= __for_to_b) {
-            tail = qb_mod(((snake__head[((*snakenum)) as usize] + maxsnakelength) - b), maxsnakelength);
-            let mut __tmp_num4: f64 = snakebod__row[(tail) as usize][((*snakenum)) as usize];
-            let mut __tmp_num5: f64 = snakebod__col[(tail) as usize][((*snakenum)) as usize];
+            tail = qb_mod(((snake__head[*snakenum as usize] + maxsnakelength) - b), maxsnakelength);
+            let mut __tmp_num4: f64 = snakebod__row[(tail) as usize][*snakenum as usize];
+            let mut __tmp_num5: f64 = snakebod__col[(tail) as usize][*snakenum as usize];
             let __baidx6 = (4.0f64) as usize;
             let mut __tmp_arr7: f64 = __gs.colortable[__baidx6];
             set(__rt, __gs, &mut __tmp_num4, &mut __tmp_num5, &mut __tmp_arr7);
@@ -100,7 +100,7 @@ fn getinputs(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, spe
         num_s = __rt.input_line();
         if qb_bool(qb_or(qb_from_bool(qb_val(&(num_s)) == 1.0f64), qb_from_bool(qb_val(&(num_s)) == 2.0f64))) { break; }
     }
-    (*numplayers) = qb_val(&(num_s));
+    *numplayers = qb_val(&(num_s));
     __rt.locate(Some(8.0f64), Some(21.0f64), None);
     __rt.println(&[qb_str(&("Skill level (1 to 100)"))]);
     __rt.locate(Some(9.0f64), Some(22.0f64), None);
@@ -118,8 +118,8 @@ fn getinputs(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, spe
         gamespeed_s = __rt.input_line();
         if qb_bool(qb_and(qb_from_bool(qb_val(&(gamespeed_s)) >= 1.0f64), qb_from_bool(qb_val(&(gamespeed_s)) <= 100.0f64))) { break; }
     }
-    (*speed) = qb_val(&(gamespeed_s));
-    (*speed) = (((100.0f64 - (*speed)) * 2.0f64) + 1.0f64);
+    *speed = qb_val(&(gamespeed_s));
+    *speed = (((100.0f64 - *speed) * 2.0f64) + 1.0f64);
     loop {
         __rt.locate(Some(15.0f64), Some(56.0f64), None);
         __rt.print(&[qb_str(&(qb_space(25.0f64)))]);
@@ -146,7 +146,7 @@ fn getinputs(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, spe
         i += __for_step_i;
     }
     stoptime = qb_timer();
-    (*speed) = (((*speed) * 0.5f64) / (stoptime - starttime));
+    *speed = ((*speed * 0.5f64) / (stoptime - starttime));
 }
 
 fn initcolors(__rt: &mut Runtime, __gs: &mut GameState) {
@@ -255,7 +255,7 @@ fn intro(__rt: &mut Runtime, __gs: &mut GameState) {
 fn level(__rt: &mut Runtime, __gs: &mut GameState, whattodo: &mut f64, sammy__head: &mut Vec<f64>, sammy__length: &mut Vec<f64>, sammy__row: &mut Vec<f64>, sammy__col: &mut Vec<f64>, sammy__direction: &mut Vec<f64>, sammy__lives: &mut Vec<f64>, sammy__score: &mut Vec<f64>, sammy__scolor: &mut Vec<f64>, sammy__alive: &mut Vec<f64>) {
     let mut i: f64 = 0.0;
 
-    let __sel = (*whattodo);
+    let __sel = *whattodo;
     if __sel == startover {
         __gs.curlevel = 1.0f64;
     } else if __sel == nextlevel {
@@ -633,12 +633,12 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
     startcol1 = sammy__col[(1.0f64) as usize];
     startrow2 = sammy__row[(2.0f64) as usize];
     startcol2 = sammy__col[(2.0f64) as usize];
-    curspeed = (*speed);
+    curspeed = *speed;
     let mut __tmp_str161 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
     spacepause(__rt, __gs, &mut __tmp_str161);
     gameover = qb_false;
     loop {
-        if (*numplayers) == 1.0f64 {
+        if *numplayers == 1.0f64 {
             sammy__row[(2.0f64) as usize] = 0.0f64;
         }
         number = 1.0f64;
@@ -714,7 +714,7 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
             } else {
             }
             a = 1.0f64;
-            let __for_to_a: f64 = (*numplayers);
+            let __for_to_a: f64 = *numplayers;
             let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
                 let __sel = sammy__direction[(a) as usize];
@@ -754,13 +754,13 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
                         printscore(__rt, __gs, numplayers, &mut __tmp_num176, &mut __tmp_num177, &mut __tmp_num178, &mut __tmp_num179);
                         let mut __tmp_str180 = (format!("{}{}" ,format!("{}{}" ,"     Level",qb_str_fn(__gs.curlevel)),",  Push Space")).to_string();
                         spacepause(__rt, __gs, &mut __tmp_str180);
-                        if (*numplayers) == 1.0f64 {
+                        if *numplayers == 1.0f64 {
                             sammy__row[(2.0f64) as usize] = 0.0f64;
                         }
                         number = 1.0f64;
                         if (diff_s).as_str() == "P" {
-                            (*speed) = ((*speed) - 10.0f64);
-                            curspeed = (*speed);
+                            *speed = (*speed - 10.0f64);
+                            curspeed = *speed;
                         }
                     }
                     nonum = qb_true;
@@ -771,7 +771,7 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
                 a += __for_step_a;
             }
             a = 1.0f64;
-            let __for_to_a: f64 = (*numplayers);
+            let __for_to_a: f64 = *numplayers;
             let __for_step_a: f64 = 1.0;
             while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
                 if qb_bool(qb_or({ let __fa0 = __gs.colortable[(4.0f64) as usize]; pointisthere(__rt, __gs, sammy__row[(a) as usize], sammy__col[(a) as usize], __fa0) }, qb_and(qb_from_bool(sammy__row[(1.0f64) as usize] == sammy__row[(2.0f64) as usize]), qb_from_bool(sammy__col[(1.0f64) as usize] == sammy__col[(2.0f64) as usize])))) {
@@ -803,9 +803,9 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
             }
             if qb_bool(playerdied) { break; }
         }
-        curspeed = (*speed);
+        curspeed = *speed;
         a = 1.0f64;
-        let __for_to_a: f64 = (*numplayers);
+        let __for_to_a: f64 = *numplayers;
         let __for_step_a: f64 = 1.0;
         while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
             erasesnake(__rt, __gs, &mut sammy__length, &mut sammy__head, &mut sammybody__row, &mut sammybody__col, &mut a);
@@ -838,13 +838,13 @@ fn playnibbles(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, s
 
 fn printscore(__rt: &mut Runtime, __gs: &mut GameState, numplayers: &mut f64, score1: &mut f64, score2: &mut f64, lives1: &mut f64, lives2: &mut f64) {
     __rt.color(15.0f64, Some(__gs.colortable[(4.0f64) as usize]));
-    if (*numplayers) == 2.0f64 {
+    if *numplayers == 2.0f64 {
         __rt.locate(Some(1.0f64), Some(1.0f64), None);
-        let __pu198 = qb_print_using(&("#,###,#00  Lives: #  <--JAKE"), &[QbVal::Num((*score2)), QbVal::Num((*lives2))]);
+        let __pu198 = qb_print_using(&("#,###,#00  Lives: #  <--JAKE"), &[QbVal::Num(*score2), QbVal::Num(*lives2)]);
         __rt.println(&[__pu198]);
     }
     __rt.locate(Some(1.0f64), Some(49.0f64), None);
-    let __pu199 = qb_print_using(&("SAMMY-->  Lives: #     #,###,#00"), &[QbVal::Num((*lives1)), QbVal::Num((*score1))]);
+    let __pu199 = qb_print_using(&("SAMMY-->  Lives: #     #,###,#00"), &[QbVal::Num(*lives1), QbVal::Num(*score1)]);
     __rt.println(&[__pu199]);
 }
 
@@ -854,31 +854,31 @@ fn set(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, a
     let mut sisterrow: f64 = 0.0;
     let mut sistercolor: f64 = 0.0;
 
-    if (*row) != 0.0f64 {
-        __gs.arena__acolor[((*row)) as usize][((*col)) as usize] = (*acolor);
-        realrow = __gs.arena__realrow[((*row)) as usize][((*col)) as usize];
-        topflag = (__gs.arena__sister[((*row)) as usize][((*col)) as usize] + (1.0f64 / 2.0f64));
-        sisterrow = ((*row) + __gs.arena__sister[((*row)) as usize][((*col)) as usize]);
-        sistercolor = __gs.arena__acolor[(sisterrow) as usize][((*col)) as usize];
-        __rt.locate(Some(realrow), Some((*col)), None);
-        if (*acolor) == sistercolor {
-            __rt.color((*acolor), Some((*acolor)));
+    if *row != 0.0f64 {
+        __gs.arena__acolor[*row as usize][*col as usize] = *acolor;
+        realrow = __gs.arena__realrow[*row as usize][*col as usize];
+        topflag = (__gs.arena__sister[*row as usize][*col as usize] + (1.0f64 / 2.0f64));
+        sisterrow = (*row + __gs.arena__sister[*row as usize][*col as usize]);
+        sistercolor = __gs.arena__acolor[(sisterrow) as usize][*col as usize];
+        __rt.locate(Some(realrow), Some(*col), None);
+        if *acolor == sistercolor {
+            __rt.color(*acolor, Some(*acolor));
             __rt.print(&[qb_str(&(qb_chr(219.0f64)))]);
         } else {
             if qb_bool(topflag) {
-                if (*acolor) > 7.0f64 {
-                    __rt.color((*acolor), Some(sistercolor));
+                if *acolor > 7.0f64 {
+                    __rt.color(*acolor, Some(sistercolor));
                     __rt.print(&[qb_str(&(qb_chr(223.0f64)))]);
                 } else {
-                    __rt.color(sistercolor, Some((*acolor)));
+                    __rt.color(sistercolor, Some(*acolor));
                     __rt.print(&[qb_str(&(qb_chr(220.0f64)))]);
                 }
             } else {
-                if (*acolor) > 7.0f64 {
-                    __rt.color((*acolor), Some(sistercolor));
+                if *acolor > 7.0f64 {
+                    __rt.color(*acolor, Some(sistercolor));
                     __rt.print(&[qb_str(&(qb_chr(220.0f64)))]);
                 } else {
-                    __rt.color(sistercolor, Some((*acolor)));
+                    __rt.color(sistercolor, Some(*acolor));
                     __rt.print(&[qb_str(&(qb_chr(223.0f64)))]);
                 }
             }
@@ -964,7 +964,7 @@ fn sparklepause(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn pointisthere(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64, mut acolor: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     if row != 0.0f64 {
         if __gs.arena__acolor[(row) as usize][(col) as usize] != acolor {
             __fn_ret = qb_true;
@@ -976,7 +976,7 @@ fn pointisthere(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col:
 }
 
 fn stillwantstoplay(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut kbd_s: String = String::new();
 
     __rt.color(__gs.colortable[(5.0f64) as usize], Some(__gs.colortable[(6.0f64) as usize]));
@@ -1067,6 +1067,7 @@ fn setcolors(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut numplayers: f64 = 0.0;
@@ -1077,7 +1078,7 @@ fn main() {
     __gs.arena__realrow = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
     __gs.arena__acolor = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
     __gs.arena__sister = vec![vec![0.0; (80.0f64+1.0) as usize]; (50.0f64+1.0) as usize];
-    __gs.colortable = vec![Default::default(); (10.0f64+1.0) as usize];
+    __gs.colortable = vec![0.0; (10.0f64+1.0) as usize];
     __rt.randomize(qb_timer());
     clearkeylocks(&mut __rt, &mut __gs);
     intro(&mut __rt, &mut __gs);

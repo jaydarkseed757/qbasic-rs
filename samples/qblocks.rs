@@ -92,13 +92,13 @@ fn addblocktowell(__rt: &mut Runtime, __gs: &mut GameState) {
             if __gs.blockshape[(i) as usize][(j) as usize][(__gs.curblock__style) as usize] == 1.0f64 {
                 let __sel = __gs.curblock__rotation;
                 if __sel == 0.0f64 {
-                    __gs.wellblocks[((__gs.curblock__x + i)) as usize][((__gs.curblock__y + j)) as usize] = __gs.curblock__style;
+                    __gs.wellblocks[(__gs.curblock__x + i) as usize][(__gs.curblock__y + j) as usize] = __gs.curblock__style;
                 } else if __sel == 1.0f64 {
-                    __gs.wellblocks[(((__gs.curblock__x - j) + 2.0f64)) as usize][(((__gs.curblock__y + i) - 1.0f64)) as usize] = __gs.curblock__style;
+                    __gs.wellblocks[((__gs.curblock__x - j) + 2.0f64) as usize][((__gs.curblock__y + i) - 1.0f64) as usize] = __gs.curblock__style;
                 } else if __sel == 2.0f64 {
-                    __gs.wellblocks[(((__gs.curblock__x - i) + 3.0f64)) as usize][(((__gs.curblock__y - j) + 1.0f64)) as usize] = __gs.curblock__style;
+                    __gs.wellblocks[((__gs.curblock__x - i) + 3.0f64) as usize][((__gs.curblock__y - j) + 1.0f64) as usize] = __gs.curblock__style;
                 } else if __sel == 3.0f64 {
-                    __gs.wellblocks[(((__gs.curblock__x + j) + 1.0f64)) as usize][(((__gs.curblock__y - i) + 2.0f64)) as usize] = __gs.curblock__style;
+                    __gs.wellblocks[((__gs.curblock__x + j) + 1.0f64) as usize][((__gs.curblock__y - i) + 2.0f64) as usize] = __gs.curblock__style;
                 }
             }
             j += __for_step_j;
@@ -108,7 +108,7 @@ fn addblocktowell(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, text_s: &mut String, row: &mut f64) {
-    __rt.locate(Some((*row)), Some((qb_idiv((__gs.screenwidth - qb_len(&(text_s))), 2.0f64) + 1.0f64)), None);
+    __rt.locate(Some(*row), Some((qb_idiv((__gs.screenwidth - qb_len(&(text_s))), 2.0f64) + 1.0f64)), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
@@ -123,7 +123,7 @@ fn checkforfullrows(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut highest: f64 = 0.0;
     let mut lowest: f64 = 0.0;
 
-    let mut rowstodelete: Vec<f64> = vec![Default::default(); (wellheight+1.0) as usize];
+    let mut rowstodelete: Vec<f64> = vec![0.0; (wellheight+1.0) as usize];
     numrowstodelete = 0.0f64;
     i = wellheight;
     loop {
@@ -136,7 +136,7 @@ fn checkforfullrows(__rt: &mut Runtime, __gs: &mut GameState) {
         }
         if deleterow == qb_true {
             numrowstodelete = (numrowstodelete + 1.0f64);
-            rowstodelete[((i - numdeleted)) as usize] = qb_true;
+            rowstodelete[(i - numdeleted) as usize] = qb_true;
             numdeleted = (numdeleted + 1.0f64);
             row = i;
             let __for_to_row: f64 = 1.0f64;
@@ -146,7 +146,7 @@ fn checkforfullrows(__rt: &mut Runtime, __gs: &mut GameState) {
                 let __for_to_col: f64 = wellwidth;
                 let __for_step_col: f64 = 1.0;
                 while (__for_step_col > 0.0 && col <= __for_to_col) || (__for_step_col < 0.0 && col >= __for_to_col) {
-                    __gs.wellblocks[(col) as usize][(row) as usize] = __gs.wellblocks[(col) as usize][((row - 1.0f64)) as usize];
+                    __gs.wellblocks[(col) as usize][(row) as usize] = __gs.wellblocks[(col) as usize][(row - 1.0f64) as usize];
                     col += __for_step_col;
                 }
                 row += __for_step_row;
@@ -201,9 +201,9 @@ fn deletechunk(__rt: &mut Runtime, __gs: &mut GameState, highest: &mut f64, lowe
     let mut delaytime: f64 = 0.0;
 
     let __sgx1_1 = wellx;
-    let __sgy1_1 = (((*lowest) * ysize) + welly);
+    let __sgy1_1 = ((*lowest * ysize) + welly);
     let __sgx2_1 = (wellx + (wellwidth * xsize));
-    let __sgy2_1 = (((((*highest) + 1.0f64) * ysize) + welly) - 1.0f64);
+    let __sgy2_1 = ((((*highest + 1.0f64) * ysize) + welly) - 1.0f64);
     __rt.get_sprite(__sgx1_1, __sgy1_1, __sgx2_1, __sgy2_1, &mut __gs.temp);
     __rt.play(&playclearrow);
     flash = 1.0f64;
@@ -211,13 +211,13 @@ fn deletechunk(__rt: &mut Runtime, __gs: &mut GameState, highest: &mut f64, lowe
     let __for_step_flash: f64 = 1.0;
     while (__for_step_flash > 0.0 && flash <= __for_to_flash) || (__for_step_flash < 0.0 && flash >= __for_to_flash) {
         let __spx2 = wellx;
-        let __spy2 = (((*lowest) * ysize) + welly);
+        let __spy2 = ((*lowest * ysize) + welly);
         __rt.put_sprite(&__gs.temp, __spx2, __spy2, qbasic_runtime::PutAction::Preset);
         delaytime = (qb_timer() + 0.02f64);
         while qb_timer() < delaytime {
         }
         let __spx3 = wellx;
-        let __spy3 = (((*lowest) * ysize) + welly);
+        let __spy3 = ((*lowest * ysize) + welly);
         __rt.put_sprite(&__gs.temp, __spx3, __spy3, qbasic_runtime::PutAction::Pset);
         delaytime = (qb_timer() + 0.02f64);
         while qb_timer() < delaytime {
@@ -227,12 +227,12 @@ fn deletechunk(__rt: &mut Runtime, __gs: &mut GameState, highest: &mut f64, lowe
     let __sgx1_4 = wellx;
     let __sgy1_4 = welly;
     let __sgx2_4 = (wellx + (wellwidth * xsize));
-    let __sgy2_4 = (((*lowest) * ysize) + welly);
+    let __sgy2_4 = ((*lowest * ysize) + welly);
     __rt.get_sprite(__sgx1_4, __sgy1_4, __sgx2_4, __sgy2_4, &mut __gs.temp);
     let __spx5 = wellx;
-    let __spy5 = (((((*highest) - (*lowest)) + 1.0f64) * ysize) + welly);
+    let __spy5 = ((((*highest - *lowest) + 1.0f64) * ysize) + welly);
     __rt.put_sprite(&__gs.temp, __spx5, __spy5, qbasic_runtime::PutAction::Pset);
-    __rt.line_box_fill(wellx,welly,(wellx + (wellwidth * xsize)),(welly + ((((*highest) - (*lowest)) + 1.0f64) * ysize)),__gs.wellcolor);
+    __rt.line_box_fill(wellx,welly,(wellx + (wellwidth * xsize)),(welly + (((*highest - *lowest) + 1.0f64) * ysize)),__gs.wellcolor);
 }
 
 fn displaychanges(__rt: &mut Runtime, __gs: &mut GameState) {
@@ -400,13 +400,13 @@ fn drawallshapes(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut y1: f64 = 0.0;
     let mut y2: f64 = 0.0;
 
-    let mut b__x: f64 = Default::default();
-    let mut b__y: f64 = Default::default();
-    let mut b__style: f64 = Default::default();
-    let mut b__rotation: f64 = Default::default();
+    let mut b__x: f64 = 0.0;
+    let mut b__y: f64 = 0.0;
+    let mut b__style: f64 = 0.0;
+    let mut b__rotation: f64 = 0.0;
     __rt.screen(__gs.screenmode);
     if __gs.screenmode == 7.0f64 {
-        let colors: Vec<f64> = vec![Default::default(); (15.0f64+1.0) as usize];
+        let colors: Vec<f64> = vec![0.0; (15.0f64+1.0) as usize];
         __rt.palette_using(&colors[(0) as usize..]);
         i = 1.0f64;
         let __for_to_i: f64 = numstyles;
@@ -432,7 +432,7 @@ fn drawallshapes(__rt: &mut Runtime, __gs: &mut GameState) {
     while (__for_step_shape > 0.0 && shape <= __for_to_shape) || (__for_step_shape < 0.0 && shape >= __for_to_shape) {
         rtside = 4.0f64;
         loop {
-            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[((rtside - 1.0f64)) as usize][(0.0f64) as usize][(shape) as usize] == 1.0f64), qb_from_bool(__gs.blockshape[((rtside - 1.0f64)) as usize][(1.0f64) as usize][(shape) as usize] == 1.0f64))) {
+            if qb_bool(qb_or(qb_from_bool(__gs.blockshape[(rtside - 1.0f64) as usize][(0.0f64) as usize][(shape) as usize] == 1.0f64), qb_from_bool(__gs.blockshape[(rtside - 1.0f64) as usize][(1.0f64) as usize][(shape) as usize] == 1.0f64))) {
                 break; // EXIT DO
             }
             rtside = (rtside - 1.0f64);
@@ -502,9 +502,9 @@ fn drawallshapes(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn drawblock(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, y: &mut f64, fillcolor: &mut f64) {
-    __rt.line_box_fill((((*x) * xsize) + 2.0f64),(((*y) * ysize) + 2.0f64),((((*x) + 1.0f64) * xsize) - 2.0f64),((((*y) + 1.0f64) * ysize) - 2.0f64),(*fillcolor));
-    __rt.line((((*x) * xsize) + 1.0f64),(((*y) * ysize) + 1.0f64),((((*x) + 1.0f64) * xsize) - 1.0f64),(((*y) * ysize) + 1.0f64),((*fillcolor) + 8.0f64));
-    __rt.line((((*x) * xsize) + 1.0f64),(((*y) * ysize) + 1.0f64),(((*x) * xsize) + 1.0f64),((((*y) + 1.0f64) * ysize) - 1.0f64),((*fillcolor) + 8.0f64));
+    __rt.line_box_fill(((*x * xsize) + 2.0f64),((*y * ysize) + 2.0f64),(((*x + 1.0f64) * xsize) - 2.0f64),(((*y + 1.0f64) * ysize) - 2.0f64),*fillcolor);
+    __rt.line(((*x * xsize) + 1.0f64),((*y * ysize) + 1.0f64),(((*x + 1.0f64) * xsize) - 1.0f64),((*y * ysize) + 1.0f64),(*fillcolor + 8.0f64));
+    __rt.line(((*x * xsize) + 1.0f64),((*y * ysize) + 1.0f64),((*x * xsize) + 1.0f64),(((*y + 1.0f64) * ysize) - 1.0f64),(*fillcolor + 8.0f64));
 }
 
 fn drawpattern(__rt: &mut Runtime, __gs: &mut GameState, pattern: &mut f64) {
@@ -518,8 +518,8 @@ fn drawpattern(__rt: &mut Runtime, __gs: &mut GameState, pattern: &mut f64) {
     __rt.cls(0u8);
     x = 1.0f64;
     y = 1.0f64;
-    let mut temp2: Vec<f64> = vec![Default::default(); (215.0f64+1.0) as usize];
-    let __sel = (*pattern);
+    let mut temp2: Vec<f64> = vec![0.0; (215.0f64+1.0) as usize];
+    let __sel = *pattern;
     if __sel == 0.0f64 {
         j = (y + 21.0f64);
         i = x;
@@ -708,7 +708,7 @@ fn performgame(__rt: &mut Runtime, __gs: &mut GameState) {
         a_s = ("").to_string();
         for __er0 in __gs.wellblocks.iter_mut() {
             for __er1 in __er0.iter_mut() {
-                *__er1 = Default::default();
+                *__er1 = 0.0;
             }
         }
         __gs.score = 0.0f64;
@@ -921,19 +921,19 @@ fn putblock(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut
     let mut x1: f64 = 0.0;
     let mut y1: f64 = 0.0;
 
-    let __sel = (*b__rotation);
+    let __sel = *b__rotation;
     if __sel == 0.0f64 {
-        x1 = (*b__x);
-        y1 = (*b__y);
+        x1 = *b__x;
+        y1 = *b__y;
     } else if __sel == 1.0f64 {
-        x1 = ((*b__x) + 1.0f64);
-        y1 = ((*b__y) - 1.0f64);
+        x1 = (*b__x + 1.0f64);
+        y1 = (*b__y - 1.0f64);
     } else if __sel == 2.0f64 {
-        x1 = (*b__x);
-        y1 = (*b__y);
+        x1 = *b__x;
+        y1 = *b__y;
     } else if __sel == 3.0f64 {
-        x1 = ((*b__x) + 1.0f64);
-        y1 = ((*b__y) - 1.0f64);
+        x1 = (*b__x + 1.0f64);
+        y1 = (*b__y - 1.0f64);
     }
     let __spx102 = ((x1 * xsize) + wellx);
     let __spy102 = ((y1 * ysize) + welly);
@@ -973,33 +973,33 @@ fn show(__rt: &mut Runtime, __gs: &mut GameState, b__x: &mut f64, b__y: &mut f64
         let __for_to_j: f64 = ymatrix;
         let __for_step_j: f64 = 1.0;
         while (__for_step_j > 0.0 && j <= __for_to_j) || (__for_step_j < 0.0 && j >= __for_to_j) {
-            if __gs.blockshape[(i) as usize][(j) as usize][((*b__style)) as usize] == 1.0f64 {
-                let __sel = (*b__rotation);
+            if __gs.blockshape[(i) as usize][(j) as usize][*b__style as usize] == 1.0f64 {
+                let __sel = *b__rotation;
                 if __sel == 0.0f64 {
-                    let mut __tmp_num103: f64 = ((*b__x) + i);
-                    let mut __tmp_num104: f64 = ((*b__y) + j);
-                    let __baidx105 = ((*b__style)) as usize;
+                    let mut __tmp_num103: f64 = (*b__x + i);
+                    let mut __tmp_num104: f64 = (*b__y + j);
+                    let __baidx105 = (*b__style) as usize;
                     let mut __tmp_arr106: f64 = __gs.blockcolor[__baidx105];
                     drawblock(__rt, __gs, &mut __tmp_num103, &mut __tmp_num104, &mut __tmp_arr106);
                     __gs.blockcolor[__baidx105] = __tmp_arr106;
                 } else if __sel == 1.0f64 {
-                    let mut __tmp_num107: f64 = (((*b__x) - j) + 2.0f64);
-                    let mut __tmp_num108: f64 = (((*b__y) - 1.0f64) + i);
-                    let __baidx109 = ((*b__style)) as usize;
+                    let mut __tmp_num107: f64 = ((*b__x - j) + 2.0f64);
+                    let mut __tmp_num108: f64 = ((*b__y - 1.0f64) + i);
+                    let __baidx109 = (*b__style) as usize;
                     let mut __tmp_arr110: f64 = __gs.blockcolor[__baidx109];
                     drawblock(__rt, __gs, &mut __tmp_num107, &mut __tmp_num108, &mut __tmp_arr110);
                     __gs.blockcolor[__baidx109] = __tmp_arr110;
                 } else if __sel == 2.0f64 {
-                    let mut __tmp_num111: f64 = (((*b__x) + 3.0f64) - i);
-                    let mut __tmp_num112: f64 = (((*b__y) - j) + 1.0f64);
-                    let __baidx113 = ((*b__style)) as usize;
+                    let mut __tmp_num111: f64 = ((*b__x + 3.0f64) - i);
+                    let mut __tmp_num112: f64 = ((*b__y - j) + 1.0f64);
+                    let __baidx113 = (*b__style) as usize;
                     let mut __tmp_arr114: f64 = __gs.blockcolor[__baidx113];
                     drawblock(__rt, __gs, &mut __tmp_num111, &mut __tmp_num112, &mut __tmp_arr114);
                     __gs.blockcolor[__baidx113] = __tmp_arr114;
                 } else if __sel == 3.0f64 {
-                    let mut __tmp_num115: f64 = (((*b__x) + j) + 1.0f64);
-                    let mut __tmp_num116: f64 = (((*b__y) - i) + 2.0f64);
-                    let __baidx117 = ((*b__style)) as usize;
+                    let mut __tmp_num115: f64 = ((*b__x + j) + 1.0f64);
+                    let mut __tmp_num116: f64 = ((*b__y - i) + 2.0f64);
+                    let __baidx117 = (*b__style) as usize;
                     let mut __tmp_arr118: f64 = __gs.blockcolor[__baidx117];
                     drawblock(__rt, __gs, &mut __tmp_num115, &mut __tmp_num116, &mut __tmp_arr118);
                     __gs.blockcolor[__baidx117] = __tmp_arr118;
@@ -1032,7 +1032,7 @@ fn updatescoring(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn checkfit(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut i: f64 = 0.0;
     let mut j: f64 = 0.0;
     let mut newx: f64 = 0.0;
@@ -1078,7 +1078,7 @@ fn checkfit(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
 }
 
 fn gameover(__rt: &mut Runtime, __gs: &mut GameState) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut a_s: String = String::new();
 
     __rt.play(&playgameover);
@@ -1113,6 +1113,7 @@ fn screenerror(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let keyflays: f64 = 0.0;
@@ -1120,12 +1121,12 @@ fn main() {
     let mut j: f64 = 0.0;
     let mut k: f64 = 0.0;
 
-    __gs.wellblocks = vec![vec![Default::default(); (wellheight+1.0) as usize]; (wellwidth+1.0) as usize];
-    __gs.blockshape = vec![vec![vec![Default::default(); (numstyles+1.0) as usize]; (ymatrix+1.0) as usize]; (xmatrix+1.0) as usize];
-    __gs.temp = vec![Default::default(); (11175.0f64+1.0) as usize];
-    __gs.blockcolor = vec![Default::default(); (numstyles+1.0) as usize];
-    __gs.blockimage = vec![Default::default(); ((((numstyles * 4.0f64) + 3.0f64) * elementsperblock)+1.0) as usize];
-    let mut keyflags: f64 = Default::default();
+    __gs.wellblocks = vec![vec![0.0; (wellheight+1.0) as usize]; (wellwidth+1.0) as usize];
+    __gs.blockshape = vec![vec![vec![0.0; (numstyles+1.0) as usize]; (ymatrix+1.0) as usize]; (xmatrix+1.0) as usize];
+    __gs.temp = vec![0.0; (11175.0f64+1.0) as usize];
+    __gs.blockcolor = vec![0.0; (numstyles+1.0) as usize];
+    __gs.blockimage = vec![0.0; ((((numstyles * 4.0f64) + 3.0f64) * elementsperblock)+1.0) as usize];
+    let mut keyflags: f64 = 0.0;
     __gs.badmode = qb_false;
     __gs.screenmode = 7.0f64;
     __rt.screen(__gs.screenmode);

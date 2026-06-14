@@ -26,23 +26,23 @@ fn qb_box(__rt: &mut Runtime, __gs: &mut GameState, row1: &mut f64, col1: &mut f
     let mut boxwidth: f64 = 0.0;
     let mut a: f64 = 0.0;
 
-    boxwidth = (((*col2) - (*col1)) + 1.0f64);
-    __rt.locate(Some((*row1)), Some((*col1)), None);
+    boxwidth = ((*col2 - *col1) + 1.0f64);
+    __rt.locate(Some(*row1), Some(*col1), None);
     __rt.print(&[qb_str(&("\u{DA}")), qb_str(&(qb_string_s((boxwidth - 2.0f64), "\u{C4}"))), qb_str(&("\u{BF}"))]);
-    a = ((*row1) + 1.0f64);
-    let __for_to_a: f64 = ((*row2) - 1.0f64);
+    a = (*row1 + 1.0f64);
+    let __for_to_a: f64 = (*row2 - 1.0f64);
     let __for_step_a: f64 = 1.0;
     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
-        __rt.locate(Some(a), Some((*col1)), None);
+        __rt.locate(Some(a), Some(*col1), None);
         __rt.print(&[qb_str(&("\u{B3}")), qb_str(&(qb_space((boxwidth - 2.0f64)))), qb_str(&("\u{B3}"))]);
         a += __for_step_a;
     }
-    __rt.locate(Some((*row2)), Some((*col1)), None);
+    __rt.locate(Some(*row2), Some(*col1), None);
     __rt.print(&[qb_str(&("\u{C0}")), qb_str(&(qb_string_s((boxwidth - 2.0f64), "\u{C4}"))), qb_str(&("\u{D9}"))]);
 }
 
 fn center(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, text_s: &mut String) {
-    __rt.locate(Some((*row)), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
+    __rt.locate(Some(*row), Some((41.0f64 - (qb_len(&(text_s)) / 2.0f64))), None);
     __rt.print(&[qb_str(&(text_s))]);
 }
 
@@ -63,11 +63,11 @@ fn editaccounts(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut help_s: Vec<String> = Vec::new();
     help_s.resize((4.0f64+1.0) as usize, String::new());
     let mut col: Vec<f64> = Vec::new();
-    col.resize((4.0f64+1.0) as usize, Default::default());
+    col.resize((4.0f64+1.0) as usize, 0.0);
     let mut vis: Vec<f64> = Vec::new();
-    vis.resize((4.0f64+1.0) as usize, Default::default());
+    vis.resize((4.0f64+1.0) as usize, 0.0);
     let mut max: Vec<f64> = Vec::new();
-    max.resize((4.0f64+1.0) as usize, Default::default());
+    max.resize((4.0f64+1.0) as usize, 0.0);
     let mut edit_s: Vec<Vec<String>> = Vec::new();
     edit_s.resize((19.0f64+1.0) as usize, vec![String::new(); (3.0f64+1.0) as usize]);
     __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
@@ -261,18 +261,18 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
     let mut help_s: Vec<String> = Vec::new();
     help_s.resize((6.0f64+1.0) as usize, String::new());
     let mut col: Vec<f64> = Vec::new();
-    col.resize((6.0f64+1.0) as usize, Default::default());
+    col.resize((6.0f64+1.0) as usize, 0.0);
     let mut vis: Vec<f64> = Vec::new();
-    vis.resize((6.0f64+1.0) as usize, Default::default());
+    vis.resize((6.0f64+1.0) as usize, 0.0);
     let mut max: Vec<f64> = Vec::new();
-    max.resize((6.0f64+1.0) as usize, Default::default());
+    max.resize((6.0f64+1.0) as usize, 0.0);
     let mut currstring_s: Vec<String> = Vec::new();
     currstring_s.resize((3.0f64+1.0) as usize, String::new());
     let mut currfig: Vec<f64> = Vec::new();
-    currfig.resize((5.0f64+1.0) as usize, Default::default());
+    currfig.resize((5.0f64+1.0) as usize, 0.0);
     let mut balance: Vec<f64> = Vec::new();
-    balance.resize((1000.0f64+1.0) as usize, Default::default());
-    let __tmp18 = cvit_s(__rt, __gs, (*item));
+    balance.resize((1000.0f64+1.0) as usize, 0.0);
+    let __tmp18 = cvit_s(__rt, __gs, *item);
     file_s = (format!("{}{}" ,"money.",__tmp18)).to_string();
     __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
     iodate_s = " ".repeat((8.0f64) as usize);
@@ -322,7 +322,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
         valid_s = qb_field_get(&__file_buf22, 0, 11);
         iomaxrecord_s = qb_field_get(&__file_buf22, 11, 5);
         iobalance_s = qb_field_get(&__file_buf22, 16, 8);
-        balance[(a) as usize] = ((balance[((a - 1.0f64)) as usize] + CVD(&(iofig1_s))) - CVD(&(iofig2_s)));
+        balance[(a) as usize] = ((balance[(a - 1.0f64) as usize] + CVD(&(iofig1_s))) - CVD(&(iofig2_s)));
         a = (a + 1.0f64);
     }
     '__gosub_edittranswritebalance: loop {
@@ -369,7 +369,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
     __rt.locate(Some(1.0f64), Some(1.0f64), None);
     __rt.print(&[qb_str(&(qb_space(80.0f64)))]);
     __rt.locate(Some(1.0f64), Some(4.0f64), None);
-    let mut __tmp_s29: String = (__gs.account__title[((*item)) as usize]).to_string();
+    let mut __tmp_s29: String = (__gs.account__title[*item as usize]).to_string();
     let __tmp30 = trim_s(__rt, __gs, &mut __tmp_s29);
     __rt.print(&[qb_str(&(format!("{}{}" ,"Transaction Editor: ",__tmp30)))]);
     __rt.color(__gs.colors[(7.0f64) as usize][(__gs.colorpref) as usize], Some(__gs.colors[(4.0f64) as usize][(__gs.colorpref) as usize]));
@@ -610,7 +610,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                             currrecord = ((currtopline + a) - 1.0f64);
                             if currrecord <= maxrecord {
                                 __rt.locate(Some((4.0f64 + a)), Some(66.0f64), None);
-                                let __pu56 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1.0f64)) as usize])]);
+                                let __pu56 = qb_print_using(&(u3_s), &[QbVal::Num(balance[((currtopline + a) - 1.0f64) as usize])]);
                                 __rt.print(&[__pu56]);
                             }
                             a += __for_step_a;
@@ -688,7 +688,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                             currrecord = ((currtopline + a) - 1.0f64);
                             if currrecord <= maxrecord {
                                 __rt.locate(Some((4.0f64 + a)), Some(66.0f64), None);
-                                let __pu64 = qb_print_using(&(u3_s), &[QbVal::Num(balance[(((currtopline + a) - 1.0f64)) as usize])]);
+                                let __pu64 = qb_print_using(&(u3_s), &[QbVal::Num(balance[((currtopline + a) - 1.0f64) as usize])]);
                                 __rt.print(&[__pu64]);
                             }
                             a += __for_step_a;
@@ -1069,10 +1069,10 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                     qb_field_put(&mut __put_buf113, 11, &iomaxrecord_s, 5);
                     qb_field_put(&mut __put_buf113, 16, &iobalance_s, 8);
                     __rt.write_record((1.0f64) as u8, Some(((a + 2.0f64)) as i64 - 1), &__put_buf113);
-                    balance[((a + 1.0f64)) as usize] = balance[(a) as usize];
+                    balance[(a + 1.0f64) as usize] = balance[(a) as usize];
                     a = (a - 1.0f64);
                 }
-                balance[((currrecord + 1.0f64)) as usize] = balance[(currrecord) as usize];
+                balance[(currrecord + 1.0f64) as usize] = balance[(currrecord) as usize];
                 maxrecord = (maxrecord + 1.0f64);
                 iodate_s = qb_lset(&iodate_s, &("").to_string());
                 ioref_s = qb_lset(&ioref_s, &("").to_string());
@@ -1183,7 +1183,7 @@ fn edittrans(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) {
                         qb_field_put(&mut __put_buf126, 11, &iomaxrecord_s, 5);
                         qb_field_put(&mut __put_buf126, 16, &iobalance_s, 8);
                         __rt.write_record((1.0f64) as u8, Some(((a + 1.0f64)) as i64 - 1), &__put_buf126);
-                        balance[(a) as usize] = ((balance[((a + 1.0f64)) as usize] - currfig[(4.0f64) as usize]) + currfig[(5.0f64) as usize]);
+                        balance[(a) as usize] = ((balance[(a + 1.0f64) as usize] - currfig[(4.0f64) as usize]) + currfig[(5.0f64) as usize]);
                         a = (a + 1.0f64);
                     }
                     valid_s = qb_lset(&valid_s, &("THISISVALID").to_string());
@@ -1371,7 +1371,7 @@ fn fancycls(__rt: &mut Runtime, __gs: &mut GameState, dots: &mut f64, background
     let mut col: f64 = 0.0;
 
     __rt.view_print(Some(2.0f64), Some(24.0f64));
-    __rt.color((*dots), Some((*background)));
+    __rt.color(*dots, Some(*background));
     __rt.cls((2.0f64) as u8);
     a = 95.0f64;
     let __for_to_a: f64 = 1820.0f64;
@@ -1491,10 +1491,10 @@ fn menusystem(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut newchoice: f64 = 0.0;
     let mut a: f64 = 0.0;
 
-    let mut choice_s: Vec<String> = vec![Default::default(); (20.0f64+1.0) as usize];
-    let mut menurow: Vec<f64> = vec![Default::default(); (20.0f64+1.0) as usize];
-    let mut menucol: Vec<f64> = vec![Default::default(); (20.0f64+1.0) as usize];
-    let mut help_s: Vec<String> = vec![Default::default(); (20.0f64+1.0) as usize];
+    let mut choice_s: Vec<String> = vec![String::new(); (20.0f64+1.0) as usize];
+    let mut menurow: Vec<f64> = vec![0.0; (20.0f64+1.0) as usize];
+    let mut menucol: Vec<f64> = vec![0.0; (20.0f64+1.0) as usize];
+    let mut help_s: Vec<String> = vec![String::new(); (20.0f64+1.0) as usize];
     __rt.locate(None, None, Some(0.0f64));
     choice = 1.0f64;
     finished = qb_false;
@@ -1616,13 +1616,13 @@ fn menusystem(__rt: &mut Runtime, __gs: &mut GameState) {
                     let __for_step_a: f64 = 1.0;
                     while (__for_step_a > 0.0 && a <= __for_to_a) || (__for_step_a < 0.0 && a >= __for_to_a) {
                         if ({ let mut __fn_s0: String = (__gs.account__title[(a) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) }).as_str() == "" {
-                            choice_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". ------------------- ")).to_string();
+                            choice_s[(a + 1.0f64) as usize] = (format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". ------------------- ")).to_string();
                         } else {
-                            choice_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". "),__gs.account__title[(a) as usize])).to_string();
+                            choice_s[(a + 1.0f64) as usize] = (format!("{}{}" ,format!("{}{}" ,qb_right(&(qb_str_fn(a)), 2.0f64),". "),__gs.account__title[(a) as usize])).to_string();
                         }
-                        menurow[((a + 1.0f64)) as usize] = (a + 3.0f64);
-                        menucol[((a + 1.0f64)) as usize] = 32.0f64;
-                        help_s[((a + 1.0f64)) as usize] = (format!("{}{}" ,format!("{}{}" ,"Print ",qb_rtrim(&(__gs.account__title[(a) as usize])))," transaction summary")).to_string();
+                        menurow[(a + 1.0f64) as usize] = (a + 3.0f64);
+                        menucol[(a + 1.0f64) as usize] = 32.0f64;
+                        help_s[(a + 1.0f64) as usize] = (format!("{}{}" ,format!("{}{}" ,"Print ",qb_rtrim(&(__gs.account__title[(a) as usize])))," transaction summary")).to_string();
                         a += __for_step_a;
                     }
                     subchoice = menu(__rt, __gs, 1.0f64, 20.0f64, &mut choice_s, &mut menurow, &mut menucol, &mut help_s, qb_false);
@@ -1707,8 +1707,8 @@ fn networthreport(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut u3_s: String = String::new();
     let mut u4_s: String = String::new();
 
-    let mut assetindex: Vec<f64> = vec![Default::default(); (19.0f64+1.0) as usize];
-    let mut liabilityindex: Vec<f64> = vec![Default::default(); (19.0f64+1.0) as usize];
+    let mut assetindex: Vec<f64> = vec![0.0; (19.0f64+1.0) as usize];
+    let mut liabilityindex: Vec<f64> = vec![0.0; (19.0f64+1.0) as usize];
     maxasset = 0.0f64;
     maxliability = 0.0f64;
     a = 1.0f64;
@@ -2119,7 +2119,7 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
             lcenter(__rt, __gs, &mut __tmp_str280);
             __rt.println(&[]);
             __rt.println(&[]);
-            let mut __tmp_str281 = (format!("{}{}" ,"Transaction summary: ",{ let mut __fn_s0: String = (__gs.account__title[((*item)) as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) })).to_string();
+            let mut __tmp_str281 = (format!("{}{}" ,"Transaction summary: ",{ let mut __fn_s0: String = (__gs.account__title[*item as usize]).to_string(); trim_s(__rt, __gs, &mut __fn_s0) })).to_string();
             lcenter(__rt, __gs, &mut __tmp_str281);
             lcenter(__rt, __gs, &mut date_s);
             __rt.println(&[]);
@@ -2131,7 +2131,7 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
             u2_s = ("###,###.##").to_string();
             u3_s = ("###,###,###.##").to_string();
             u4_s = ("          ").to_string();
-            let __tmp282 = cvit_s(__rt, __gs, (*item));
+            let __tmp282 = cvit_s(__rt, __gs, *item);
             file_s = (format!("{}{}" ,"money.",__tmp282)).to_string();
             __rt.open_random(&(file_s).to_string(), (1.0f64) as u8, (84.0f64) as usize);
             if __rt.error_pending { __rt.error_pending = false; errortrap(__rt, __gs); }
@@ -2189,25 +2189,25 @@ fn transactionsummary(__rt: &mut Runtime, __gs: &mut GameState, item: &mut f64) 
 }
 
 fn cvdt_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
-    let mut __fn_ret: String = Default::default();
+    let mut __fn_ret: String = String::new();
     __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn cvit_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
-    let mut __fn_ret: String = Default::default();
+    let mut __fn_ret: String = String::new();
     __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn cvst_s(__rt: &mut Runtime, __gs: &mut GameState, mut x: f64) -> String {
-    let mut __fn_ret: String = Default::default();
+    let mut __fn_ret: String = String::new();
     __fn_ret = (qb_right(&(qb_str_fn(x)), (qb_len(&(qb_str_fn(x))) - 1.0f64))).to_string();
     __fn_ret
 }
 
 fn getstring_s(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: f64, start_s: &mut String, end_s: &mut String, mut vis: f64, mut max: f64) -> String {
-    let mut __fn_ret: String = Default::default();
+    let mut __fn_ret: String = String::new();
     let mut curr_s: String = String::new();
     let mut finished: f64 = 0.0;
     let mut kbd_s: String = String::new();
@@ -2272,7 +2272,7 @@ fn getstring_s(__rt: &mut Runtime, __gs: &mut GameState, mut row: f64, mut col: 
 }
 
 fn menu(__rt: &mut Runtime, __gs: &mut GameState, mut currchoicex: f64, mut maxchoice: f64, choice_s: &mut Vec<String>, itemrow: &mut Vec<f64>, itemcol: &mut Vec<f64>, help_s: &mut Vec<String>, mut barmode: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut currchoice: f64 = 0.0;
     let mut a: f64 = 0.0;
     let mut finished: f64 = 0.0;
@@ -2415,7 +2415,7 @@ fn menu(__rt: &mut Runtime, __gs: &mut GameState, mut currchoicex: f64, mut maxc
 }
 
 fn trim_s(__rt: &mut Runtime, __gs: &mut GameState, x_s: &mut String) -> String {
-    let mut __fn_ret: String = Default::default();
+    let mut __fn_ret: String = String::new();
     let mut lastchar: f64 = 0.0;
     let mut a: f64 = 0.0;
     let mut y_s: String = String::new();
@@ -2479,6 +2479,7 @@ fn errortrap(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut keyflags: f64 = 0.0;
@@ -2486,9 +2487,9 @@ fn main() {
     __gs.account__title = vec![String::new(); (19.0f64+1.0) as usize];
     __gs.account__atype = vec![String::new(); (19.0f64+1.0) as usize];
     __gs.account__desc = vec![String::new(); (19.0f64+1.0) as usize];
-    __gs.colors = vec![vec![Default::default(); (4.0f64+1.0) as usize]; (20.0f64+1.0) as usize];
-    __gs.scrollupasm = vec![Default::default(); (7.0f64+1.0) as usize];
-    __gs.scrolldownasm = vec![Default::default(); (7.0f64+1.0) as usize];
+    __gs.colors = vec![vec![0.0; (4.0f64+1.0) as usize]; (20.0f64+1.0) as usize];
+    __gs.scrollupasm = vec![0.0; (7.0f64+1.0) as usize];
+    __gs.scrolldownasm = vec![0.0; (7.0f64+1.0) as usize];
     keyflags = __rt.qb_peek(1047.0f64);
     __rt.qb_poke(1047.0f64, 0.0f64);
     __rt.open_seq(&("money.dat").to_string(), "input", (1.0f64) as u8);

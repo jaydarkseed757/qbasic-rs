@@ -14,12 +14,9 @@ fn sievelist(__rt: &mut Runtime, __gs: &mut GameState, limit: &mut f64) {
     let mut count: f64 = 0.0;
     let mut col: f64 = 0.0;
 
-    let mut sieve: Vec<f64> = vec![Default::default(); (32000.0f64+1.0) as usize];
-    let mut i: f64 = Default::default();
-    let mut j: f64 = Default::default();
-    let mut count: f64 = Default::default();
+    let mut sieve: Vec<f64> = vec![0.0; (32000.0f64+1.0) as usize];
     i = 0.0f64;
-    let __for_to_i: f64 = (*limit);
+    let __for_to_i: f64 = *limit;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         sieve[(i) as usize] = 0.0f64;
@@ -28,10 +25,10 @@ fn sievelist(__rt: &mut Runtime, __gs: &mut GameState, limit: &mut f64) {
     sieve[(0.0f64) as usize] = 1.0f64;
     sieve[(1.0f64) as usize] = 1.0f64;
     i = 2.0f64;
-    while (i * i) <= (*limit) {
+    while (i * i) <= *limit {
         if sieve[(i) as usize] == 0.0f64 {
             j = (i * i);
-            while j <= (*limit) {
+            while j <= *limit {
                 sieve[(j) as usize] = 1.0f64;
                 j = (j + i);
             }
@@ -39,12 +36,12 @@ fn sievelist(__rt: &mut Runtime, __gs: &mut GameState, limit: &mut f64) {
         i = (i + 1.0f64);
     }
     __rt.println(&[]);
-    __rt.println(&[qb_str(&("Primes up to")), qb_print_num((*limit)), qb_str(&(":"))]);
+    __rt.println(&[qb_str(&("Primes up to")), qb_print_num(*limit), qb_str(&(":"))]);
     __rt.println(&[qb_str(&(qb_string_s(33.0f64, "-")))]);
     count = 0.0f64;
     col = 0.0f64;
     i = 2.0f64;
-    let __for_to_i: f64 = (*limit);
+    let __for_to_i: f64 = *limit;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         if sieve[(i) as usize] == 0.0f64 {
@@ -71,12 +68,8 @@ fn findnth(__rt: &mut Runtime, __gs: &mut GameState, nth: &mut f64) {
     let mut i: f64 = 0.0;
     let mut isprime: f64 = 0.0;
 
-    let mut candidate: f64 = Default::default();
-    let mut count: f64 = Default::default();
-    let mut i: f64 = Default::default();
-    let mut isprime: f64 = Default::default();
     __rt.println(&[]);
-    __rt.println(&[qb_str(&("Searching for prime #")), qb_print_num((*nth)), qb_str(&("..."))]);
+    __rt.println(&[qb_str(&("Searching for prime #")), qb_print_num(*nth), qb_str(&("..."))]);
     count = 0.0f64;
     candidate = 2.0f64;
     loop {
@@ -97,9 +90,9 @@ fn findnth(__rt: &mut Runtime, __gs: &mut GameState, nth: &mut f64) {
         }
         if qb_bool(isprime) {
             count = (count + 1.0f64);
-            if count == (*nth) {
+            if count == *nth {
                 __rt.println(&[]);
-                __rt.println(&[qb_str(&("Prime #")), qb_print_num((*nth)), qb_str(&("is:")), qb_print_num(candidate)]);
+                __rt.println(&[qb_str(&("Prime #")), qb_print_num(*nth), qb_str(&("is:")), qb_print_num(candidate)]);
                 break; // EXIT DO
             }
         }
@@ -114,6 +107,7 @@ fn findnth(__rt: &mut Runtime, __gs: &mut GameState, nth: &mut f64) {
 fn main() {
     let mut __rt = Runtime::new();
     __rt.set_fullspeed(true);
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut choice_s: String = String::new();

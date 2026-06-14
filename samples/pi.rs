@@ -20,37 +20,36 @@ fn arctan(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, cells: &mut f64
     let mut x2: f64 = 0.0;
     let mut allzero: f64 = 0.0;
 
-    let mut num: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let mut term: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let mut tmp: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let mut i: f64 = Default::default();
+    let mut num: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
+    let mut term: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
+    let mut tmp: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         arr[(i) as usize] = 0.0f64;
         i += __for_step_i;
     }
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         num[(i) as usize] = 0.0f64;
         i += __for_step_i;
     }
-    num[(0.0f64) as usize] = qb_idiv(base, (*x));
-    r = qb_mod(base, (*x));
+    num[(0.0f64) as usize] = qb_idiv(base, *x);
+    r = qb_mod(base, *x);
     i = 1.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         val = (r * base);
-        num[(i) as usize] = qb_idiv(val, (*x));
-        r = qb_mod(val, (*x));
+        num[(i) as usize] = qb_idiv(val, *x);
+        r = qb_mod(val, *x);
         i += __for_step_i;
     }
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         term[(i) as usize] = num[(i) as usize];
@@ -59,12 +58,12 @@ fn arctan(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, cells: &mut f64
     addarr(__rt, __gs, cells, &mut *arr, &mut term);
     denom = 1.0f64;
     sign = (-1.0f64);
-    x2 = ((*x) * (*x));
+    x2 = (*x * *x);
     loop {
         scalediv(__rt, __gs, &mut x2, cells, &mut term);
         denom = (denom + 2.0f64);
         i = 0.0f64;
-        let __for_to_i: f64 = (*cells);
+        let __for_to_i: f64 = *cells;
         let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             tmp[(i) as usize] = term[(i) as usize];
@@ -73,7 +72,7 @@ fn arctan(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, cells: &mut f64
         scalediv(__rt, __gs, &mut denom, cells, &mut tmp);
         allzero = (-1.0f64);
         i = 0.0f64;
-        let __for_to_i: f64 = (*cells);
+        let __for_to_i: f64 = *cells;
         let __for_step_i: f64 = 1.0;
         while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
             if tmp[(i) as usize] != 0.0f64 {
@@ -98,27 +97,26 @@ fn arctan(__rt: &mut Runtime, __gs: &mut GameState, x: &mut f64, cells: &mut f64
 fn subarr(__rt: &mut Runtime, __gs: &mut GameState, cells: &mut f64, a: &mut Vec<f64>, b: &mut Vec<f64>, out: &mut Vec<f64>) {
     let mut i: f64 = 0.0;
 
-    let mut i: f64 = Default::default();
-    let mut tmp: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
+    let mut tmp: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         tmp[(i) as usize] = (a[(i) as usize] - b[(i) as usize]);
         i += __for_step_i;
     }
-    i = (*cells);
+    i = *cells;
     let __for_to_i: f64 = 1.0f64;
     let __for_step_i: f64 = (-1.0f64);
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         if tmp[(i) as usize] < 0.0f64 {
             tmp[(i) as usize] = (tmp[(i) as usize] + base);
-            tmp[((i - 1.0f64)) as usize] = (tmp[((i - 1.0f64)) as usize] - 1.0f64);
+            tmp[(i - 1.0f64) as usize] = (tmp[(i - 1.0f64) as usize] - 1.0f64);
         }
         i += __for_step_i;
     }
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         out[(i) as usize] = tmp[(i) as usize];
@@ -129,20 +127,19 @@ fn subarr(__rt: &mut Runtime, __gs: &mut GameState, cells: &mut f64, a: &mut Vec
 fn addarr(__rt: &mut Runtime, __gs: &mut GameState, cells: &mut f64, arr: &mut Vec<f64>, b: &mut Vec<f64>) {
     let mut i: f64 = 0.0;
 
-    let mut i: f64 = Default::default();
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         arr[(i) as usize] = (arr[(i) as usize] + b[(i) as usize]);
         i += __for_step_i;
     }
-    i = (*cells);
+    i = *cells;
     let __for_to_i: f64 = 1.0f64;
     let __for_step_i: f64 = (-1.0f64);
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         if arr[(i) as usize] >= base {
-            arr[((i - 1.0f64)) as usize] = (arr[((i - 1.0f64)) as usize] + qb_idiv(arr[(i) as usize], base));
+            arr[(i - 1.0f64) as usize] = (arr[(i - 1.0f64) as usize] + qb_idiv(arr[(i) as usize], base));
             arr[(i) as usize] = qb_mod(arr[(i) as usize], base);
         }
         i += __for_step_i;
@@ -152,20 +149,19 @@ fn addarr(__rt: &mut Runtime, __gs: &mut GameState, cells: &mut f64, arr: &mut V
 fn scalemul(__rt: &mut Runtime, __gs: &mut GameState, n: &mut f64, cells: &mut f64, arr: &mut Vec<f64>) {
     let mut i: f64 = 0.0;
 
-    let mut i: f64 = Default::default();
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        arr[(i) as usize] = (arr[(i) as usize] * (*n));
+        arr[(i) as usize] = (arr[(i) as usize] * *n);
         i += __for_step_i;
     }
-    i = (*cells);
+    i = *cells;
     let __for_to_i: f64 = 1.0f64;
     let __for_step_i: f64 = (-1.0f64);
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         if arr[(i) as usize] >= base {
-            arr[((i - 1.0f64)) as usize] = (arr[((i - 1.0f64)) as usize] + qb_idiv(arr[(i) as usize], base));
+            arr[(i - 1.0f64) as usize] = (arr[(i - 1.0f64) as usize] + qb_idiv(arr[(i) as usize], base));
             arr[(i) as usize] = qb_mod(arr[(i) as usize], base);
         }
         i += __for_step_i;
@@ -177,15 +173,14 @@ fn scalediv(__rt: &mut Runtime, __gs: &mut GameState, n: &mut f64, cells: &mut f
     let mut r: f64 = 0.0;
     let mut val: f64 = 0.0;
 
-    let mut i: f64 = Default::default();
     r = 0.0f64;
     i = 0.0f64;
-    let __for_to_i: f64 = (*cells);
+    let __for_to_i: f64 = *cells;
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
         val = (arr[(i) as usize] + (r * base));
-        arr[(i) as usize] = qb_idiv(val, (*n));
-        r = qb_mod(val, (*n));
+        arr[(i) as usize] = qb_idiv(val, *n);
+        r = qb_mod(val, *n);
         i += __for_step_i;
     }
 }
@@ -195,9 +190,8 @@ fn printpi(__rt: &mut Runtime, __gs: &mut GameState, ndig: &mut f64, cells: &mut
     let mut digitsleft: f64 = 0.0;
     let mut chunk_s: String = String::new();
 
-    let mut i: f64 = Default::default();
     __rt.print(&[qb_str(&("pi = ")), qb_str(&(qb_ltrim(&(qb_str_fn(qb_idiv(arr[(0.0f64) as usize], base)))))), qb_str(&("."))]);
-    digitsleft = (*ndig);
+    digitsleft = *ndig;
     chunk_s = (qb_right(&(format!("{}{}" ,"0000",qb_ltrim(&(qb_str_fn(qb_mod(arr[(0.0f64) as usize], base)))))), 4.0f64)).to_string();
     if digitsleft >= 4.0f64 {
         __rt.print(&[qb_str(&(chunk_s))]);
@@ -207,7 +201,7 @@ fn printpi(__rt: &mut Runtime, __gs: &mut GameState, ndig: &mut f64, cells: &mut
         digitsleft = 0.0f64;
     }
     i = 1.0f64;
-    while qb_bool(qb_and(qb_from_bool(digitsleft > 0.0f64), qb_from_bool(i <= (*cells)))) {
+    while qb_bool(qb_and(qb_from_bool(digitsleft > 0.0f64), qb_from_bool(i <= *cells))) {
         chunk_s = (qb_right(&(format!("{}{}" ,"0000",qb_ltrim(&(qb_str_fn(arr[(i) as usize]))))), 4.0f64)).to_string();
         if digitsleft >= 4.0f64 {
             __rt.print(&[qb_str(&(chunk_s))]);
@@ -224,16 +218,17 @@ fn printpi(__rt: &mut Runtime, __gs: &mut GameState, ndig: &mut f64, cells: &mut
 fn main() {
     let mut __rt = Runtime::new();
     __rt.set_fullspeed(true);
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut ans_s: String = String::new();
     let mut ndig: f64 = 0.0;
     let mut cells: f64 = 0.0;
 
-    let mut a: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let mut b: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let mut c: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
-    let t: Vec<f64> = vec![Default::default(); (maxdig+1.0) as usize];
+    let mut a: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
+    let mut b: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
+    let mut c: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
+    let t: Vec<f64> = vec![0.0; (maxdig+1.0) as usize];
     __rt.cls(0u8);
     __rt.println(&[qb_str(&("================================="))]);
     __rt.println(&[qb_str(&("   QBasic Pi Calculator"))]);

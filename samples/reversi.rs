@@ -86,21 +86,21 @@ fn computermove(__rt: &mut Runtime, __gs: &mut GameState) {
                         if __gs.gg__player[(1.0f64) as usize][(col) as usize] != __gs.comp {
                             value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col - 1.0f64)) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col - 1.0f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col - 1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col - 1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col + 1.0f64)) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][((col + 1.0f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col + 1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(1.0f64) as usize][(col + 1.0f64) as usize] == __gs.human)));
                         }
                     } else if __sel == 7.0f64 {
                         if __gs.gg__player[(8.0f64) as usize][(col) as usize] != __gs.comp {
                             value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col - 1.0f64)) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col - 1.0f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col > 1.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col - 1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col - 1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col + 1.0f64)) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][((col + 1.0f64)) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(col < 8.0f64), qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col + 1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(8.0f64) as usize][(col + 1.0f64) as usize] == __gs.human)));
                         }
                     } else if __sel == 8.0f64 {
                         if col < 5.0f64 {
@@ -122,21 +122,21 @@ fn computermove(__rt: &mut Runtime, __gs: &mut GameState) {
                         if __gs.gg__player[(row) as usize][(1.0f64) as usize] != __gs.comp {
                             value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row) as usize][(1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(1.0f64) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(1.0f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[(row - 1.0f64) as usize][(1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row - 1.0f64) as usize][(1.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(1.0f64) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(1.0f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[(row + 1.0f64) as usize][(1.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row + 1.0f64) as usize][(1.0f64) as usize] == __gs.human)));
                         }
                     } else if __sel == 7.0f64 {
                         if __gs.gg__player[(row) as usize][(8.0f64) as usize] != __gs.comp {
                             value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row) as usize][(8.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(8.0f64) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row - 1.0f64)) as usize][(8.0f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row > 1.0f64), qb_from_bool(__gs.gg__player[(row - 1.0f64) as usize][(8.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row - 1.0f64) as usize][(8.0f64) as usize] == __gs.human)));
                         }
-                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(8.0f64) as usize] != __gs.comp))) {
-                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[((row + 1.0f64)) as usize][(8.0f64) as usize] == __gs.human)));
+                        if qb_bool(qb_and(qb_from_bool(row < 8.0f64), qb_from_bool(__gs.gg__player[(row + 1.0f64) as usize][(8.0f64) as usize] != __gs.comp))) {
+                            value = (value + (5.0f64 * qb_from_bool(__gs.gg__player[(row + 1.0f64) as usize][(8.0f64) as usize] == __gs.human)));
                         }
                     } else if __sel == 8.0f64 {
                         if row < 5.0f64 {
@@ -167,7 +167,7 @@ fn displayhelp(__rt: &mut Runtime, __gs: &mut GameState) {
     let mut i: f64 = 0.0;
     let mut a_s__sc: String = String::new();
 
-    let mut a_s: Vec<String> = vec![Default::default(); (18.0f64+1.0) as usize];
+    let mut a_s: Vec<String> = vec![String::new(); (18.0f64+1.0) as usize];
     a_s[(1.0f64) as usize] = ("The object of Reversi is to finish the game with more of your red").to_string();
     a_s[(2.0f64) as usize] = ("circles on the board than the computer has of blue (Monochrome").to_string();
     a_s[(3.0f64) as usize] = ("monitors will show red as white and blue as black).").to_string();
@@ -238,17 +238,17 @@ fn displaymsg(__rt: &mut Runtime, __gs: &mut GameState, a_s: &mut String) {
 fn drawcursor(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64) {
     let mut lc: f64 = 0.0;
 
-    if __gs.gg__ntake[((*row)) as usize][((*col)) as usize] > 0.0f64 {
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, __gs.human);
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14.0f64, __gs.human);
+    if __gs.gg__ntake[*row as usize][*col as usize] > 0.0f64 {
+        __rt.circle(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], 15.0f64, __gs.human);
+        __rt.circle(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], 14.0f64, __gs.human);
     } else {
         lc = 0.0f64;
-        if __gs.gg__player[((*row)) as usize][((*col)) as usize] == 0.0f64 {
+        if __gs.gg__player[*row as usize][*col as usize] == 0.0f64 {
             lc = 7.0f64;
         }
-        __rt.line(__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15.0f64),__gs.gg__cx[((*row)) as usize][((*col)) as usize],(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15.0f64),lc);
-        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1.0f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] - 15.0f64),(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 1.0f64),(__gs.gg__cy[((*row)) as usize][((*col)) as usize] + 15.0f64),lc);
-        __rt.line((__gs.gg__cx[((*row)) as usize][((*col)) as usize] + 15.0f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],(__gs.gg__cx[((*row)) as usize][((*col)) as usize] - 15.0f64),__gs.gg__cy[((*row)) as usize][((*col)) as usize],lc);
+        __rt.line(__gs.gg__cx[*row as usize][*col as usize],(__gs.gg__cy[*row as usize][*col as usize] - 15.0f64),__gs.gg__cx[*row as usize][*col as usize],(__gs.gg__cy[*row as usize][*col as usize] + 15.0f64),lc);
+        __rt.line((__gs.gg__cx[*row as usize][*col as usize] - 1.0f64),(__gs.gg__cy[*row as usize][*col as usize] - 15.0f64),(__gs.gg__cx[*row as usize][*col as usize] - 1.0f64),(__gs.gg__cy[*row as usize][*col as usize] + 15.0f64),lc);
+        __rt.line((__gs.gg__cx[*row as usize][*col as usize] + 15.0f64),__gs.gg__cy[*row as usize][*col as usize],(__gs.gg__cx[*row as usize][*col as usize] - 15.0f64),__gs.gg__cy[*row as usize][*col as usize],lc);
     }
 }
 
@@ -336,17 +336,17 @@ fn drawgameboard(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn drawgamepiece(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, gpcolor: &mut f64) {
     if __gs.gboard == 85.0f64 {
-        __rt.line_box_fill((232.0f64 + ((*col) * 40.0f64)),(33.0f64 + ((*row) * 40.0f64)),(267.0f64 + ((*col) * 40.0f64)),(67.0f64 + ((*row) * 40.0f64)),7.0f64);
-        if (*gpcolor) != __gs.gboard {
-            __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, 0.0f64);
-            __rt.paint(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], (*gpcolor), 0.0f64);
+        __rt.line_box_fill((232.0f64 + (*col * 40.0f64)),(33.0f64 + (*row * 40.0f64)),(267.0f64 + (*col * 40.0f64)),(67.0f64 + (*row * 40.0f64)),7.0f64);
+        if *gpcolor != __gs.gboard {
+            __rt.circle(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], 15.0f64, 0.0f64);
+            __rt.paint(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], *gpcolor, 0.0f64);
         }
         let __pat11: String = qb_chr(85.0f64);
-        __rt.paint_pattern((235.0f64 + ((*col) * 40.0f64)), (35.0f64 + ((*row) * 40.0f64)), &__pat11, 0.0f64);
+        __rt.paint_pattern((235.0f64 + (*col * 40.0f64)), (35.0f64 + (*row * 40.0f64)), &__pat11, 0.0f64);
     } else {
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 15.0f64, (*gpcolor));
-        __rt.circle(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], 14.0f64, (*gpcolor));
-        __rt.paint(__gs.gg__cx[((*row)) as usize][((*col)) as usize], __gs.gg__cy[((*row)) as usize][((*col)) as usize], (*gpcolor), (*gpcolor));
+        __rt.circle(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], 15.0f64, *gpcolor);
+        __rt.circle(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], 14.0f64, *gpcolor);
+        __rt.paint(__gs.gg__cx[*row as usize][*col as usize], __gs.gg__cy[*row as usize][*col as usize], *gpcolor, *gpcolor);
     }
 }
 
@@ -447,90 +447,90 @@ fn initgame(__rt: &mut Runtime, __gs: &mut GameState) {
 fn takeblocks(__rt: &mut Runtime, __gs: &mut GameState, row: &mut f64, col: &mut f64, player: &mut f64) {
     let mut i: f64 = 0.0;
 
-    __gs.gg__player[((*row)) as usize][((*col)) as usize] = (*player);
+    __gs.gg__player[*row as usize][*col as usize] = *player;
     drawgamepiece(__rt, __gs, row, col, player);
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(1.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(1.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[((*row)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num16: f64 = ((*col) - i);
+        __gs.gg__player[*row as usize][(*col - i) as usize] = *player;
+        let mut __tmp_num16: f64 = (*col - i);
         drawgamepiece(__rt, __gs, row, &mut __tmp_num16, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(2.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(2.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[((*row)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num17: f64 = ((*col) + i);
+        __gs.gg__player[*row as usize][(*col + i) as usize] = *player;
+        let mut __tmp_num17: f64 = (*col + i);
         drawgamepiece(__rt, __gs, row, &mut __tmp_num17, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(3.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(3.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) - i)) as usize][((*col)) as usize] = (*player);
-        let mut __tmp_num18: f64 = ((*row) - i);
+        __gs.gg__player[(*row - i) as usize][*col as usize] = *player;
+        let mut __tmp_num18: f64 = (*row - i);
         drawgamepiece(__rt, __gs, &mut __tmp_num18, col, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(4.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(4.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) + i)) as usize][((*col)) as usize] = (*player);
-        let mut __tmp_num19: f64 = ((*row) + i);
+        __gs.gg__player[(*row + i) as usize][*col as usize] = *player;
+        let mut __tmp_num19: f64 = (*row + i);
         drawgamepiece(__rt, __gs, &mut __tmp_num19, col, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(5.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(5.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) - i)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num20: f64 = ((*row) - i);
-        let mut __tmp_num21: f64 = ((*col) - i);
+        __gs.gg__player[(*row - i) as usize][(*col - i) as usize] = *player;
+        let mut __tmp_num20: f64 = (*row - i);
+        let mut __tmp_num21: f64 = (*col - i);
         drawgamepiece(__rt, __gs, &mut __tmp_num20, &mut __tmp_num21, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(6.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(6.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) + i)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num22: f64 = ((*row) + i);
-        let mut __tmp_num23: f64 = ((*col) + i);
+        __gs.gg__player[(*row + i) as usize][(*col + i) as usize] = *player;
+        let mut __tmp_num22: f64 = (*row + i);
+        let mut __tmp_num23: f64 = (*col + i);
         drawgamepiece(__rt, __gs, &mut __tmp_num22, &mut __tmp_num23, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(7.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(7.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) - i)) as usize][(((*col) + i)) as usize] = (*player);
-        let mut __tmp_num24: f64 = ((*row) - i);
-        let mut __tmp_num25: f64 = ((*col) + i);
+        __gs.gg__player[(*row - i) as usize][(*col + i) as usize] = *player;
+        let mut __tmp_num24: f64 = (*row - i);
+        let mut __tmp_num25: f64 = (*col + i);
         drawgamepiece(__rt, __gs, &mut __tmp_num24, &mut __tmp_num25, player);
         i += __for_step_i;
     }
     i = 1.0f64;
-    let __for_to_i: f64 = __gs.gp[((*row)) as usize][((*col)) as usize][(8.0f64) as usize];
+    let __for_to_i: f64 = __gs.gp[*row as usize][*col as usize][(8.0f64) as usize];
     let __for_step_i: f64 = 1.0;
     while (__for_step_i > 0.0 && i <= __for_to_i) || (__for_step_i < 0.0 && i >= __for_to_i) {
-        __gs.gg__player[(((*row) + i)) as usize][(((*col) - i)) as usize] = (*player);
-        let mut __tmp_num26: f64 = ((*row) + i);
-        let mut __tmp_num27: f64 = ((*col) - i);
+        __gs.gg__player[(*row + i) as usize][(*col - i) as usize] = *player;
+        let mut __tmp_num26: f64 = (*row + i);
+        let mut __tmp_num27: f64 = (*col - i);
         drawgamepiece(__rt, __gs, &mut __tmp_num26, &mut __tmp_num27, player);
         i += __for_step_i;
     }
-    if (*player) == __gs.human {
-        __gs.gs__rscore = ((__gs.gs__rscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1.0f64);
-        __gs.gs__bscore = (__gs.gs__bscore - __gs.gg__ntake[((*row)) as usize][((*col)) as usize]);
+    if *player == __gs.human {
+        __gs.gs__rscore = ((__gs.gs__rscore + __gs.gg__ntake[*row as usize][*col as usize]) + 1.0f64);
+        __gs.gs__bscore = (__gs.gs__bscore - __gs.gg__ntake[*row as usize][*col as usize]);
     } else {
-        __gs.gs__bscore = ((__gs.gs__bscore + __gs.gg__ntake[((*row)) as usize][((*col)) as usize]) + 1.0f64);
-        __gs.gs__rscore = (__gs.gs__rscore - __gs.gg__ntake[((*row)) as usize][((*col)) as usize]);
+        __gs.gs__bscore = ((__gs.gs__bscore + __gs.gg__ntake[*row as usize][*col as usize]) + 1.0f64);
+        __gs.gs__rscore = (__gs.gs__rscore - __gs.gg__ntake[*row as usize][*col as usize]);
     }
     __rt.locate(Some(17.0f64), Some(7.0f64), None);
     __rt.println(&[qb_str(&("Your Score:      ")), qb_print_num(__gs.gs__rscore)]);
@@ -632,7 +632,7 @@ fn usermove(__rt: &mut Runtime, __gs: &mut GameState) {
 }
 
 fn checkpath(__rt: &mut Runtime, __gs: &mut GameState, mut i: f64, mut ibound: f64, mut istep: f64, mut j: f64, mut jbound: f64, mut jstep: f64, mut opponent: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut done: f64 = 0.0;
     let mut count: f64 = 0.0;
 
@@ -658,7 +658,7 @@ fn checkpath(__rt: &mut Runtime, __gs: &mut GameState, mut i: f64, mut ibound: f
 }
 
 fn validmove(__rt: &mut Runtime, __gs: &mut GameState, mut opponent: f64) -> f64 {
-    let mut __fn_ret: f64 = Default::default();
+    let mut __fn_ret: f64 = 0.0;
     let mut row: f64 = 0.0;
     let mut col: f64 = 0.0;
 
@@ -666,7 +666,7 @@ fn validmove(__rt: &mut Runtime, __gs: &mut GameState, mut opponent: f64) -> f64
     for __er0 in __gs.gp.iter_mut() {
         for __er1 in __er0.iter_mut() {
             for __er2 in __er1.iter_mut() {
-                *__er2 = Default::default();
+                *__er2 = 0.0;
             }
         }
     }
@@ -731,6 +731,7 @@ fn badmode(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut a_s: String = String::new();
@@ -739,8 +740,8 @@ fn main() {
     __gs.gg__ntake = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
     __gs.gg__cx = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
     __gs.gg__cy = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
-    __gs.gp = vec![vec![vec![Default::default(); (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
-    __gs.gw = vec![vec![Default::default(); (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gp = vec![vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
+    __gs.gw = vec![vec![0.0; (8.0f64+1.0) as usize]; (8.0f64+1.0) as usize];
     loop {
         __gs.smode = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();
         __gs.vmode = qb_true;

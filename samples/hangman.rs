@@ -39,6 +39,7 @@ fn drawhangman(__rt: &mut Runtime, __gs: &mut GameState) {
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __gs = GameState::default();
 
     let mut word_s: String = String::new();
@@ -49,15 +50,15 @@ fn main() {
 
     __rt.cls(0u8);
     __rt.randomize(qb_timer());
-    let mut words_s: Vec<String> = vec![Default::default(); (10.0f64+1.0) as usize];
-    let word: String = Default::default();
-    let guess: String = Default::default();
-    let letter: String = Default::default();
-    let guessed: String = Default::default();
-    let a: String = Default::default();
-    let mut maxwrong: f64 = Default::default();
-    let mut complete: f64 = Default::default();
-    let mut i: f64 = Default::default();
+    let mut words_s: Vec<String> = vec![String::new(); (10.0f64+1.0) as usize];
+    let word: String = String::new();
+    let guess: String = String::new();
+    let letter: String = String::new();
+    let guessed: String = String::new();
+    let a: String = String::new();
+    let mut maxwrong: f64 = 0.0;
+    let mut complete: f64 = 0.0;
+    let mut i: f64 = 0.0;
     words_s[(1.0f64) as usize] = ("COMPUTER").to_string();
     words_s[(2.0f64) as usize] = ("KEYBOARD").to_string();
     words_s[(3.0f64) as usize] = ("PROGRAM").to_string();
@@ -68,7 +69,7 @@ fn main() {
     words_s[(8.0f64) as usize] = ("RUST").to_string();
     words_s[(9.0f64) as usize] = ("QBASIC").to_string();
     words_s[(10.0f64) as usize] = ("PRINTER").to_string();
-    word_s = (words_s[((qb_int((__rt.rnd() * 10.0f64)) + 1.0f64)) as usize]).to_string();
+    word_s = (words_s[(qb_int((__rt.rnd() * 10.0f64)) + 1.0f64) as usize]).to_string();
     guessed_s = ("").to_string();
     __gs.wrong = 0.0f64;
     maxwrong = 6.0f64;

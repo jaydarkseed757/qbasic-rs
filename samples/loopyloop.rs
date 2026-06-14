@@ -6,6 +6,7 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     let mut __pc: u32 = 10;
     '__sm: loop {
         match __pc {

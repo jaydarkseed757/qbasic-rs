@@ -6,6 +6,7 @@ use qbasic_runtime::*;
 
 fn main() {
     let mut __rt = Runtime::new();
+    __rt.apply_behavioral_env();
     __rt.cls(0u8);
     __rt.println(&[qb_str(&("Playing 3 notes..."))]);
     __rt.play(&"L4 C E G");

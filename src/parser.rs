@@ -320,13 +320,18 @@ pub struct Parser {
     /// Extra FOR loops closed by a multi-counter `NEXT i, j, …` — each
     /// enclosing parse_for consumes one instead of expecting its own NEXT.
     pending_nexts: u32,
+    /// Multi-line `DEF FN` definitions, collected during statement parsing and
+    /// merged into `Program::functions` at the end (they emit as top-level fns,
+    /// so position is irrelevant). Mirrors how `directives` are accumulated.
+    pending_funcs: Vec<FuncDef>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<Spanned>) -> Self {
         Self { tokens, pos: 0, type_defs: HashMap::new(),
                type_layouts: HashMap::new(), type_field_dims: HashMap::new(),
-               directives: Vec::new(), pending_nexts: 0 }
+               directives: Vec::new(), pending_nexts: 0,
+               pending_funcs: Vec::new() }
     }
 
     fn peek(&self) -> &Token {
@@ -392,7 +397,7 @@ impl Parser {
             && matches!(
                 self.peek_next(),
                 Token::If | Token::Sub | Token::Function
-                    | Token::Select | Token::Type | Token::Eof
+                    | Token::Select | Token::Type | Token::Def | Token::Eof
             )
     }
 
@@ -418,6 +423,9 @@ impl Parser {
             }
             self.skip_newlines();
         }
+
+        // Multi-line DEF FN bodies were collected as FuncDefs during parsing.
+        functions.extend(std::mem::take(&mut self.pending_funcs));
 
         Ok(Program {
             subs, functions, main_body,
@@ -1048,28 +1056,40 @@ impl Parser {
     /// Parse DEF FnName(params) = expr  or  DEF SEG / DEF SEG = n (skip).
     fn parse_def(&mut self) -> Result<Stmt> {
         self.advance(); // consume DEF
-        // DEF FnXxx(x) = expr
-        if let Token::Ident(raw) = self.peek().clone() {
-            if raw.to_uppercase().starts_with("FN") {
-                self.advance(); // consume FnXxx
-                let mut params = Vec::new();
-                if self.peek() == &Token::LParen {
-                    self.advance();
-                    while self.peek() != &Token::RParen && !self.at_eol() {
-                        let (pname, pty) = self.parse_ident_with_sigil()?;
-                        params.push(VarDecl { name: pname, ty: pty, dims: vec![], dim_lower: vec![], shared: false });
-                        if self.peek() == &Token::Comma { self.advance(); }
-                    }
-                    self.expect(&Token::RParen)?;
-                }
-                self.expect(&Token::Eq)?;
-                let expr = self.parse_expr()?;
-                return Ok(Stmt::DefFn { name: raw, params, expr });
-            }
+
+        // Is the next token an FN-prefixed identifier (any sigil)? If so this is a
+        // user-function definition (DEF FNxxx ...). Otherwise it's DEF SEG / something
+        // we don't model → skip to end of line.
+        let is_fn = match self.peek() {
+            Token::Ident(s) | Token::IdentStr(s) | Token::IdentInt(s)
+            | Token::IdentDbl(s) | Token::IdentSng(s) => s.to_uppercase().starts_with("FN"),
+            _ => false,
+        };
+        if !is_fn {
+            // DEF SEG, DEF SEG = n, or anything else — skip rest of line.
+            while !self.at_eol() { self.advance(); }
+            return Ok(Stmt::Block(vec![]));  // no-op block
         }
-        // DEF SEG, DEF SEG = n, or anything else — skip rest of line
-        while !self.at_eol() { self.advance(); }
-        Ok(Stmt::Block(vec![]))  // emit as no-op block
+
+        let (name, ret_ty) = self.parse_ident_with_sigil()?;
+        let params = self.parse_param_list()?;
+
+        if self.peek() == &Token::Eq {
+            // Single-line form:  DEF FnName(params) = expr   (unchanged path)
+            self.advance(); // consume =
+            let expr = self.parse_expr()?;
+            return Ok(Stmt::DefFn { name, params, expr });
+        }
+
+        // Multi-line form:  DEF FnName(params) <newline> ... FnName = result ... END DEF
+        // Convert to a FuncDef so it rides the existing FUNCTION emission path
+        // (locals, __fn_ret, return type, EXIT DEF, recursion, call-site resolution).
+        self.skip_newlines();
+        let body = self.parse_block_until(|t| matches!(t, Token::Eof))?;
+        self.expect(&Token::End)?;   // END DEF terminator (is_block_end stops the block)
+        self.expect(&Token::Def)?;
+        self.pending_funcs.push(FuncDef { name, params, ret_ty, body });
+        Ok(Stmt::Block(vec![]))  // nothing lands in main_body
     }
 
     /// Parse a single array dimension bound, handling both `n` and `low TO high`.
@@ -1577,6 +1597,9 @@ impl Parser {
             Token::Do       => { self.advance(); Ok(Stmt::Exit(ExitKind::Do)) }
             Token::Sub      => { self.advance(); Ok(Stmt::Exit(ExitKind::Sub)) }
             Token::Function => { self.advance(); Ok(Stmt::Exit(ExitKind::Function)) }
+            // EXIT DEF inside a multi-line DEF FN — same semantics as EXIT FUNCTION
+            // (the body is emitted via the FuncDef path with __fn_ret).
+            Token::Def      => { self.advance(); Ok(Stmt::Exit(ExitKind::Function)) }
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected FOR/DO/SUB/FUNCTION after EXIT, got {other:?}"),

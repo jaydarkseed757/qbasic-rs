@@ -1397,6 +1397,14 @@ impl Parser {
                 self.parse_single_line_body()
             };
 
+            // GW-BASIC permits a colon between a line-number THEN target and ELSE:
+            //   IF c THEN 2330: ELSE ...
+            // The colon is just a separator here, not a new statement — consume it
+            // so the ELSE attaches to this IF instead of leaking to parse_stmt.
+            if self.peek() == &Token::Colon && self.peek_next() == &Token::Else {
+                self.advance();
+            }
+
             // Only attach an ELSE that's on the SAME source line as this single-line
             // IF.  When the THEN body is itself a nested single-line IF (e.g.
             // `IF py < dy THEN py = dy`), parse_stmt consumes the trailing newline,

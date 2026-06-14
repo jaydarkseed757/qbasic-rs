@@ -133,6 +133,12 @@ impl Token {
     }
 }
 
+/// Normalise one raw DATA element. Quoted elements keep their interior verbatim;
+/// unquoted elements have surrounding whitespace trimmed (QB/GW-BASIC behaviour).
+fn finalize_data_elem(elem: &str, quoted: bool) -> String {
+    if quoted { elem.to_string() } else { elem.trim().to_string() }
+}
+
 // ── Spanned ───────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
@@ -454,6 +460,63 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                     // Not in statement position — treat as a plain identifier.
                     push!(Token::Ident(word));
                     continue;
+                }
+
+                // DATA: capture the rest of the line as RAW text. GW-BASIC/QBasic
+                // treat each comma-separated element after DATA as a literal whose
+                // exact characters matter — `DATA 1ST,2ND` must yield "1ST","2ND",
+                // not `1`+`ST`. Lexing as normal tokens would split a digit-led word
+                // and lose interior spacing, so we slice the source directly here.
+                // Stops at a top-level colon or newline (matching the parser's old
+                // at_eol behaviour, so colon-as-separator is unchanged); commas
+                // inside double quotes are not split.
+                if upper == "DATA" {
+                    let in_stmt_pos = match out.last().map(|t| &t.token) {
+                        None => true,
+                        Some(Token::Newline) | Some(Token::Colon) => true,
+                        Some(Token::IntLit(_)) | Some(Token::FloatLit(_)) => {
+                            let prev2 = out.len().checked_sub(2)
+                                .and_then(|i| out.get(i)).map(|t| &t.token);
+                            matches!(prev2, None | Some(Token::Newline))
+                        }
+                        _ => false,
+                    };
+                    if in_stmt_pos {
+                        push!(Token::Data);
+                        let mut elem = String::new();
+                        let mut in_quotes = false;
+                        let mut quoted = false;     // current element opened with a quote
+                        let mut after_quote = false; // past the closing quote — ignore rest
+                        let mut first = true;
+                        loop {
+                            match chars.peek().copied() {
+                                None | Some('\n') => break,
+                                Some(':') if !in_quotes => break,
+                                Some(',') if !in_quotes => {
+                                    chars.next();
+                                    if !first { push!(Token::Comma); }
+                                    push!(Token::StrLit(finalize_data_elem(&elem, quoted)));
+                                    first = false;
+                                    elem.clear(); quoted = false; after_quote = false;
+                                }
+                                Some('"') => {
+                                    chars.next();
+                                    if in_quotes {
+                                        in_quotes = false; after_quote = true;
+                                    } else if !after_quote {
+                                        in_quotes = true; quoted = true; elem.clear();
+                                    }
+                                }
+                                Some(c) => {
+                                    chars.next();
+                                    if in_quotes || !after_quote { elem.push(c); }
+                                }
+                            }
+                        }
+                        if !first { push!(Token::Comma); }
+                        push!(Token::StrLit(finalize_data_elem(&elem, quoted)));
+                        continue;
+                    }
                 }
 
                 // QB4.5 line continuation: a bare `_` at end of a logical line

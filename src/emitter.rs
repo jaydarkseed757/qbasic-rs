@@ -1725,13 +1725,16 @@ impl Emitter {
                 }
             }
             Stmt::Poke { addr, val } => {
-                let a = self.emit_expr_inline(addr);
-                let v = self.emit_expr_inline(val);
+                // lift_expr hoists any nested __rt call (e.g. PEEK inside the value:
+                // `POKE x, PEEK(x) OR &H60`) to a temp so qb_poke's own &mut __rt
+                // borrow doesn't conflict.
+                let a = self.lift_expr(addr);
+                let v = self.lift_expr(val);
                 self.line(&format!("__rt.qb_poke({a}, {v});"));
             }
             Stmt::Out { port, val } => {
-                let p = self.emit_expr_inline(port);
-                let v = self.emit_expr_inline(val);
+                let p = self.lift_expr(port);
+                let v = self.lift_expr(val);
                 self.line(&format!("__rt.qb_out({p}, {v});"));
             }
 
@@ -5971,6 +5974,13 @@ fn collect_scalar_names_stmt(stmt: &Stmt, out: &mut HashMap<String, QbType>) {
             for a in args {
                 if let PrintArg::Expr(e) = a { collect_scalar_names_expr(e, out); }
             }
+        }
+        Stmt::PrintUsing { fmt, args, .. } => {
+            // Scalars appearing only in PRINT USING (e.g. `PRINT USING "#####"; K`)
+            // must still count as cross-boundary uses — otherwise a value set in
+            // main and shown in a GOSUB status routine reads a local zero.
+            collect_scalar_names_expr(fmt, out);
+            for e in args { collect_scalar_names_expr(e, out); }
         }
         Stmt::Input { vars, .. } => {
             for lv in vars {

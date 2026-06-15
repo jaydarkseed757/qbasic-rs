@@ -160,21 +160,21 @@ DrawTitle:
     LINE (10, 50)-(309, 170), GOLD, B
 
     '' Title text - big blocky look
-    COLOR YELLOW, 0
+    COLOR YELLOW
     LOCATE 5, 8: PRINT "  *** FARKLE! ***  "
-    COLOR WHITE, 0
+    COLOR WHITE
     LOCATE 7, 6: PRINT " The Push-Your-Luck Dice Game"
-    COLOR CREAM, 0
+    COLOR CREAM
     LOCATE 9, 3: PRINT " First player to 10,000 points wins!"
-    COLOR LTGRAY, 0
+    COLOR LTGRAY
     LOCATE 11, 4: PRINT "  Two players, hot seat."
 
     '' Draw some decorative dice on title
     GOSUB DrawDecoDice
 
-    COLOR YELLOW, 0
+    COLOR YELLOW
     LOCATE 22, 5: PRINT "  Press any key to play..."
-    COLOR DKGRAY, 0
+    COLOR DKGRAY
     LOCATE 24, 2: PRINT " (c) Farkle Game - QBasic Edition"
 RETURN
 
@@ -217,7 +217,7 @@ DrawTable:
     LINE (0, 143)-(319, 144), GOLD
 
     '' Player labels in score panel
-    COLOR GOLD, 0
+    COLOR GOLD
     LOCATE 20, 2: PRINT "PLAYER 1:"
     LOCATE 20, 22: PRINT "PLAYER 2:"
 RETURN
@@ -233,18 +233,18 @@ ShowScores:
     LOCATE 21, 22: PRINT USING "#####0"; scores(2)
 
     '' Current player indicator
-    COLOR CYAN, 0
+    COLOR CYAN
     LOCATE 19, 11: PRINT "[ PLAYER "; currentPlayer; "TURN ]"
 
     '' Turn score
-    COLOR GREEN, 0
+    COLOR GREEN
     LOCATE 22, 2: PRINT "Turn: "; turnScore; "  "
     LOCATE 23, 2: PRINT "Roll: "; rollScore; "  "
 RETURN
 
 '' ------------------------------------------------------------
 ShowTurnInfo:
-    COLOR WHITE, 0
+    COLOR WHITE
     LOCATE 17, 2: PRINT "Dice left: "; numDiceLeft; "  "
 RETURN
 
@@ -266,7 +266,7 @@ DrawDice:
             CALL DrawDieFace(dx, dy, dice(i))
         END IF
         '' Number label under die
-        COLOR WHITE, 0
+        COLOR WHITE
         LOCATE 11, (dx \ 8) + 1: PRINT i
     NEXT i
 RETURN
@@ -334,7 +334,7 @@ RETURN
 '' ------------------------------------------------------------
 SelectDicePhase:
     rollScore = 0
-    COLOR YELLOW, 0
+    COLOR YELLOW
     LOCATE 15, 2: PRINT "Select dice (1-6), ENTER=done, Q=bank"
     LOCATE 16, 2: PRINT "                                      "
 
@@ -342,7 +342,7 @@ SelectDicePhase:
         GOSUB DrawDice
         GOSUB ShowScores
 
-        COLOR WHITE, 0
+        COLOR WHITE
         LOCATE 16, 2: PRINT "Toggle: 1-6 keys. ENTER=keep & roll  "
 
         k = INKEY$
@@ -361,7 +361,7 @@ SelectDicePhase:
             rollScore = 0
             GOSUB CalcRollScore
             IF rollScore = 0 THEN
-                COLOR RED, 0
+                COLOR RED
                 LOCATE 16, 2: PRINT "  Must select scoring dice!       "
                 wt = TIMER + 1
                 DO WHILE TIMER < wt: LOOP
@@ -429,7 +429,7 @@ RETURN
 
 '' ------------------------------------------------------------
 BankOrRoll:
-    COLOR YELLOW, 0
+    COLOR YELLOW
     LOCATE 15, 2: PRINT "R=Roll Again  B=Bank "; turnScore; " pts   "
     LOCATE 16, 2: PRINT "                                      "
     DO
@@ -445,12 +445,12 @@ AnimateNewTurn:
     DIM flashC AS INTEGER
     FOR j = 1 TO 6
         IF j MOD 2 = 0 THEN flashC = YELLOW ELSE flashC = GOLD
-        COLOR flashC, 0
+        COLOR flashC
         LOCATE 10, 5: PRINT " === PLAYER "; currentPlayer; " TURN! === "
         wt = TIMER + 0.15
         DO WHILE TIMER < wt: LOOP
     NEXT j
-    COLOR BLACK, 0
+    COLOR BLACK
     LOCATE 10, 5: PRINT "                          "
 RETURN
 
@@ -460,10 +460,10 @@ AnimateFarkle:
     FOR j = 1 TO 8
         IF j MOD 2 = 0 THEN
             LINE (20, 60)-(299, 120), RED, BF
-            COLOR YELLOW, 0
+            COLOR YELLOW
         ELSE
             LINE (20, 60)-(299, 120), 52, BF
-            COLOR WHITE, 0
+            COLOR WHITE
         END IF
         LOCATE 8, 6: PRINT "  **** F A R K L E ! ****  "
         LOCATE 9, 6: PRINT "    You lose your turn!    "
@@ -480,10 +480,10 @@ AnimateHotDice:
     FOR j = 1 TO 8
         IF j MOD 2 = 0 THEN
             LINE (20, 60)-(299, 120), GOLD, BF
-            COLOR RED, 0
+            COLOR RED
         ELSE
             LINE (20, 60)-(299, 120), BROWN, BF
-            COLOR YELLOW, 0
+            COLOR YELLOW
         END IF
         LOCATE 8, 5: PRINT "  *** H O T  D I C E ! ***  "
         LOCATE 9, 5: PRINT "   All 6 scored! Roll again! "
@@ -512,15 +512,15 @@ DrawWin:
     LINE (30, 40)-(289, 160), GOLD, B
     LINE (32, 42)-(287, 158), GOLD, B
 
-    COLOR YELLOW, 0
+    COLOR YELLOW
     LOCATE 7, 7:  PRINT "*** CONGRATULATIONS! ***"
-    COLOR WHITE, 0
+    COLOR WHITE
     LOCATE 9, 8:  PRINT "PLAYER "; winner; " WINS THE GAME!"
-    COLOR GREEN, 0
+    COLOR GREEN
     LOCATE 11, 6: PRINT "Final Score:"; scores(winner); " pts"
-    COLOR CYAN, 0
+    COLOR CYAN
     LOCATE 13, 4: PRINT "Player 1:"; scores(1); "  Player 2:"; scores(2)
-    COLOR LTGRAY, 0
+    COLOR LTGRAY
     LOCATE 18, 6: PRINT "Press any key to exit..."
 RETURN
 

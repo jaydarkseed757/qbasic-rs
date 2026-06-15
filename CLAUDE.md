@@ -1091,8 +1091,11 @@ source tweak were needed:
   `DecoDie5` (underscores are illegal in QB1.1 identifiers, and the `Sub_` prefix made
   QBASIC lex `Sub` as the reserved SUB keyword → "Expected: label or line number"), and
   renamed the `val AS INTEGER` parameter (shadows the `VAL()` built-in) → `pips` in
-  `DrawDieFace`/`DrawDieFaceHL`/`DrawPips`. qbc accepts both forms; these are purely for
-  DOS-QBASIC fidelity.
+  `DrawDieFace`/`DrawDieFaceHL`/`DrawPips`. Also dropped the background arg from every
+  `COLOR fg, 0` → `COLOR fg`: SCREEN 13 (MCGA) accepts only the single foreground form,
+  and `COLOR fg, bg` raises a runtime "Illegal function call" there (bg was always 0 =
+  the mode default, so appearance is unchanged). qbc accepts all these forms; the edits
+  are purely for DOS-QBASIC fidelity.
 
 ## Known Issues / TODO
 

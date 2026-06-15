@@ -1,7 +1,7 @@
 '' ============================================================
 '' FARKLE.BAS - A QBasic Farkle Dice Game
 '' SCREEN 13: 320x200, 256 colors
-'' Two players, hot seat. First to 10000 wins!
+'' You (Player 1) vs. the Computer (Player 2). First to 10000 wins!
 '' ============================================================
 
 RANDOMIZE TIMER
@@ -81,6 +81,9 @@ DO WHILE gameOver = 0
     numDiceLeft = 6
     FOR i = 1 TO 6: keptAll(i) = 0: NEXT i
 
+    '' Player 2 is the computer
+    IF currentPlayer = 2 THEN msg = "COMPUTER" ELSE msg = "PLAYER 1"
+
     GOSUB DrawTable
     GOSUB ShowScores
     GOSUB AnimateNewTurn
@@ -106,8 +109,12 @@ DO WHILE gameOver = 0
             EXIT DO
         END IF
 
-        '' Player selects dice
-        GOSUB SelectDicePhase
+        '' Select scoring dice (human picks; computer auto-picks for player 2)
+        IF currentPlayer = 2 THEN
+            GOSUB AISelectDice
+        ELSE
+            GOSUB SelectDicePhase
+        END IF
         IF rollScore = 0 THEN
             '' No valid selection - shouldn't happen if farkle check passed
             EXIT DO
@@ -127,8 +134,12 @@ DO WHILE gameOver = 0
             numDiceLeft = diceRemaining
         END IF
 
-        '' Bank or Roll Again?
-        GOSUB BankOrRoll
+        '' Bank or Roll Again? (computer decides for player 2)
+        IF currentPlayer = 2 THEN
+            GOSUB AIBankOrRoll
+        ELSE
+            GOSUB BankOrRoll
+        END IF
         IF rolling = 0 THEN EXIT DO
 
     LOOP
@@ -183,7 +194,7 @@ DrawTitle:
     COLOR CREAM
     LOCATE 9, 3: PRINT " First player to 10,000 points wins!"
     COLOR LTGRAY
-    LOCATE 11, 4: PRINT "  Two players, hot seat."
+    LOCATE 11, 4: PRINT "  You vs. the Computer!"
 
     '' Draw some decorative dice on title
     GOSUB DrawDecoDice
@@ -235,7 +246,7 @@ DrawTable:
     '' Player labels in score panel
     COLOR GOLD
     LOCATE 20, 2: PRINT "PLAYER 1:"
-    LOCATE 20, 22: PRINT "PLAYER 2:"
+    LOCATE 20, 22: PRINT "COMPUTER:"
 RETURN
 
 '' ------------------------------------------------------------
@@ -250,7 +261,7 @@ ShowScores:
 
     '' Current player indicator
     COLOR CYAN
-    LOCATE 19, 11: PRINT "[ PLAYER "; currentPlayer; "TURN ]"
+    LOCATE 19, 11: PRINT "[ "; msg; " TURN ]"
 
     '' Turn score
     COLOR GREEN
@@ -447,12 +458,108 @@ BankOrRoll:
 RETURN
 
 '' ------------------------------------------------------------
+'' COMPUTER PLAYER (Player 2)
+'' ------------------------------------------------------------
+
+'' Computer's dice-selection phase: greedily keep every scoring die, score it,
+'' and commit - the analog of SelectDicePhase but with no human input.
+AISelectDice:
+    rollScore = 0
+    COLOR CYAN
+    LOCATE 15, 2: PRINT "Computer is thinking...               "
+    LOCATE 16, 2: PRINT "                                      "
+    wt = TIMER + .7
+    DO WHILE TIMER < wt: LOOP
+
+    GOSUB AIKeepDice          '' sets kept() flags
+    GOSUB DrawDice            '' show what it kept
+    GOSUB CalcRollScore       '' rollScore from kept()
+
+    FOR i = 1 TO 6
+        IF kept(i) = 1 THEN keptAll(i) = 1
+    NEXT i
+    turnScore = turnScore + rollScore
+    GOSUB ShowScores
+
+    COLOR WHITE
+    LOCATE 15, 2: PRINT "Computer scored "; rollScore; " this roll      "
+    LOCATE 16, 2: PRINT "                                      "
+    wt = TIMER + 1.1
+    DO WHILE TIMER < wt: LOOP
+RETURN
+
+'' Decide which available dice to keep (all scoring dice).
+AIKeepDice:
+    FOR i = 1 TO 6: kept(i) = 0: NEXT i
+    FOR i = 1 TO 6: cnt(i) = 0: NEXT i
+    FOR i = 1 TO 6
+        IF keptAll(i) = 0 THEN cnt(dice(i)) = cnt(dice(i)) + 1
+    NEXT i
+
+    '' Count available dice this roll
+    selCount = 0
+    FOR i = 1 TO 6
+        IF keptAll(i) = 0 THEN selCount = selCount + 1
+    NEXT i
+
+    '' Straight or three pairs (only possible with all 6 available): keep them all.
+    IF selCount = 6 THEN
+        isStraight = 1
+        FOR i = 1 TO 6
+            IF cnt(i) <> 1 THEN isStraight = 0
+        NEXT i
+        pairs = 0
+        FOR i = 1 TO 6
+            IF cnt(i) = 2 THEN pairs = pairs + 1
+        NEXT i
+        IF isStraight = 1 OR pairs = 3 THEN
+            FOR i = 1 TO 6
+                IF keptAll(i) = 0 THEN kept(i) = 1
+            NEXT i
+            RETURN
+        END IF
+    END IF
+
+    '' Otherwise keep all 1s, all 5s, and any face showing three or more.
+    FOR i = 1 TO 6
+        IF keptAll(i) = 0 THEN
+            IF dice(i) = 1 OR dice(i) = 5 THEN
+                kept(i) = 1
+            ELSEIF cnt(dice(i)) >= 3 THEN
+                kept(i) = 1
+            END IF
+        END IF
+    NEXT i
+RETURN
+
+'' Decide whether the computer banks or rolls again.
+AIBankOrRoll:
+    '' Push with plenty of dice; bank once the turn is worth protecting or the
+    '' remaining dice make a farkle likely.  Always bank a winning total.
+    rolling = 1
+    IF turnScore >= 1000 THEN rolling = 0
+    IF numDiceLeft = 3 AND turnScore >= 600 THEN rolling = 0
+    IF numDiceLeft <= 2 AND turnScore >= 300 THEN rolling = 0
+    IF scores(2) + turnScore >= 10000 THEN rolling = 0
+
+    COLOR YELLOW
+    IF rolling = 0 THEN
+        LOCATE 15, 2: PRINT "Computer banks "; turnScore; " points       "
+    ELSE
+        LOCATE 15, 2: PRINT "Computer rolls again...               "
+    END IF
+    LOCATE 16, 2: PRINT "                                      "
+    wt = TIMER + 1.1
+    DO WHILE TIMER < wt: LOOP
+RETURN
+
+'' ------------------------------------------------------------
 AnimateNewTurn:
     '' Flash player turn banner
     FOR j = 1 TO 6
         IF j MOD 2 = 0 THEN flashC = YELLOW ELSE flashC = GOLD
         COLOR flashC
-        LOCATE 10, 5: PRINT " === PLAYER "; currentPlayer; " TURN! === "
+        LOCATE 10, 5: PRINT " === "; msg; " TURN! === "
         wt = TIMER + 0.15
         DO WHILE TIMER < wt: LOOP
     NEXT j
@@ -518,14 +625,15 @@ DrawWin:
     LINE (30, 40)-(289, 160), GOLD, B
     LINE (32, 42)-(287, 158), GOLD, B
 
+    IF winner = 2 THEN msg = "THE COMPUTER" ELSE msg = "PLAYER 1"
     COLOR YELLOW
     LOCATE 7, 7:  PRINT "*** CONGRATULATIONS! ***"
     COLOR WHITE
-    LOCATE 9, 8:  PRINT "PLAYER "; winner; " WINS THE GAME!"
+    LOCATE 9, 8:  PRINT msg; " WINS THE GAME!"
     COLOR GREEN
     LOCATE 11, 6: PRINT "Final Score:"; scores(winner); " pts"
     COLOR CYAN
-    LOCATE 13, 4: PRINT "Player 1:"; scores(1); "  Player 2:"; scores(2)
+    LOCATE 13, 4: PRINT "Player 1:"; scores(1); "  Computer:"; scores(2)
     COLOR LTGRAY
     LOCATE 18, 6: PRINT "Press any key to exit..."
 RETURN

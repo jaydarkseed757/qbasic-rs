@@ -1113,6 +1113,14 @@ source tweak were needed:
     both). Audit also confirmed clean: all `LOCATE` within the SCREEN 13 40×25 grid, all
     draw coords within 320×200, no other reserved-word identifiers, no `SOUND`/`PLAY`.
 
+  **Player 2 is a computer AI** (not hot-seat). The turn loop branches on
+  `currentPlayer`: human GOSUBs `SelectDicePhase`/`BankOrRoll`, the computer GOSUBs
+  `AISelectDice`/`AIBankOrRoll`. `AIKeepDice` greedily keeps every scoring die (all 1s/5s,
+  any triple, or a full straight / three-pairs); `AIBankOrRoll` pushes with ≥4 dice and
+  banks once the turn is worth protecting (≥1000, or ≥600 with 3 dice, or ≥300 with ≤2),
+  always banking a winning total. All AI routines reuse module-scope vars (no new DIMs)
+  and stay QB1.1-clean. UI relabeled via the `msg` string ("COMPUTER" vs "PLAYER 1").
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a

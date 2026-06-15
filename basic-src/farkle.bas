@@ -181,20 +181,20 @@ RETURN
 '' ------------------------------------------------------------
 DrawDecoDice:
     '' Draw 3 dice decoratively on title screen
-    GOSUB Sub_DrawDie1at60_80
-    GOSUB Sub_DrawDie3at140_80
-    GOSUB Sub_DrawDie5at220_80
+    GOSUB DecoDie1
+    GOSUB DecoDie3
+    GOSUB DecoDie5
 RETURN
 
-Sub_DrawDie1at60_80:
+DecoDie1:
     CALL DrawDieFace(60, 80, 1)
 RETURN
 
-Sub_DrawDie3at140_80:
+DecoDie3:
     CALL DrawDieFace(140, 80, 3)
 RETURN
 
-Sub_DrawDie5at220_80:
+DecoDie5:
     CALL DrawDieFace(220, 80, 5)
 RETURN
 
@@ -526,33 +526,33 @@ RETURN
 
 '' ============================================================
 '' DRAW DIE FACE SUB (callable)
-'' x, y = top-left of die, val = pip value
+'' x, y = top-left of die, pips = pip value
 '' ============================================================
-SUB DrawDieFace (x AS INTEGER, y AS INTEGER, val AS INTEGER)
+SUB DrawDieFace (x AS INTEGER, y AS INTEGER, pips AS INTEGER)
     '' Die body - white with shadow
     LINE (x + 2, y + 2)-(x + 38, y + 38), DKGRAY, BF  '' shadow
     LINE (x, y)-(x + 36, y + 36), WHITE, BF
     LINE (x, y)-(x + 36, y + 36), LTGRAY, B
 
     '' Draw pips based on value
-    CALL DrawPips(x, y, val, BLACK)
+    CALL DrawPips(x, y, pips, BLACK)
 END SUB
 
-SUB DrawDieFaceHL (x AS INTEGER, y AS INTEGER, val AS INTEGER, borderCol AS INTEGER)
+SUB DrawDieFaceHL (x AS INTEGER, y AS INTEGER, pips AS INTEGER, borderCol AS INTEGER)
     LINE (x + 2, y + 2)-(x + 38, y + 38), DKGRAY, BF
     LINE (x, y)-(x + 36, y + 36), WHITE, BF
     LINE (x, y)-(x + 36, y + 36), borderCol, B
     LINE (x + 1, y + 1)-(x + 35, y + 35), borderCol, B
-    CALL DrawPips(x, y, val, BLACK)
+    CALL DrawPips(x, y, pips, BLACK)
 END SUB
 
-SUB DrawPips (x AS INTEGER, y AS INTEGER, val AS INTEGER, col AS INTEGER)
+SUB DrawPips (x AS INTEGER, y AS INTEGER, pips AS INTEGER, col AS INTEGER)
     '' Pip positions relative to die top-left (die is 36x36)
     '' Grid: TL=8,8  TC=18,8  TR=28,8
     ''        ML=8,18 MC=18,18 MR=28,18
     ''        BL=8,28 BC=18,28 BR=28,28
 
-    SELECT CASE val
+    SELECT CASE pips
         CASE 1
             CALL Pip(x + 18, y + 18, col)
         CASE 2

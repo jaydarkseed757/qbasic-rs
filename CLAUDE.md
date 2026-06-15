@@ -21,6 +21,7 @@ qbasic-rust/
 │   ├── torus.md                # Walkthrough of torus.bas
 │   ├── reversi.md              # Walkthrough of reversi.bas
 │   ├── donkey.md               # Walkthrough of donkey.bas
+│   ├── qb11-rules.md           # Drop-in prompt: writing QBasic 1.1-compatible .bas
 │   └── screenshots/            # PNG screenshots of rendered programs
 │
 ├── src/                        # Transpiler (qbc binary) — all in one crate

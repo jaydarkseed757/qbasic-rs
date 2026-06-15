@@ -1086,6 +1086,13 @@ source tweak were needed:
   inner block, so sibling branches/routines couldn't see it. Removing the misplaced DIM
   lets the implicit `wt` ride the normal cross-GOSUB promotion (block-scoped DIM hoisting
   is a known transpiler limitation).
+- **QB1.1 DOS compatibility (`.bas`-only)** — for loading under real QBASIC 1.1: renamed
+  the three underscore GOSUB labels `Sub_DrawDie1at60_80`/etc. → `DecoDie1`/`DecoDie3`/
+  `DecoDie5` (underscores are illegal in QB1.1 identifiers, and the `Sub_` prefix made
+  QBASIC lex `Sub` as the reserved SUB keyword → "Expected: label or line number"), and
+  renamed the `val AS INTEGER` parameter (shadows the `VAL()` built-in) → `pips` in
+  `DrawDieFace`/`DrawDieFaceHL`/`DrawPips`. qbc accepts both forms; these are purely for
+  DOS-QBASIC fidelity.
 
 ## Known Issues / TODO
 

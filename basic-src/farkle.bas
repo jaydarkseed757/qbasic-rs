@@ -45,6 +45,23 @@ DIM i AS INTEGER, j AS INTEGER
 DIM k AS STRING
 DIM msg AS STRING
 
+'' Locals hoisted to module scope.  In QB1.1, GOSUB routines share the module
+'' variable scope, so a DIM inside a routine that is GOSUB'd more than once would
+'' re-execute and raise "Duplicate definition".  Declare them once here instead.
+DIM dx AS INTEGER, dy AS INTEGER
+DIM adx AS INTEGER
+DIM frames AS INTEGER
+DIM diceRemaining AS INTEGER
+DIM cnt(6) AS INTEGER
+DIM isStraight AS INTEGER
+DIM pairs AS INTEGER
+DIM sc(6) AS INTEGER
+DIM selCount AS INTEGER
+DIM allDiff AS INTEGER
+DIM prs AS INTEGER
+DIM flashC AS INTEGER
+DIM wt AS SINGLE
+
 '' ============================================================
 '' TITLE SCREEN
 '' ============================================================
@@ -97,7 +114,6 @@ DO WHILE gameOver = 0
         END IF
 
         '' Check hot dice
-        Dim diceRemaining AS INTEGER
         diceRemaining = 0
         FOR i = 1 TO 6
             IF keptAll(i) = 0 THEN diceRemaining = diceRemaining + 1
@@ -225,12 +241,12 @@ RETURN
 '' ------------------------------------------------------------
 ShowScores:
     '' Player 1 score
-    IF currentPlayer = 1 THEN COLOR YELLOW, 0 ELSE COLOR LTGRAY, 0
-    LOCATE 21, 2: PRINT USING "#####0"; scores(1)
+    IF currentPlayer = 1 THEN COLOR YELLOW ELSE COLOR LTGRAY
+    LOCATE 21, 2: PRINT USING "######"; scores(1)
 
     '' Player 2 score
-    IF currentPlayer = 2 THEN COLOR YELLOW, 0 ELSE COLOR LTGRAY, 0
-    LOCATE 21, 22: PRINT USING "#####0"; scores(2)
+    IF currentPlayer = 2 THEN COLOR YELLOW ELSE COLOR LTGRAY
+    LOCATE 21, 22: PRINT USING "######"; scores(2)
 
     '' Current player indicator
     COLOR CYAN
@@ -252,7 +268,6 @@ RETURN
 DrawDice:
     '' Draw 6 dice at fixed positions across the table
     '' Positions: y=55 (top row area), spaced across x
-    DIM dx AS INTEGER, dy AS INTEGER
     dy = 55
     FOR i = 1 TO 6
         dx = 12 + (i - 1) * 50
@@ -274,7 +289,6 @@ RETURN
 '' ------------------------------------------------------------
 RollDice:
     '' Animate rolling for dice not kept
-    Dim frames AS INTEGER
     FOR frames = 1 TO 12
         FOR i = 1 TO 6
             IF keptAll(i) = 0 THEN
@@ -282,7 +296,6 @@ RollDice:
             END IF
         NEXT i
         '' Quick draw during animation
-        DIM adx AS INTEGER
         FOR i = 1 TO 6
             adx = 12 + (i - 1) * 50
             IF keptAll(i) = 0 THEN
@@ -304,7 +317,6 @@ RETURN
 CheckFarkle:
     '' rolling = 1 if there are scoring dice, 0 = farkle
     rolling = 0
-    DIM cnt(6) AS INTEGER
     FOR i = 1 TO 6: cnt(i) = 0: NEXT i
     FOR i = 1 TO 6
         IF keptAll(i) = 0 THEN cnt(dice(i)) = cnt(dice(i)) + 1
@@ -316,14 +328,12 @@ CheckFarkle:
         IF cnt(i) >= 3 THEN rolling = 1: RETURN
     NEXT i
     '' Straight?
-    DIM isStraight AS INTEGER
     isStraight = 1
     FOR i = 1 TO 6
         IF cnt(i) <> 1 THEN isStraight = 0
     NEXT i
     IF isStraight THEN rolling = 1: RETURN
     '' Three pairs?
-    DIM pairs AS INTEGER
     pairs = 0
     FOR i = 1 TO 6
         IF cnt(i) = 2 THEN pairs = pairs + 1
@@ -384,19 +394,16 @@ RETURN
 CalcRollScore:
     '' Score only the currently-kept (selected) dice
     rollScore = 0
-    DIM sc(6) AS INTEGER
     FOR i = 1 TO 6: sc(i) = 0: NEXT i
     FOR i = 1 TO 6
         IF kept(i) = 1 THEN sc(dice(i)) = sc(dice(i)) + 1
     NEXT i
 
     '' Check for straight (all 6 different, must have all 6 selected)
-    DIM selCount AS INTEGER
     selCount = 0
     FOR i = 1 TO 6: selCount = selCount + kept(i): NEXT i
 
     IF selCount = 6 THEN
-        DIM allDiff AS INTEGER
         allDiff = 1
         FOR i = 1 TO 6
             IF sc(i) <> 1 THEN allDiff = 0
@@ -404,7 +411,7 @@ CalcRollScore:
         IF allDiff THEN rollScore = 1500: RETURN
 
         '' Three pairs
-        DIM prs AS INTEGER: prs = 0
+        prs = 0
         FOR i = 1 TO 6
             IF sc(i) = 2 THEN prs = prs + 1
         NEXT i
@@ -442,7 +449,6 @@ RETURN
 '' ------------------------------------------------------------
 AnimateNewTurn:
     '' Flash player turn banner
-    DIM flashC AS INTEGER
     FOR j = 1 TO 6
         IF j MOD 2 = 0 THEN flashC = YELLOW ELSE flashC = GOLD
         COLOR flashC

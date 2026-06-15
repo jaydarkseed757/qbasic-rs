@@ -1097,6 +1097,22 @@ source tweak were needed:
   the mode default, so appearance is unchanged). qbc accepts all these forms; the edits
   are purely for DOS-QBASIC fidelity.
 
+  A subsequent **full QB1.1 audit** found and fixed the rest:
+  - **`DIM` hoisted out of GOSUB routines** — QB1.1 GOSUB routines share the module
+    variable scope, so a `DIM` inside a routine GOSUB'd more than once re-executes and
+    raises "Duplicate definition" (arrays always; scalars too). All 13 locals
+    (`dx`/`dy`/`adx`/`frames`/`diceRemaining`/`cnt(6)`/`isStraight`/`pairs`/`sc(6)`/
+    `selCount`/`allDiff`/`prs`/`flashC`, plus the earlier `wt`) were moved to the
+    top-of-module `DIM` block so each runs exactly once.
+  - **Two more two-arg `COLOR`s** hidden inline in `IF … THEN COLOR x, 0 ELSE COLOR y, 0`
+    (the earlier `^COLOR` sweep missed them) → single-arg.
+  - **`PRINT USING "#####0"` → `"######"`** — QBasic has no `0` digit-placeholder, so the
+    trailing `0` was a literal and scores printed ×10 (`123` → `12300`). Runs in QB1.1
+    either way; this corrects the display.
+  - **CRLF line endings** — converted from LF for real-DOS fidelity (qbc's lexer handles
+    both). Audit also confirmed clean: all `LOCATE` within the SCREEN 13 40×25 grid, all
+    draw coords within 320×200, no other reserved-word identifiers, no `SOUND`/`PLAY`.
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a

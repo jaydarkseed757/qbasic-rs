@@ -1579,6 +1579,30 @@ impl Runtime {
         }
     }
 
+    /// `BLOAD file$[, offset]` — load a raw/BSAVE screen image into video memory.
+    /// The only `DEF SEG` target we model is video memory (`&HA000` for SCREEN 13),
+    /// so this copies the image bytes straight into the palette-indexed framebuffer
+    /// at `offset` (one byte per pixel = the MCGA layout). A QBasic BSAVE file begins
+    /// with a 7-byte header (magic `0xFD`, segment, offset, length); skip it when
+    /// present so both BSAVE'd and raw images load. Missing file = no-op (programs
+    /// guard with `DIR$`); off-screen bytes are clipped.
+    pub fn qb_bload(&mut self, path: &str, offset: f64) {
+        let bytes = match std::fs::read(path) {
+            Ok(b) => b,
+            Err(_) => return,
+        };
+        let data: &[u8] = if bytes.first() == Some(&0xFD) && bytes.len() >= 7 {
+            &bytes[7..]
+        } else {
+            &bytes[..]
+        };
+        let off = offset.max(0.0) as usize;
+        if off >= self.fb.len() { return; }
+        let n = data.len().min(self.fb.len() - off);
+        self.fb[off..off + n].copy_from_slice(&data[..n]);
+        self.present();
+    }
+
     /// Apply one decoded sprite pixel `color` to framebuffer index `fb_idx`
     /// using the QB PUT combine verb. `mask` is the mode's color depth (for the
     /// PRESET inversion). Shared by the EGA and CGA blit paths.
@@ -3375,6 +3399,17 @@ pub fn qb_environ(name: &str) -> String {
     std::env::var(name).unwrap_or_default()
 }
 
+/// `DIR$(spec)` — returns the filename if a matching file exists, else "". QB
+/// supports wildcards; programs use it mainly as a file-exists guard (e.g.
+/// `IF DIR$("TITLE.BIN") <> "" THEN ...`), so we resolve an exact path's existence.
+pub fn qb_dir(spec: &str) -> String {
+    if !spec.is_empty() && std::path::Path::new(spec).exists() {
+        spec.to_string()
+    } else {
+        String::new()
+    }
+}
+
 pub fn qb_read_data(data: &[&str], ptr: &std::sync::atomic::AtomicUsize) -> String {
     let idx = ptr.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     data.get(idx).copied().unwrap_or("").to_string()
@@ -4679,5 +4714,58 @@ mod mode13_sprite_tests {
         rt.put_sprite(&spr, 100.0, 198.0, PutAction::Pset);
         assert_eq!(rt.point(100.0, 198.0), 99.0, "clip-bottom visible");
         assert_eq!(rt.point(100.0, 199.0), 99.0, "clip-bottom visible");
+    }
+}
+
+#[cfg(test)]
+mod bload_tests {
+    use super::*;
+
+    fn tmp(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("qbc_{}_{}", std::process::id(), name))
+    }
+
+    #[test]
+    fn dir_reports_existence() {
+        let p = tmp("dir.tmp");
+        let _ = std::fs::remove_file(&p);
+        let path = p.to_str().unwrap();
+        assert_eq!(qb_dir(path), "");          // missing → ""
+        std::fs::write(&p, b"x").unwrap();
+        assert_eq!(qb_dir(path), path);        // present → the name
+        std::fs::remove_file(&p).unwrap();
+        assert_eq!(qb_dir(""), "");            // empty spec → ""
+    }
+
+    #[test]
+    fn bload_raw_header_offset_and_missing() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0); // 320x200, palette-indexed fb
+
+        // Raw image (no BSAVE header): bytes land 1:1 in the framebuffer.
+        let raw = tmp("raw.bin");
+        std::fs::write(&raw, [1u8, 2, 3, 4]).unwrap();
+        rt.qb_bload(raw.to_str().unwrap(), 0.0);
+        assert_eq!(rt.point(0.0, 0.0), 1.0);
+        assert_eq!(rt.point(1.0, 0.0), 2.0);
+
+        // BSAVE-headered image: leading 0xFD + 6 header bytes are skipped.
+        let hdr = tmp("hdr.bin");
+        let mut bytes = vec![0xFDu8, 0, 0, 0, 0, 0, 0];
+        bytes.extend_from_slice(&[9, 8, 7]);
+        std::fs::write(&hdr, &bytes).unwrap();
+        rt.qb_bload(hdr.to_str().unwrap(), 0.0);
+        assert_eq!(rt.point(0.0, 0.0), 9.0, "7-byte BSAVE header skipped");
+        assert_eq!(rt.point(1.0, 0.0), 8.0);
+
+        // Offset targets a later framebuffer position (row 1 = +320 in SCREEN 13).
+        rt.qb_bload(raw.to_str().unwrap(), 320.0);
+        assert_eq!(rt.point(0.0, 1.0), 1.0);
+
+        // Missing file is a silent no-op (programs guard with DIR$); no panic.
+        rt.qb_bload(tmp("nope.bin").to_str().unwrap(), 0.0);
+
+        std::fs::remove_file(&raw).unwrap();
+        std::fs::remove_file(&hdr).unwrap();
     }
 }

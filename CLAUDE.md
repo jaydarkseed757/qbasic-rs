@@ -1122,6 +1122,27 @@ source tweak were needed:
   always banking a winning total. All AI routines reuse module-scope vars (no new DIMs)
   and stay QB1.1-clean. UI relabeled via the `msg` string ("COMPUTER" vs "PLAYER 1").
 
+### `BLOAD` + `DIR$` (pin.bas optional graphical title screen)
+
+`pin.bas` (two-level SCREEN 13 pinball) loads an optional title image:
+`IF DIR$("TITLE.BIN") <> "" THEN … DEF SEG = &HA000 : BLOAD "TITLE.BIN", 0 …`. Two
+built-ins were added so it compiles and runs (text-title fallback when the file is
+absent, real image blit when present):
+
+- **`DIR$(spec)`** (`qb_dir` free fn, `runtime/src/lib.rs`) — returns `spec` if the path
+  exists, else `""` (the file-exists guard programs use). Wired via `rust_fn_name`
+  (`DIR$`→`qb_dir`) + `str_arg_positions` (`qb_dir`→`&[0]`); a `$`-suffixed call is
+  already string-typed by `is_str_expr`, so `DIR$(…) <> ""` routes through the string
+  path.
+- **`BLOAD file$[, offset]`** (`Runtime::qb_bload`, dispatched from the `Stmt::Call`
+  built-in chain alongside `sleep`/`chain`/`draw`) — `std::fs::read`s the file, skips the
+  7-byte BSAVE header when the `0xFD` magic is present, and copies the bytes straight into
+  the palette-indexed framebuffer at `offset` (one byte/pixel = the MCGA layout), then
+  `present()`s. Missing file = silent no-op (guarded by `DIR$`); off-screen bytes clip.
+  `DEF SEG` stays a no-op — video memory is the only `BLOAD` target we model; `BSAVE` and
+  non-video segments are unmodeled. Covered by `bload_tests` (runtime). build-all is
+  **51/51** (pin.bas was failing to compile before this).
+
 ## Known Issues / TODO
 
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a

@@ -146,7 +146,8 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Math** | `INT FIX ABS SQR SGN SIN COS TAN ATN EXP LOG` |
 | **Type / convert** | `CINT CLNG CSNG CDBL`; binary `MKD$ MKI$ MKS$ MKL$` / `CVD CVI CVS CVL` |
 | **String** | `LEN LEFT$ RIGHT$ MID$ UCASE$ LCASE$ LTRIM$ RTRIM$ STR$ VAL CHR$ ASC INSTR SPACE$ STRING$ HEX$ OCT$` |
-| **Runtime / system** | `RND TIMER INKEY$ INPUT$ POINT PMAP PEEK ERR EOF LOF ENVIRON$ UBOUND LBOUND` |
+| **Runtime / system** | `RND TIMER INKEY$ INPUT$ POINT PMAP PEEK ERR EOF LOF ENVIRON$ DIR$ UBOUND LBOUND` |
+| **Image load** | `BLOAD file$[,offset]` → blits a raw/BSAVE screen image into the framebuffer (the `DEF SEG = &HA000` video-memory case; `DEF SEG` itself is a no-op). `BSAVE` and non-video targets are unmodeled. |
 
 ### `DEF FN` — both single-line and multi-line supported
 - Single-line: `DEF FnName(x) = expr` (emitted as an inline-expression fn).

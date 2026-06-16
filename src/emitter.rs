@@ -1900,6 +1900,17 @@ impl Emitter {
                         .map(|e| self.emit_expr(e).unwrap())
                         .unwrap_or_else(|| "String::new()".into());
                     self.line(&format!("__rt.draw(&({s}));"));
+                } else if fn_lower == "bload" {
+                    // BLOAD file$[, offset] → blit a raw/BSAVE image into the framebuffer
+                    let path = match args.first() {
+                        Some(e @ Expr::StrLit(_)) => self.emit_expr(e).unwrap(),
+                        Some(e) => format!("&({})", self.emit_expr(e).unwrap()),
+                        None => "\"\"".into(),
+                    };
+                    let off = args.get(1)
+                        .map(|e| self.emit_expr(e).unwrap())
+                        .unwrap_or_else(|| "0.0".into());
+                    self.line(&format!("__rt.qb_bload({path}, {off});"));
                 } else if self.user_subs.contains(&fn_lower) {
                     // User-defined SUB — prepend __rt, __gs; string args by-ref
                     let (a, writebacks) = self.emit_call_args_with_wb(&fn_lower, args);
@@ -5213,6 +5224,7 @@ fn rust_fn_name(name: &str) -> String {
         "TIMER"   => "qb_timer".into(),
         "PEEK"    => "__rt.qb_peek".into(),
         "ENVIRON$"=> "qb_environ".into(),
+        "DIR$"    => "qb_dir".into(),
         // Binary type-conversion functions
         "MKD"     => "MKD".into(),
         "MKS"     => "MKS".into(),
@@ -5298,7 +5310,7 @@ fn str_arg_positions(fn_name: &str) -> &'static [usize] {
     match fn_name {
         "qb_len" | "qb_left" | "qb_right" | "qb_mid" |
         "qb_ucase" | "qb_lcase" | "qb_ltrim" | "qb_rtrim" |
-        "qb_val" | "qb_asc" | "qb_environ" |
+        "qb_val" | "qb_asc" | "qb_environ" | "qb_dir" |
         "CVD" | "CVS" | "CVI" | "CVL" => &[0],
         "qb_instr" => &[1, 2],
         _ => &[],

@@ -1,4 +1,4 @@
-' PINBALL.BAS - QBasic 1.1 two-level pinball, classic DOS portrait layout.
+' STEEL SLAM - QBasic 1.1 two-level pinball, classic DOS portrait layout.
 ' SCREEN 13: 320x200, 256 colors, 40x25 text.
 ' Left side = vertical playfield (PAGES between an UPPER and a LOWER screen);
 ' right side = scoreboard panel.
@@ -132,6 +132,8 @@ COLOR CBALL
 CALL LoadHigh
 CALL NewGame
 CALL TitleScreen
+SCREEN 13
+CALL RestoreGamePalette
 CALL MakeBallSprite
 CALL DrawPanel
 CALL ResetBall            ' GoUpper + park the ball in the lane
@@ -215,11 +217,11 @@ DO
 
     ' ---- Redraw dynamic elements ----
     CALL DrawFlipState
-    CALL DrawBumpers
+    CALL AnimBumpers
     IF level = 0 THEN
-        CALL DrawSpinner
+        CALL AnimSpinner
     ELSE
-        CALL DrawSlings
+        CALL AnimSlings
     END IF
     CALL DrawScore
     IF savemsg > 0 THEN COLOR 14: LOCATE 20, 23: PRINT "BALL SAVED"
@@ -231,8 +233,6 @@ DO
 
     IF lhold > 0 THEN lhold = lhold - 1
     IF rhold > 0 THEN rhold = rhold - 1
-    IF slflashL > 0 THEN slflashL = slflashL - 1
-    IF slflashR > 0 THEN slflashR = slflashR - 1
     IF savemsg > 0 THEN
         savemsg = savemsg - 1
         IF savemsg = 0 THEN LOCATE 20, 23: PRINT "          "
@@ -251,6 +251,75 @@ COLOR 7: LOCATE 14, 7: PRINT "Press a key"
 DO: kp = INKEY$: LOOP UNTIL kp <> ""
 SCREEN 0: COLOR 7: CLS
 END
+
+' ─────────────────────────────────────────────
+' 256 palette entries for TITLE.BIN (R,G,B 0-63)
+' ─────────────────────────────────────────────
+PaletteData:
+DATA 63,63,63,63,63,62,63,63,61,63,63,40
+DATA 63,58,17,63,55,45,63,56,0,62,62,49
+DATA 61,42,3,41,50,44,1,53,56,49,37,9
+DATA 47,35,9,45,35,13,43,32,9,49,27,1
+DATA 42,31,8,40,30,8,18,41,23,33,34,34
+DATA 39,29,8,34,28,16,12,33,35,2,29,41
+DATA 57,22,5,54,20,0,53,20,1,46,21,3
+DATA 42,18,27,46,17,1,40,15,0,35,26,8
+DATA 35,17,0,36,14,0,33,25,9,32,23,9
+DATA 29,22,12,28,21,10,26,19,11,26,19,8
+DATA 24,18,10,23,17,10,21,16,11,21,16,8
+DATA 10,22,29,0,26,38,0,23,35,0,21,32
+DATA 0,18,30,20,14,10,17,14,12,0,14,31
+DATA 1,15,27,63,9,63,61,8,61,58,7,56
+DATA 56,12,12,54,6,57,46,5,25,33,12,4
+DATA 30,10,5,25,10,3,18,13,9,24,7,4
+DATA 19,6,2,16,12,10,15,11,9,14,10,10
+DATA 11,11,15,12,9,10,11,8,9,10,7,10
+DATA 6,7,9,14,5,2,9,5,8,8,6,8
+DATA 8,5,9,7,6,9,6,5,8,6,4,9
+DATA 6,4,7,0,12,27,1,11,8,0,12,6
+DATA 1,11,6,0,9,17,1,10,8,2,9,7
+DATA 0,10,6,0,12,5,0,12,5,1,11,5
+DATA 0,11,5,0,10,5,0,10,4,0,9,4
+DATA 0,9,4,1,7,14,1,7,7,1,6,14
+DATA 1,6,8,0,8,4,0,7,4,1,6,4
+DATA 0,6,3,3,4,14,2,4,14,1,5,13
+DATA 1,4,14,1,4,6,0,4,4,0,5,3
+DATA 0,4,4,17,1,11,12,1,9,11,2,9
+DATA 11,1,10,7,2,13,7,3,4,8,1,9
+DATA 6,1,8,4,3,13,4,3,9,3,2,12
+DATA 3,2,9,4,1,10,5,3,7,4,3,6
+DATA 3,2,6,3,2,5,4,0,6,2,2,14
+DATA 2,1,12,2,1,12,2,1,12,2,1,12
+DATA 2,1,12,2,1,12,2,1,12,2,1,11
+DATA 2,1,11,2,1,11,2,1,11,2,2,7
+DATA 2,2,7,2,1,8,2,1,6,2,1,9
+DATA 2,1,6,2,1,8,2,1,6,2,0,4
+DATA 1,2,6,1,1,11,1,1,10,1,1,10
+DATA 1,1,10,1,1,10,1,1,7,1,1,10
+DATA 1,1,9,1,1,9,1,1,9,1,1,9
+DATA 1,1,9,1,1,8,1,1,8,1,1,7
+DATA 1,1,8,1,1,8,1,1,7,1,1,7
+DATA 1,1,7,1,1,7,1,1,6,1,1,5
+DATA 1,0,5,0,3,6,0,2,5,0,3,3
+DATA 0,2,3,1,1,5,1,1,5,0,2,3
+DATA 0,1,3,1,1,7,1,1,7,1,1,5
+DATA 0,1,2,1,0,7,1,0,6,1,0,6
+DATA 1,0,6,1,0,6,1,0,5,1,0,5
+DATA 1,0,5,1,0,5,1,0,5,1,0,5
+DATA 1,0,4,1,0,4,0,0,3,0,0,1
+DATA 42,0,0,18,0,0,14,0,10,13,0,10
+DATA 13,0,9,13,0,9,12,0,9,12,0,8
+DATA 11,0,8,10,0,7,9,0,7,8,0,6
+DATA 7,0,7,7,0,7,7,0,6,7,0,6
+DATA 6,0,5,5,0,5,4,0,5,3,0,4
+DATA 2,0,4,1,0,4,2,0,3,1,0,4
+DATA 1,0,4,1,0,4,1,0,3,1,0,2
+DATA 0,0,4,0,0,4,0,0,3,0,0,3
+DATA 0,0,3,0,0,3,0,0,1,0,0,3
+DATA 0,0,2,0,0,2,0,0,2,0,0,2
+DATA 0,0,2,0,0,2,0,0,1,0,0,1
+DATA 0,0,1,0,0,1,0,0,1,0,0,1
+DATA 0,0,1,0,0,0,0,0,0,0,0,0
 
 ' ============================================================
 SUB NewGame
@@ -441,8 +510,8 @@ SUB DrawPanel
     LINE (DIVX - 1, 0)-(319, 199), CBKG, BF
     LINE (DIVX, 0)-(DIVX, 199), CWALL2
 
-    COLOR 13: LOCATE 2, 23: PRINT "T U R B O"
-    COLOR 11: LOCATE 4, 24: PRINT "PINBALL"
+    COLOR 13: LOCATE 2, 23: PRINT "S T E E L"
+    COLOR 11: LOCATE 4, 24: PRINT "S L A M"
     COLOR 8: LOCATE 5, 24: PRINT "(c) 1989"
 
     COLOR 14: LOCATE 8, 22: PRINT "BONUS X"
@@ -486,20 +555,44 @@ SUB DrawPlunger
 END SUB
 
 ' ============================================================
+' Draw one bumper (flashing = 1 -> white pop; else magenta band + yellow cap).
+' Clears the cap to felt first so the PAINT seeds are deterministic.
+SUB DrawOneBumper (i AS INTEGER, flashing AS INTEGER)
+    LINE (bmpx(i) - bmpr - 1, bmpy(i) - bmpr - 1)-(bmpx(i) + bmpr + 1, bmpy(i) + bmpr + 1), CFELT, BF
+    IF flashing = 1 THEN
+        CIRCLE (bmpx(i), bmpy(i)), bmpr, 13
+        PAINT (bmpx(i), bmpy(i)), 15, 13
+    ELSE
+        CIRCLE (bmpx(i), bmpy(i)), bmpr, 15
+        PAINT (bmpx(i), bmpy(i)), 13, 15
+        CIRCLE (bmpx(i), bmpy(i)), bmpr - 4, 14
+        PAINT (bmpx(i), bmpy(i)), 14, 14
+        PSET (bmpx(i) - 3, bmpy(i) - 3), 15
+    END IF
+END SUB
+
+' Full draw of every bumper (used once on a page setup).
 SUB DrawBumpers
     DIM i AS INTEGER
+    DIM f AS INTEGER
     FOR i = 0 TO nbump - 1
-        LINE (bmpx(i) - bmpr - 1, bmpy(i) - bmpr - 1)-(bmpx(i) + bmpr + 1, bmpy(i) + bmpr + 1), CFELT, BF
+        IF bmpflash(i) > 0 THEN f = 1 ELSE f = 0
+        CALL DrawOneBumper(i, f)
+    NEXT i
+END SUB
+
+' Per-frame: only redraw bumpers that are actively flashing (the save-under
+' sprite keeps idle bumpers intact, so we skip their expensive PAINT fills).
+SUB AnimBumpers
+    DIM i AS INTEGER
+    FOR i = 0 TO nbump - 1
         IF bmpflash(i) > 0 THEN
             bmpflash(i) = bmpflash(i) - 1
-            CIRCLE (bmpx(i), bmpy(i)), bmpr, 13
-            PAINT (bmpx(i), bmpy(i)), 15, 13
-        ELSE
-            CIRCLE (bmpx(i), bmpy(i)), bmpr, 15
-            PAINT (bmpx(i), bmpy(i)), 13, 15
-            CIRCLE (bmpx(i), bmpy(i)), bmpr - 4, 14
-            PAINT (bmpx(i), bmpy(i)), 14, 14
-            PSET (bmpx(i) - 3, bmpy(i) - 3), 15
+            IF bmpflash(i) > 0 THEN
+                CALL DrawOneBumper(i, 1)
+            ELSE
+                CALL DrawOneBumper(i, 0)
+            END IF
         END IF
     NEXT i
 END SUB
@@ -543,9 +636,16 @@ SUB DrawSpinner
         ELSE
             LINE (spinx - 1, spiny1)-(spinx + 1, spiny2), 15, BF
         END IF
-        spinct = spinct - 1
     ELSE
         LINE (spinx - 1, spiny1)-(spinx + 1, spiny2), CSPIN, BF
+    END IF
+END SUB
+
+' Per-frame: only redraw the spinner while it is actually spinning.
+SUB AnimSpinner
+    IF spinct > 0 THEN
+        spinct = spinct - 1
+        CALL DrawSpinner
     END IF
 END SUB
 
@@ -564,17 +664,28 @@ SUB DrawSlings
     PAINT (PFR - 4, 152), c, c
 END SUB
 
+' Per-frame: only redraw the slingshots when one is flashing from a hit.
+SUB AnimSlings
+    DIM sl AS INTEGER
+    sl = 0
+    IF slflashL > 0 THEN slflashL = slflashL - 1: sl = 1
+    IF slflashR > 0 THEN slflashR = slflashR - 1: sl = 1
+    IF sl = 1 THEN CALL DrawSlings
+END SUB
+
 ' ============================================================
 SUB DrawFlipState
     IF olflip <> SGN(lhold) THEN
         CALL DrawLeftFlipper(olflip, CFELT)
         CALL DrawLeftFlipper(SGN(lhold), CFLIP)
         olflip = SGN(lhold)
+        IF olflip = 1 THEN CALL Blip("T255L32O2E")
     END IF
     IF orflip <> SGN(rhold) THEN
         CALL DrawRightFlipper(orflip, CFELT)
         CALL DrawRightFlipper(SGN(rhold), CFLIP)
         orflip = SGN(rhold)
+        IF orflip = 1 THEN CALL Blip("T255L32O2E")
     END IF
 END SUB
 
@@ -632,12 +743,14 @@ SUB CheckBumpers
     DIM dy AS LONG
     DIM dist AS INTEGER
     DIM minD AS INTEGER
+    minD = BRAD + bmpr
     FOR i = 0 TO nbump - 1
         dx = bx - bmpx(i)
         dy = by - bmpy(i)
-        dist = INT(SQR(dx * dx + dy * dy))
-        minD = BRAD + bmpr
-        IF dist < minD THEN
+        ' cheap bounding-box reject before the square root
+        IF ABS(dx) < minD AND ABS(dy) < minD THEN
+            dist = INT(SQR(dx * dx + dy * dy))
+            IF dist < minD THEN
             IF dist < 1 THEN dist = 1
             bx = bmpx(i) + INT(dx * minD / dist)
             by = bmpy(i) + INT(dy * minD / dist)
@@ -660,6 +773,8 @@ SUB CheckBumpers
             bonus = bonus + 1
             bmphits = bmphits + 1
             bmpwin = 40
+            CALL Blip("T255L64O5C")
+            END IF
         END IF
     NEXT i
 END SUB
@@ -749,6 +864,7 @@ SUB CheckSlings
         slflashL = 3
         bmphits = bmphits + 1
         bmpwin = 40
+        CALL Blip("T255L64O4G")
     END IF
     IF bx >= rpx - 6 AND bx <= PFR AND by >= 140 AND by <= 160 THEN
         IF bmphits >= 14 THEN
@@ -764,6 +880,7 @@ SUB CheckSlings
         slflashR = 3
         bmphits = bmphits + 1
         bmpwin = 40
+        CALL Blip("T255L64O4G")
     END IF
 END SUB
 
@@ -851,39 +968,61 @@ SUB Pause
 END SUB
 
 ' ============================================================
+' Non-blocking sound: "MB" = music-background, so the note is queued to the
+' speaker interrupt and PLAY returns immediately (a blocking SOUND would stall
+' the game loop). Keep the notes very short (L64) so they read as blips.
+SUB Blip (seq AS STRING)
+    PLAY "MB" + seq
+END SUB
+
+' ============================================================
 SUB TitleScreen
     DIM k AS STRING
-    LINE (0, 0)-(319, 199), CBKG, BF
-
-    LINE (8, 8)-(311, 191), 10, B
-    LINE (11, 11)-(308, 188), 9, B
-
-    COLOR 12: LOCATE 4, 13: PRINT "Q P I N B A L L"
-    COLOR 14: LOCATE 6, 15: PRINT "TWO  LEVELS"
-    LINE (60, 62)-(260, 62), 13
-    LINE (60, 64)-(260, 64), 5
-
-    CIRCLE (168, 144), 26, 8, , , .35
-    PAINT (168, 144), 8, 8
-
-    CIRCLE (168, 108), 24, 15
-    PAINT (168, 108), 7, 15
-    CIRCLE (159, 99), 5, 15
-    CIRCLE (159, 99), 2, 15
-
-    LINE (108, 152)-(150, 128), 13
-    LINE (108, 151)-(150, 127), 13
-    LINE (108, 153)-(150, 129), 13
-    LINE (108, 150)-(150, 126), 13
-    CIRCLE (108, 152), 4, 13
-    PAINT (108, 152), 13, 13
-
-    LINE (196, 95)-(216, 91), 11
-    LINE (198, 104)-(220, 103), 14
-    LINE (196, 113)-(216, 116), 11
-
+    IF DIR$("TITLE.BIN") <> "" THEN
+        CALL LoadPalette
+        DEF SEG = &HA000
+        BLOAD "TITLE.BIN", 0
+        DEF SEG
+    ELSE
+        LINE (0, 0)-(319, 199), CBKG, BF
+        COLOR 12: LOCATE 10, 14: PRINT "STEEL  SLAM"
+        COLOR 14: LOCATE 12, 15: PRINT "TWO LEVELS"
+    END IF
     COLOR 15: LOCATE 21, 11: PRINT "PRESS SPACE TO PLAY"
     COLOR 7: LOCATE 23, 13: PRINT "Z X = FLIPPERS"
-
+    PLAY "T180 O3 L8 C E G O4 C E G L4 C L8 E L2 G"
     DO: k = INKEY$: LOOP UNTIL k <> ""
+END SUB
+
+SUB RestoreGamePalette
+    ' Reset VGA DAC indices 0-15 to standard CGA/VGA defaults (0-63 scale)
+    OUT &H3C8, 0
+    OUT &H3C9, 0:  OUT &H3C9, 0:  OUT &H3C9, 0   ' 0  black
+    OUT &H3C9, 0:  OUT &H3C9, 0:  OUT &H3C9, 42  ' 1  dark blue
+    OUT &H3C9, 0:  OUT &H3C9, 42: OUT &H3C9, 0   ' 2  dark green
+    OUT &H3C9, 0:  OUT &H3C9, 42: OUT &H3C9, 42  ' 3  dark cyan
+    OUT &H3C9, 42: OUT &H3C9, 0:  OUT &H3C9, 0   ' 4  dark red
+    OUT &H3C9, 42: OUT &H3C9, 0:  OUT &H3C9, 42  ' 5  dark magenta
+    OUT &H3C9, 42: OUT &H3C9, 21: OUT &H3C9, 0   ' 6  brown
+    OUT &H3C9, 42: OUT &H3C9, 42: OUT &H3C9, 42  ' 7  light gray
+    OUT &H3C9, 21: OUT &H3C9, 21: OUT &H3C9, 21  ' 8  dark gray
+    OUT &H3C9, 21: OUT &H3C9, 21: OUT &H3C9, 63  ' 9  bright blue
+    OUT &H3C9, 21: OUT &H3C9, 63: OUT &H3C9, 21  ' 10 bright green
+    OUT &H3C9, 21: OUT &H3C9, 63: OUT &H3C9, 63  ' 11 bright cyan
+    OUT &H3C9, 63: OUT &H3C9, 21: OUT &H3C9, 21  ' 12 bright red
+    OUT &H3C9, 63: OUT &H3C9, 21: OUT &H3C9, 63  ' 13 bright magenta
+    OUT &H3C9, 63: OUT &H3C9, 63: OUT &H3C9, 21  ' 14 bright yellow
+    OUT &H3C9, 63: OUT &H3C9, 63: OUT &H3C9, 63  ' 15 bright white
+END SUB
+
+SUB LoadPalette
+    DIM i AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER
+    OUT &H3C8, 0
+    RESTORE PaletteData
+    FOR i = 0 TO 255
+        READ r, g, b
+        OUT &H3C9, r
+        OUT &H3C9, g
+        OUT &H3C9, b
+    NEXT i
 END SUB

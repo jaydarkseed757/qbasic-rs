@@ -89,11 +89,11 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
-All **42 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 42/42). The full set also includes `nibbles`,
+All **52 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 52/52). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
-`qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, and the
-`pi-gw`/`hangman-gw` GW-BASIC variants.
+`qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
+`towers`, `pride`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
 
 ---
 

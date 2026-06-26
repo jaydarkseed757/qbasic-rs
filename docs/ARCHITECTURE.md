@@ -1206,7 +1206,8 @@ Debugging infrastructure plus the last language gaps for the bundled set
   `QBC_TEXT_FB`, `QBC_EXIT_AFTER`. Enables deterministic, windowless renders for
   CI/SSH and turned multi-round "black screen" debugging into framebuffer diffs.
 - **Graphics golden tests** — `tests/run-graphics-tests.sh` diffs `fb_checksum`
-  against committed goldens (256c, screen13, palette256_expanded, reversi, torus);
+  against 10 committed goldens (256c, screen13, screen13-sprite,
+  palette256_expanded, reversi, torus, hangman-gfx, duck, gorilla, donkey);
   `tools/ppm2png.py` exports PPM dumps to PNG for the README gallery. mandel is
   excluded (timing-dependent + infinite palette cycle).
 - **SCREEN 13 (MCGA) GET/PUT sprites** — 8-bpp chunky layout
@@ -1338,7 +1339,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **33/33**, with 130 runtime unit tests and 9 graphics golden tests.
+The integration suite is **33/33**, with 130 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;

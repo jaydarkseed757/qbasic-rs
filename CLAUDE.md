@@ -82,9 +82,9 @@ duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
 - **33/33** integration (`tests/run-tests.sh`, stdout-based)
 - **130** runtime unit tests (`cargo test --workspace`)
-- **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
-  checksums for 256c, screen13, palette256_expanded, reversi, torus,
-  hangman-gfx, duck, gorilla, donkey)
+- **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
+  checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
+  torus, hangman-gfx, duck, gorilla, donkey)
 
 gorilla.bas is **fully verified** — headless golden for the banana-throw frame,
 and audio (PLAY explosion/victory fanfares), victory animations, and multi-round
@@ -1284,7 +1284,7 @@ and only the plain-numeric / string-concat paths are affected.
 - **gorilla is now golden-tested** — seed 42, scripted intro + one banana throw
   (angle 45°, velocity 50), captures mid-flight frame (`presents:80`).
   The `DRAIN` sentinel stops two `WHILE INKEY$<>"":WEND` drain-loops (SparklePause
-  + GetNum#). **donkey** is not yet golden (more input + animation to script).
+  + GetNum#). **donkey** is also golden-tested now.
   Audio (PLAY), victory animations, and multi-round scoring confirmed working
   via human play-through. The other graphics programs (256c/screen13/palette256_expanded
   /reversi/torus/hangman-gfx/duck) are also golden-tested.

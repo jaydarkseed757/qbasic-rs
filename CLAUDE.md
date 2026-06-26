@@ -80,8 +80,8 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix, qmaze,
 duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
-- **32/32** integration (`tests/run-tests.sh`, stdout-based)
-- **123** runtime unit tests (`cargo test --workspace`)
+- **33/33** integration (`tests/run-tests.sh`, stdout-based)
+- **130** runtime unit tests (`cargo test --workspace`)
 - **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, palette256_expanded, reversi, torus,
   hangman-gfx, duck, gorilla, donkey)
@@ -1185,6 +1185,44 @@ absent, real image blit when present):
   resolve to `src/emitter/mod.rs` (impl methods) or the relevant submodule
   (`scan.rs` for collection passes, `helpers.rs` for name-mangling,
   `postprocess.rs` for output cleanup).
+
+### Idiomatic-output passes (T1–T5) — cosmetic, behavior-preserving
+
+Five transforms make the emitted Rust read more like hand-written Rust. All are
+**behavior-preserving** (proven by byte-identical integration stdout + unchanged
+graphics goldens); they never touch the f64-everywhere invariant or QB semantics,
+and only the plain-numeric / string-concat paths are affected.
+
+- **T1 — compound assignment** (`Stmt::Let`, `src/emitter/mod.rs`): `x = x + e`
+  → `x += e` (also `-= *= /=`). Numeric LHS only, and only when the LHS is the
+  *left* operand of the BinOp (so `x = 1 + x` is left alone). Catches both FOR-
+  body and plain `while`-body manual increments.
+- **T2 — string-literal arg unwrap** (PRINT builder): `qb_str(&("Fizz"))` →
+  `qb_str("Fizz")`. `qb_str` takes `impl Display`, so a bare `&str` literal needs
+  no `&(...)`.
+- **T3 — constant-step FOR** (`Stmt::For`): when STEP is a compile-time numeric
+  literal (or the default `+1`), emit a single-direction `while {v} <= {to}` (or
+  `>=`) and inline the constant increment instead of the dual-direction guard
+  `(step>0 && …) || (step<0 && …)`. STEP 0 and non-literal steps keep the runtime-
+  checked form. `lit_sign()` helper detects the sign (IntLit/FloatLit/Neg).
+- **T4 — `simplify_parens`** (`src/emitter/postprocess.rs`, runs FIRST in the
+  postprocess chain): drops precedence-neutral parens — `(atom)`/`("lit")`
+  *grouping* parens (NOT call/index parens, guarded by the preceding char) and a
+  fully-parenthesized assignment RHS `= (E);` → `= E;`. String-literal-aware byte
+  scanner; leaves `(*x)` to `strip_deref_parens`. 7 unit tests in
+  `deref_paren_tests`.
+- **T5 — string accumulation → `push_str`** (`Stmt::Let`): `s$ = s$ + a + b` →
+  `s.push_str(&a); s.push_str(&b);` instead of the full-rebuild
+  `(format!("{}{}…", s, a, b)).to_string()`. `concat_append_terms()` flattens a
+  left-nested Add chain and requires the leftmost leaf to equal the LHS lvalue
+  (so `G$ = M$ + K$` and `End$ = WhoWon$ + …` stay `format!`); `expr_refs_lvalue()`
+  guards against any appended term referencing the LHS (sequential `push_str`
+  would otherwise see a half-built string, unlike QB's evaluate-then-assign). Each
+  String term coerces to `&str` via `&`; literals append bare. Works for locals,
+  shared `__gs` fields, `&mut String` params, and string array elements. Covered
+  by `tests/programs/string_accum.bas` (single, chain, different-leftmost-var, and
+  self-referential-term cases). **Deferred:** `.is_empty()` for `(s).as_str() ==
+  ""` (touches the regression-prone string-comparison emitter).
 
 ## Known Issues / TODO
 

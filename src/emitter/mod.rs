@@ -1323,6 +1323,22 @@ impl Emitter {
                             }
                         }
                     }
+                } else if let Some(terms) = self.concat_append_terms(expr, &lhs) {
+                    // T5 — string accumulation `s$ = s$ + a + b` → push_str per term,
+                    // avoiding the full-rebuild `(format!(…)).to_string()`. push_str
+                    // takes &str; a String term coerces via `&`, a literal needs none.
+                    for t in terms {
+                        // push_str takes &str. A string-concat term always lifts to
+                        // an atom / call / format! / deref (never a bare infix expr),
+                        // so a leading `&` binds correctly; a String coerces to &str.
+                        let arg = if matches!(t, Expr::StrLit(_)) {
+                            self.lift_expr(t)
+                        } else {
+                            format!("&{}", self.lift_expr(t))
+                        };
+                        self.line(&format!("{lhs}.push_str({arg});"));
+                    }
+                    return Ok(());
                 }
 
                 // Use lift_expr so user-function calls with &mut String params
@@ -2978,6 +2994,59 @@ impl Emitter {
             format!("{rn}__sc")
         } else {
             rn.to_string()
+        }
+    }
+
+    // ── T5: string-accumulation detection ────────────────────────────────────
+
+    /// If `expr` is a left-nested string-concat chain `s$ + a + b + …` whose
+    /// leftmost leaf is exactly the LHS lvalue `lhs`, return the appended terms
+    /// (`[a, b, …]`) so the caller can emit `s.push_str(&a); s.push_str(&b); …`
+    /// instead of rebuilding the whole string with `format!`. Returns `None`
+    /// (→ keep the `format!` path) when it isn't such a chain, when the leftmost
+    /// leaf is a *different* variable (`G$ = M$ + K$`), or when any appended term
+    /// references the LHS variable — sequential `push_str` would then observe a
+    /// half-built string, unlike QB's evaluate-then-assign semantics.
+    fn concat_append_terms<'a>(&self, expr: &'a Expr, lhs: &str) -> Option<Vec<&'a Expr>> {
+        fn flatten<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) -> &'a Expr {
+            if let Expr::BinOp { op: BinOp::Add, lhs, rhs } = e {
+                let leaf = flatten(lhs, out);
+                out.push(rhs);
+                leaf
+            } else {
+                e
+            }
+        }
+        let mut terms = Vec::new();
+        let leaf = flatten(expr, &mut terms);
+        if terms.is_empty() { return None; } // not a concatenation at all
+        match leaf {
+            Expr::Var(lv) if self.emit_lvalue(lv) == lhs => {}
+            _ => return None,
+        }
+        if terms.iter().any(|t| self.expr_refs_lvalue(t, lhs)) { return None; }
+        Some(terms)
+    }
+
+    /// True if `e` reads the lvalue whose emitted form is `target` anywhere
+    /// (directly or inside an array subscript / call argument).
+    fn expr_refs_lvalue(&self, e: &Expr, target: &str) -> bool {
+        match e {
+            Expr::Var(lv) => {
+                if self.emit_lvalue(lv) == target { return true; }
+                match lv {
+                    LValue::Index { indices, .. } | LValue::FieldIndex { indices, .. } =>
+                        indices.iter().any(|ix| self.expr_refs_lvalue(ix, target)),
+                    _ => false,
+                }
+            }
+            Expr::BinOp { lhs, rhs, .. } =>
+                self.expr_refs_lvalue(lhs, target) || self.expr_refs_lvalue(rhs, target),
+            Expr::UnOp { operand, .. } => self.expr_refs_lvalue(operand, target),
+            Expr::Call { args, .. } => args.iter().any(|a| self.expr_refs_lvalue(a, target)),
+            Expr::Point { x, y } =>
+                self.expr_refs_lvalue(x, target) || self.expr_refs_lvalue(y, target),
+            _ => false,
         }
     }
 

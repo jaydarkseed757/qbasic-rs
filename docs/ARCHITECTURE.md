@@ -1339,7 +1339,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **32/32**, with 123 runtime unit tests and 9 graphics golden tests.
+The integration suite is **33/33**, with 130 runtime unit tests and 9 graphics golden tests.
 
 Remaining work is one rarely-used feature:
 

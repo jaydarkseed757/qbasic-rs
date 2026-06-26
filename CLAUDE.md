@@ -1274,9 +1274,13 @@ and only the plain-numeric / string-concat paths are affected.
   outside the well (gorilla/donkey use one array per sprite, offset 0, so were spared).
   Threaded through the cga/mode13 variants too. Covered by `get_put_at_offset_*` in
   `sprite_tests`.
-- **Open gaps (none block the bundled set):** `PRINT USING` `$$`/`**`
-  floating tokens print literally (all other PRINT USING formats work). `OUT`/`INP`
-  now supported for VGA DAC ports — see the VGA DAC section above and `vgadac.bas`.
+- **`PRINT USING` is fully implemented**, including the `$$` floating dollar,
+  `**` asterisk fill, and `**$` combined prefixes (`*` slots extend digit
+  capacity, `$` does not), alongside numeric/string/`_X`/`^^^^`/`%` formats. 36
+  unit tests (`print_using_tests` + `print_using_prefix_tests`). The only
+  unmodeled QB features are the `PAINT CHR$()` tiling pattern and `CHAIN`/`SHELL`.
+  `OUT`/`INP` are supported for VGA DAC ports — see the VGA DAC section above and
+  `vgadac.bas`.
 - **gorilla is now golden-tested** — seed 42, scripted intro + one banana throw
   (angle 45°, velocity 50), captures mid-flight frame (`presents:80`).
   The `DRAIN` sentinel stops two `WHILE INKEY$<>"":WEND` drain-loops (SparklePause

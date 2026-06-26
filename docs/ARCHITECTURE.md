@@ -172,7 +172,6 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 
 ### Not supported / stubbed
 - `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
-- `PRINT USING` `$$` / `**` floating tokens → printed literally
 - `CHAIN` / `SHELL` → not modeled (stubbed to program end)
 - `OUT` / `INP` — **now supported** for VGA DAC ports (0x3C7/0x3C8/0x3C9); other port
   addresses are silently ignored (not modeled at the hardware level)
@@ -1341,13 +1340,17 @@ qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
 The integration suite is **33/33**, with 130 runtime unit tests and 9 graphics golden tests.
 
-Remaining work is one rarely-used feature:
-
-1. **`PRINT USING` floating tokens** — `$$` (floating dollar) and `**`
-   (asterisk fill) print literally. `^^^^` scientific notation and wide-field
-   `%` overflow are implemented (see Feature Support Notes).
+No known QB feature gaps block the bundled set. The only unmodeled features are
+two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;
+`CHAIN`/`SHELL` → program end).
 
 Previously listed items that are now complete:
+- **`PRINT USING` floating tokens** — ✅ Implemented. `$$` (floating dollar),
+  `**` (asterisk fill), and `**$` (combined) all format correctly, including the
+  `%` overflow rule (`*` slots extend digit capacity, `$` does not). Joins the
+  already-working numeric/string/`_X`/`^^^^`/`%` formats. 36 unit tests across
+  `print_using_tests` (20) + `print_using_prefix_tests` (16). See Feature
+  Support Notes.
 - **`OUT &H3C8/&H3C9` VGA DAC port writes** — ✅ Implemented. `qb_out`/`qb_in`
   on `Runtime` model the 3-channel VGA DAC state machine. `vgadac.bas` tests
   PALETTE vs OUT writes vs INP readback.
@@ -1402,9 +1405,12 @@ see **What's Left** above.
   exponent. Wide-field overflow follows QB: a value too large for the field
   is printed in full behind a leading `%` (e.g. `##; 123` → `%123`). Field
   width now equals the literal width of the format spec (a prior off-by-one
-  that over-padded every numeric field by one space is fixed). 20 unit tests
-  in `runtime/src/lib.rs::print_using_tests`. Not yet special-cased: `$$`
-  floating dollar and `**` asterisk fill (they print literally).
+  that over-padded every numeric field by one space is fixed). The `$$`
+  floating dollar, `**` asterisk fill, and `**$` combined prefixes are
+  supported (`$$###; 12` → `  $12`, `**###; 12` → `***12`, `**$###; 12` →
+  `***$12`); `*` slots extend digit capacity while `$` does not. 36 unit tests
+  across `runtime/src/lib.rs::print_using_tests` (20) and
+  `print_using_prefix_tests` (16).
 - **File I/O** — fully supported: sequential (`FOR INPUT/OUTPUT/APPEND`:
   `OPEN/CLOSE/INPUT#/LINE INPUT#/PRINT#/WRITE#`), random-access (`FOR RANDOM`:
   `FIELD/GET#/PUT#/LSET/RSET`), and binary TYPE-record serialization. `MKD$`/

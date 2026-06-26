@@ -64,6 +64,7 @@ pub enum Token {
     Put,           // PUT (x,y), array, mode  (sprite blit)
     Get,           // GET (x1,y1)-(x2,y2), array  (screen capture)
     Width,         // WIDTH col, row
+    Wait,          // WAIT port, mask[, xormask]
     DefInt,        // DEFINT A-Z
     DefSng,        // DEFSNG
     DefDbl,        // DEFDBL
@@ -175,6 +176,7 @@ fn keyword(word: &str) -> Option<Token> {
         "PUT"       => Token::Put,
         "RESUME"    => Token::Resume,
         "WIDTH"     => Token::Width,
+        "WAIT"      => Token::Wait,
         "AND"       => Token::And,
         "AS"        => Token::As,
         "BEEP"      => Token::Beep,

@@ -150,6 +150,7 @@ pub enum Stmt {
     Play(Expr),
     Poke { addr: Expr, val: Expr },
     Out  { port: Expr, val: Expr },
+    Wait { port: Expr, mask: Expr, xormask: Option<Expr> },
     Sound { freq: Expr, duration: Expr },
     Beep,
     Randomize(Option<Expr>),
@@ -754,6 +755,19 @@ impl Parser {
                 self.expect(&Token::Comma)?;
                 let val = self.parse_expr()?;
                 Ok(Stmt::Out { port, val })
+            }
+            Token::Wait => {
+                self.advance(); // consume WAIT
+                let port = self.parse_expr()?;
+                self.expect(&Token::Comma)?;
+                let mask = self.parse_expr()?;
+                let xormask = if self.peek() == &Token::Comma {
+                    self.advance();
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                Ok(Stmt::Wait { port, mask, xormask })
             }
             Token::Width => {
                 self.skip_warn("WIDTH");

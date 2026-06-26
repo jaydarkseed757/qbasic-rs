@@ -2437,6 +2437,16 @@ impl Runtime {
         }
     }
 
+    /// WAIT port, mask[, xormask] — spin until (INP(port) XOR xormask) AND mask != 0.
+    ///
+    /// On real hardware `WAIT &H3DA, 8` waits for the VGA vertical-retrace bit.
+    /// We have no real VGA status register, so we just pump window events and
+    /// yield briefly — the programs using this are already timed by the main
+    /// animation loop and don't need sub-millisecond port timing.
+    pub fn qb_wait(&mut self, _port: f64, _mask: f64, _xormask: f64) {
+        self.pump_events();
+    }
+
     /// SOUND freq, duration — freq in Hz, duration in PC timer ticks (18.2/sec).
     pub fn sound(&mut self, freq: f64, dur: f64) {
         sound::play_sound(freq, dur);

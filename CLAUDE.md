@@ -29,7 +29,11 @@ qbasic-rust/
 │   ├── lexer.rs                # Source text → Vec<Spanned<Token>>
 │   ├── parser.rs               # Tokens → AST (Program, Stmt, Expr, LValue)
 │   ├── analyzer.rs             # AST → AnalyzedProgram (symbol table, labels, DATA)
-│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~5370 lines)
+│   ├── emitter/                # AnalyzedProgram → Rust source string (split module)
+│   │   ├── mod.rs              # Emitter struct + all impl methods (~4680 lines)
+│   │   ├── helpers.rs          # name-mangling + codegen utilities (~250 lines)
+│   │   ├── scan.rs             # AST collection / analysis passes (~1620 lines)
+│   │   └── postprocess.rs      # final Rust-output cleanup passes (~270 lines)
 │   └── error.rs                # QbError enum (Lex / Parse / Analyze / Emit)
 │
 ├── runtime/                    # Runtime library linked by every transpiled program
@@ -38,7 +42,7 @@ qbasic-rust/
 │       └── sound.rs            # PLAY / SOUND / BEEP via rodio (~300 lines)
 │
 ├── basic-src/                  # Real DOS QBasic programs used for manual testing
-│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (44 programs total)
+│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (52 programs total)
 │
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
@@ -69,14 +73,15 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **44/44** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **52/52** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
-kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
-duck, etto, invaders, toccata, gotorama, blackjack, textpaint, kingdom, vgadac). Test suites:
-- **30/30** integration (`tests/run-tests.sh`, stdout-based)
-- **119** runtime unit tests (`cargo test --workspace`)
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix, qmaze,
+duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
+deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
+- **32/32** integration (`tests/run-tests.sh`, stdout-based)
+- **123** runtime unit tests (`cargo test --workspace`)
 - **9/9** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, palette256_expanded, reversi, torus,
   hangman-gfx, duck, gorilla, donkey)
@@ -163,7 +168,7 @@ which throttles to one blit per 256 calls / frame interval.
 ### 10. User-defined TYPEs — recursive flattening
 TYPE fields are flattened to `__`-joined scalar variable names:
 `player.Pos.X` → `player__pos__x`. The `flatten_type_fields(type_name, type_defs)`
-free function in `emitter.rs` recurses through nested UserType fields.
+free function in `emitter/scan.rs` recurses through nested UserType fields.
 
 Keywords used as TYPE names (e.g. `TYPE Color` where `Color` is lexed as
 `Token::Color`) are handled by `advance_as_type_ident()` in the parser.
@@ -379,7 +384,7 @@ The bundled programs in `basic-src/` are for manual/visual verification only.
   `GET`, `PUT` accept a `STEP(dx,dy)` coordinate prefix meaning "relative to the
   current graphics cursor (last point referenced)". Parsed via `opt_step()` in
   `parser.rs` (each coord pair carries a `step`/`step1`/`step2` flag);
-  `emitter.rs` lowers a relative point to `__rt.cur_x()/cur_y() + delta` temps
+  `emitter/mod.rs` lowers a relative point to `__rt.cur_x()/cur_y() + delta` temps
   and calls the absolute runtime methods. Semantics: a single point and a LINE/GET
   *first* point are relative to the cursor; a LINE/GET *second* `STEP` point is
   relative to the *first point* (not the cursor). Non-STEP statements emit
@@ -1142,6 +1147,44 @@ absent, real image blit when present):
   `DEF SEG` stays a no-op — video memory is the only `BLOAD` target we model; `BSAVE` and
   non-video segments are unmodeled. Covered by `bload_tests` (runtime). build-all is
   **51/51** (pin.bas was failing to compile before this).
+
+### `WAIT` statement + emitter module split (build-all 52/52)
+
+- **`WAIT port, mask[, xormask]`** (`src/lexer.rs`, `src/parser.rs`,
+  `src/emitter/mod.rs`, `runtime/src/lib.rs`) — `Token::Wait` →
+  `Stmt::Wait { port, mask, xormask }` → `__rt.qb_wait(port, mask, xormask)`. On
+  real hardware `WAIT &H3DA, 8` blocks until `(INP(port) XOR xormask) AND mask !=
+  0` — the VGA vertical-retrace status bit. The runtime has no port register, so
+  `qb_wait` just `pump_events()` and returns (programs are already paced by their
+  own animation loop and don't need sub-millisecond port timing). Without the
+  keyword, `WAIT` lexed as a user-SUB call and emitted as an undefined
+  `wait(port, mask)` — 11 such calls broke `demo.bas`'s compile. Parser mirrors
+  the `OUT`/`POKE` pattern (statement only; the optional third arg is the XOR
+  mask). New program: `basic-src/demo.bas`. (`blackjack.bas` was also renamed to
+  the 8.3-DOS-safe `blackjak.bas`.)
+
+- **`src/emitter.rs` (6,812 lines) split into `src/emitter/`** — the largest
+  source file by far. The ~2,200 lines of free functions at the bottom (no `self`
+  access — they take `&[Stmt]` / `&AnalyzedProgram`) were extracted into three
+  submodules, leaving `mod.rs` with the `Emitter` struct and all `impl` methods:
+  - `mod.rs` (~4,680) — `Emitter` struct + every `impl` method + the public
+    `emit()` shim
+  - `helpers.rs` (~250) — name-mangling / codegen utilities (`rust_ident`,
+    `rust_ident_typed`, `rust_fn_name`, `qb_type_to_rust`, `emit_f64_lit`,
+    `idx_sub`, `is_str_expr`, `nested_vec_*`, …)
+  - `scan.rs` (~1,620) — all AST `collect_*`/`detect_*`/`extract_*` analysis
+    passes
+  - `postprocess.rs` (~270) — `inline_single_use_tmps`, `remove_unnecessary_mut`,
+    `strip_deref_parens` + their tests
+
+  All call sites are unchanged: each submodule's functions are `pub(super)` and
+  re-exported into `mod.rs` via `use helpers::*; use scan::*; use postprocess::*`.
+  **No `impl Emitter` method bodies moved** — that split is deferred (it would
+  require marking the struct's ~34 private fields `pub(crate)`). **Note for future
+  edits:** the many `(src/emitter.rs)` path references elsewhere in this file now
+  resolve to `src/emitter/mod.rs` (impl methods) or the relevant submodule
+  (`scan.rs` for collection passes, `helpers.rs` for name-mangling,
+  `postprocess.rs` for output cleanup).
 
 ## Known Issues / TODO
 

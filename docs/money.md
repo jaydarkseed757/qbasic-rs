@@ -405,7 +405,7 @@ truncated bytes above 0x7F.  Fix: use Latin-1 encoding throughout `MKD$`/`CVD`,
 `MKI$`/`CVI`, `MKS$`/`CVS`, `MKL$`/`CVL`.  `qb_lset`/`qb_rset` updated to
 measure string width in chars (`.chars().count()`) not bytes.
 
-### 4. `INPUT #n` numeric trim (`src/emitter.rs`)
+### 4. `INPUT #n` numeric trim (`src/emitter/mod.rs`)
 
 `PRINT #2, ColorPref` emits `" 1 "` (QB leading-space convention for positive
 numbers).  When read back with `INPUT #1, ColorPref`, the emitted code called
@@ -414,7 +414,7 @@ returns `Err`, leaving `ColorPref` as `0.0`.  `colors(x)(0)` is never
 populated, so all colour lookups returned black.  Fix: `.trim()` before
 `.parse::<f64>()` in both file and interactive INPUT paths.
 
-### 5. `local_dim_names` shadowing (`src/emitter.rs`)
+### 5. `local_dim_names` shadowing (`src/emitter/mod.rs`)
 
 A `HashSet<String>` tracks names that have been explicitly `DIM`'d within the
 current scope so that a local integer variable `B` is not shadowed by a

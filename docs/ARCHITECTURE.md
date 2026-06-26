@@ -21,7 +21,11 @@ qbasic-rust/
 │   ├── lexer.rs                # Source text → Vec<Spanned<Token>>
 │   ├── parser.rs               # Tokens → AST (Program, Stmt, Expr, LValue)
 │   ├── analyzer.rs             # AST → AnalyzedProgram (symbol table, DATA)
-│   ├── emitter.rs              # AnalyzedProgram → Rust source string  (~5370 lines)
+│   ├── emitter/                # AnalyzedProgram → Rust source string (split module)
+│   │   ├── mod.rs              # Emitter struct + all impl methods (~4680 lines)
+│   │   ├── helpers.rs          # name-mangling + codegen utilities (~250 lines)
+│   │   ├── scan.rs             # AST collection / analysis passes (~1620 lines)
+│   │   └── postprocess.rs      # final Rust-output cleanup passes (~270 lines)
 │   └── error.rs                # QbError enum (Lex / Parse / Analyze / Emit)
 │
 ├── runtime/                    # Runtime library linked by every transpiled program
@@ -30,7 +34,7 @@ qbasic-rust/
 │       ├── lib.rs              # Runtime struct, graphics, I/O, math/string fns  (~3875 lines)
 │       └── sound.rs            # PLAY MML parser + SOUND/BEEP via rodio  (~300 lines)
 │
-└── basic-src/                  # Test .bas programs (44 total)
+└── basic-src/                  # Test .bas programs (52 total)
     ├── gorilla.bas             # Primary target: gorilla-throwing game
     ├── torus.bas               # 3-D torus (arrays of TYPE, WINDOW/PMAP, VGA palette)
     ├── reversi.bas             # Reversi/Othello AI (3-D arrays, WINDOW SCREEN)
@@ -52,8 +56,9 @@ qbasic-rust/
     └── …                       # nibbles, hangman*, pi-gw, q_sort, fuzzbuzz, primes,
                                 #   step, 256c, palette256_expanded, random-pixel, qblocks,
                                 #   loopyloop, pixel-gw, pokeit, pokemix, qmaze, demo1,
-                                #   hello-world, sound, toccata, gotorama, sortdemo,
-                                #   blackjack, textpaint, qbricks
+                                #   demo, hello-world, sound, toccata, gotorama, sortdemo,
+                                #   blackjak, textpaint, qbricks, deffn-multi, onerror,
+                                #   farkle, pin, towers, pride, pride256c
 ```
 
 ---
@@ -122,7 +127,7 @@ without manual `-L` flags when run via `cargo run`.
 
 The authoritative lists live in the lexer keyword table (`src/lexer.rs`), the
 statement parser (`src/parser.rs`), and the emitter's built-in dispatch
-(`src/emitter.rs`). This set covers all 24 bundled DOS programs.
+(`src/emitter/mod.rs`). This set covers all 52 bundled programs.
 
 ### Statements & keywords
 
@@ -136,7 +141,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
-| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `DEF SEG` (parsed/ignored) |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `WAIT port, mask[, xormask]` (VGA retrace sync — pumps events), `DEF SEG` (parsed/ignored) |
 | **Operators** | `AND`, `OR`, `XOR`, `NOT`, `EQV`, `IMP`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
@@ -336,9 +341,10 @@ first definition; the transpiler emits both — flagged on stderr).
 
 ---
 
-## Emitter (`src/emitter.rs`)
+## Emitter (`src/emitter/`)
 
-The largest file (~5500 lines). Walks `AnalyzedProgram` and writes Rust source.
+Split into four files; `mod.rs` (~4680 lines) holds the `Emitter` struct and all
+`impl` methods. Walks `AnalyzedProgram` and writes Rust source.
 
 ### Emitted file structure
 
@@ -996,6 +1002,26 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M19 — WAIT statement + emitter module split + demo.bas (build-all 52/52) ✅
+
+**`WAIT port, mask[, xormask]`** — new keyword (`Token::Wait` → `Stmt::Wait` →
+`__rt.qb_wait()`). On real hardware `WAIT &H3DA, 8` spins until the VGA
+vertical-retrace status bit is set; the runtime has no port register so `qb_wait`
+calls `pump_events()` and returns (programs are already paced by their animation
+loop). 11 compile errors in `demo.bas` were caused by WAIT being lexed as a
+user-SUB call. `demo.bas` now builds and runs correctly.
+
+**`src/emitter.rs` (6,812 lines) split into `src/emitter/`** — the ~2,200 lines of free
+functions (no `self` access) extracted into `helpers.rs` (name-mangling / codegen
+utilities), `scan.rs` (all `collect_*`/`detect_*`/`extract_*` analysis passes),
+and `postprocess.rs` (`inline_single_use_tmps`, `remove_unnecessary_mut`,
+`strip_deref_parens` + tests). `mod.rs` retains the `Emitter` struct and all
+`impl` methods. Extraction used `pub(super)` + `use submod::*` so no call sites
+changed. The `impl Emitter` method split is deferred (requires `pub(crate)` on
+struct fields). `blackjack.bas` renamed to `blackjak.bas` (8.3-safe DOS filename).
+
+Build-all 52/52, integration 32/32, 123 runtime unit tests.
+
 ### M18 — Emitter quality passes, VGA DAC, behavioral env overrides, kingdom.bas (build-all 44/44) ✅
 
 Three chained post-processing passes now run at `emit()` return:
@@ -1306,13 +1332,14 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **44/44** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **52/52** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
-kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, pokemix, qmaze,
-duck, etto, invaders, toccata, gotorama, blackjack, textpaint, kingdom, vgadac).
-The integration suite is **30/30**, with 119 runtime unit tests and 9 graphics golden tests.
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix,
+qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
+vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
+The integration suite is **32/32**, with 123 runtime unit tests and 9 graphics golden tests.
 
 Remaining work is one rarely-used feature:
 

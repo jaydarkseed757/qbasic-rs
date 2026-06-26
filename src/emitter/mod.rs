@@ -527,7 +527,9 @@ impl Emitter {
         self.emit_key_event_helper()?;
 
         self.emit_main(&main_stmts, &globals)?;
-        Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&self.out))))
+        // simplify_parens runs FIRST (on raw output) so it never fights the
+        // (*x) handling that strip_deref_parens owns at the end of the chain.
+        Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&simplify_parens(&self.out)))))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {
@@ -1290,6 +1292,39 @@ impl Emitter {
                 }
 
                 let lhs = self.emit_lvalue(var);
+
+                // T1 — compound assignment: `x = x + e` → `x += e` (also -, *, /).
+                // Only for the plain-numeric path (strings/TYPE keep `= …`), and
+                // only when the counter is the *left* operand (so `x = 1 + x` is
+                // left alone, since Rust `+=` requires the lvalue on the left).
+                let is_str_lhs = match var {
+                    LValue::Scalar { name, .. }
+                        if self.str_params.contains(&rust_ident_typed(name, &QbType::String)) => true,
+                    LValue::Scalar { ty: QbType::String, .. } => true,
+                    LValue::Index  { ty: QbType::String, .. } => true,
+                    LValue::Index  { name, .. }
+                        if self.local_string_arrays.contains(&name.to_lowercase()) => true,
+                    _ => self.is_str_expr_ctx(&Expr::Var(var.clone())),
+                };
+                if !is_str_lhs {
+                    if let Expr::BinOp { op, lhs: a, rhs: b } = expr {
+                        let compound = match op {
+                            BinOp::Add => Some("+="),
+                            BinOp::Sub => Some("-="),
+                            BinOp::Mul => Some("*="),
+                            BinOp::Div => Some("/="),
+                            _ => None,
+                        };
+                        if let (Some(opstr), Expr::Var(alv)) = (compound, a.as_ref()) {
+                            if self.emit_lvalue(alv) == lhs {
+                                let rb = self.lift_expr(b);
+                                self.line(&format!("{lhs} {opstr} {rb};"));
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+
                 // Use lift_expr so user-function calls with &mut String params
                 // get proper temporary bindings hoisted before the call.
                 let rhs = self.lift_expr(expr);
@@ -1361,16 +1396,45 @@ impl Emitter {
                 // FOR var is pre-declared by collect_locals (or promoted to GameState) — just assign.
                 self.line(&format!("{vref} = {f};"));
                 self.line(&format!("let __for_to_{v}: f64 = {t};"));
-                self.line(&format!("let __for_step_{v}: f64 = {s};"));
-                self.line(&format!(
-                    "while (__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
-                           (__for_step_{v} < 0.0 && {vref} >= __for_to_{v}) {{"
-                ));
-                self.indent();
-                self.emit_stmts(body)?;
-                self.line(&format!("{vref} += __for_step_{v};"));
-                self.dedent();
-                self.line("}");
+
+                // T3 — when STEP is a compile-time numeric literal (or the default
+                // +1), the dual-direction guard has a dead half. Emit a single
+                // comparison and inline the constant increment. A non-literal (or
+                // STEP 0, whose sign is undefined) keeps the runtime-checked form.
+                fn lit_sign(e: &Expr) -> Option<bool> {
+                    match e {
+                        Expr::IntLit(n)   => if *n > 0 { Some(true) }
+                                             else if *n < 0 { Some(false) } else { None },
+                        Expr::FloatLit(f) => if *f > 0.0 { Some(true) }
+                                             else if *f < 0.0 { Some(false) } else { None },
+                        Expr::UnOp { op: UnOp::Neg, operand } => lit_sign(operand).map(|p| !p),
+                        _ => None,
+                    }
+                }
+                let const_sign = match step {
+                    None    => Some(true),          // default STEP +1
+                    Some(e) => lit_sign(e),
+                };
+                if let Some(positive) = const_sign {
+                    let cmp = if positive { "<=" } else { ">=" };
+                    self.line(&format!("while {vref} {cmp} __for_to_{v} {{"));
+                    self.indent();
+                    self.emit_stmts(body)?;
+                    self.line(&format!("{vref} += {s};"));
+                    self.dedent();
+                    self.line("}");
+                } else {
+                    self.line(&format!("let __for_step_{v}: f64 = {s};"));
+                    self.line(&format!(
+                        "while (__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
+                               (__for_step_{v} < 0.0 && {vref} >= __for_to_{v}) {{"
+                    ));
+                    self.indent();
+                    self.emit_stmts(body)?;
+                    self.line(&format!("{vref} += __for_step_{v};"));
+                    self.dedent();
+                    self.line("}");
+                }
             }
 
             Stmt::While { cond, body } => {
@@ -2772,7 +2836,13 @@ impl Emitter {
                     PrintArg::Expr(e) => {
                         let v = self.lift_expr(e);
                         if is_str_expr(e) || self.is_str_expr_ctx(e) {
-                            parts.push(format!("qb_str(&({v}))"));
+                            // qb_str takes `impl Display`; a bare &str literal is
+                            // already Display, so drop the `&(...)` wrapper for literals.
+                            if matches!(e, Expr::StrLit(_)) {
+                                parts.push(format!("qb_str({v})"));
+                            } else {
+                                parts.push(format!("qb_str(&({v}))"));
+                            }
                         } else {
                             // Numeric: QB PRINT adds leading sign-space and trailing space
                             parts.push(format!("qb_print_num({v})"));
@@ -2801,7 +2871,11 @@ impl Emitter {
                     PrintArg::Expr(e) => {
                         let v = self.lift_expr(e);
                         if is_str_expr(e) || self.is_str_expr_ctx(e) {
-                            parts.push(format!("qb_str(&({v}))"));
+                            if matches!(e, Expr::StrLit(_)) {
+                                parts.push(format!("qb_str({v})"));
+                            } else {
+                                parts.push(format!("qb_str(&({v}))"));
+                            }
                         } else {
                             parts.push(format!("qb_print_num({v})"));
                         }
@@ -4620,7 +4694,7 @@ pub fn emit(prog: &AnalyzedProgram) -> Result<String> {
 
 #[cfg(test)]
 mod deref_paren_tests {
-    use super::{strip_deref_parens, starts_with_balanced_paren, idx_sub};
+    use super::{strip_deref_parens, starts_with_balanced_paren, idx_sub, simplify_parens};
 
     #[test]
     fn strips_simple_arg_and_operand() {
@@ -4679,5 +4753,60 @@ mod deref_paren_tests {
     fn idx_sub_wraps_bare_and_operator_exprs() {
         assert_eq!(idx_sub("i"), "[(i) as usize]");
         assert_eq!(idx_sub("a + b"), "[(a + b) as usize]");
+    }
+
+    // ── simplify_parens (T4) ──────────────────────────────────────────────────
+
+    #[test]
+    fn simplify_strips_parens_around_atoms() {
+        assert_eq!(simplify_parens("qb_val(&(ans_s))"), "qb_val(&ans_s)");
+        assert_eq!(simplify_parens("(choice_s).as_str()"), "choice_s.as_str()");
+        assert_eq!(simplify_parens("record[(i) as usize] = 1.0;"), "record[i as usize] = 1.0;");
+        assert_eq!(simplify_parens("(__gs.count) + 1.0"), "__gs.count + 1.0");
+    }
+
+    #[test]
+    fn simplify_keeps_parens_around_compound_exprs() {
+        // Operators / spaces inside → not an atom, kept.
+        assert_eq!(simplify_parens("while (i * i) <= n {"), "while (i * i) <= n {");
+        assert_eq!(simplify_parens("numbers[(j + 1.0f64) as usize]"),
+                   "numbers[(j + 1.0f64) as usize]");
+    }
+
+    #[test]
+    fn simplify_strips_full_assignment_rhs() {
+        assert_eq!(simplify_parens("j = (i * i);"), "j = i * i;");
+        assert_eq!(simplify_parens("let __for_to_i: f64 = (10.0f64 - i);"),
+                   "let __for_to_i: f64 = 10.0f64 - i;");
+        assert_eq!(simplify_parens("isprime = (-1.0f64);"), "isprime = -1.0f64;");
+    }
+
+    #[test]
+    fn simplify_does_not_touch_conditions_or_compound_assign() {
+        // `<= (`, `== (`, `+= (` must be left alone (not a plain `= (`).
+        assert_eq!(simplify_parens("while i <= (n - 1) {"), "while i <= (n - 1) {");
+        assert_eq!(simplify_parens("count += (n - 1);"), "count += (n - 1);");
+    }
+
+    #[test]
+    fn simplify_leaves_deref_parens_for_the_later_pass() {
+        // `(*x)` content starts with `*` → not an atom → untouched here.
+        assert_eq!(simplify_parens("qb_bool((*mouth))"), "qb_bool((*mouth))");
+        assert_eq!(simplify_parens("record[(*playernum) as usize] = 1.0;"),
+                   "record[(*playernum) as usize] = 1.0;");
+    }
+
+    #[test]
+    fn simplify_skips_string_literals() {
+        assert_eq!(simplify_parens(r#"qb_str("(a)")"#), r#"qb_str("(a)")"#);
+        assert_eq!(simplify_parens(r#"x = ("1").to_string();"#), r#"x = "1".to_string();"#);
+    }
+
+    #[test]
+    fn simplify_keeps_call_and_index_parens() {
+        // The `(` is a function-call paren (preceded by an ident) — never strip.
+        assert_eq!(simplify_parens("qb_print_num(i)"), "qb_print_num(i)");
+        assert_eq!(simplify_parens("qb_val(&ans_s)"), "qb_val(&ans_s)");
+        assert_eq!(simplify_parens("qb_str(\"FizzBuzz\")"), "qb_str(\"FizzBuzz\")");
     }
 }

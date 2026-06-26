@@ -268,3 +268,132 @@ pub(super) fn strip_deref_parens(out: &str) -> String {
     result.push_str(&out[last..]);
     result
 }
+
+// ── Post-processing: drop precedence-neutral parentheses ──────────────────────
+//
+// The emitter wraps every arithmetic BinOp in parens and every by-ref/string arg
+// in `&(...)`, which is defensive but noisy. Two rewrites are always sound:
+//   1. parens around a single atom (ident / dotted-path / number / string lit):
+//        &(ans_s)            -> &ans_s
+//        (choice_s).as_str() -> choice_s.as_str()
+//        [(i) as usize]      -> [i as usize]
+//      An atom binds tighter than any surrounding operator, so the parens never
+//      affect parsing. Content containing `*` is left alone for strip_deref_parens
+//      (it owns the `(*ident)` case); content with spaces/operators/`(`/`[` is kept.
+//   2. a fully-parenthesized assignment RHS: `= (E);` -> `= E;`. The `;` and the
+//      `= ` boundary mean no operator binds across, so the outer pair is free.
+//      `==`/`<=`/`>=`/`!=`/`+=`/… are excluded so conditions and compound-assigns
+//      stay untouched.
+//
+// Runs FIRST in the postprocess chain (before strip_deref_parens) so it never
+// fights the `(*x)` handling. String literals are skipped verbatim.
+pub(super) fn simplify_parens(out: &str) -> String {
+    let b = out.as_bytes();
+    let n = b.len();
+    let mut result = String::with_capacity(n);
+    let mut i = 0;
+    let mut last = 0; // start of the not-yet-copied region
+
+    while i < n {
+        // Skip Rust string literals verbatim (respecting \" and \\ escapes).
+        if b[i] == b'"' {
+            i += 1;
+            while i < n {
+                match b[i] {
+                    b'\\' => i += 2,
+                    b'"'  => { i += 1; break; }
+                    _     => i += 1,
+                }
+            }
+            continue;
+        }
+
+        if b[i] == b'(' {
+            // Rule 2 — `= (E);`. Require a real assignment `= ` (not `==`, `<=`,
+            // `>=`, `!=`, `+=`, etc.) and a `;` right after the matching `)`.
+            let is_assign_rhs = i >= 2
+                && b[i - 1] == b' ' && b[i - 2] == b'='
+                && !matches!(i.checked_sub(3).and_then(|k| b.get(k)),
+                    Some(b'=') | Some(b'<') | Some(b'>') | Some(b'!')
+                    | Some(b'+') | Some(b'-') | Some(b'*') | Some(b'/'));
+            if is_assign_rhs {
+                if let Some(close) = matching_paren(b, i) {
+                    if b.get(close + 1) == Some(&b';') {
+                        result.push_str(&out[last..i]);     // text up to '('
+                        result.push_str(&out[i + 1..close]); // inner E
+                        i = close + 1;                       // skip ')'
+                        last = i;
+                        continue;
+                    }
+                }
+            }
+
+            // Rule 1 — `(atom)`. Atom = one identifier/dotted-path/number
+            // ([A-Za-z0-9_.]) OR one string literal, terminated by ')'. Only when
+            // the `(` is a *grouping* paren, not a call/index paren — i.e. it is
+            // not preceded by an identifier char or a closing `)`/`]`. This keeps
+            // `qb_str("(a)")` and `qb_print_num(i)` (the `(` is the call) intact.
+            let is_grouping = i == 0 || !(b[i - 1].is_ascii_alphanumeric()
+                || b[i - 1] == b'_' || b[i - 1] == b')' || b[i - 1] == b']');
+            if is_grouping {
+                let a_start = i + 1;
+                let mut j = a_start;
+                if j < n && b[j] == b'"' {
+                    j += 1;
+                    while j < n {
+                        match b[j] {
+                            b'\\' => j += 2,
+                            b'"'  => { j += 1; break; }
+                            _     => j += 1,
+                        }
+                    }
+                } else {
+                    while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_' || b[j] == b'.') {
+                        j += 1;
+                    }
+                }
+                if j > a_start && j < n && b[j] == b')' {
+                    result.push_str(&out[last..i]);
+                    result.push_str(&out[a_start..j]); // the atom
+                    i = j + 1;
+                    last = i;
+                    continue;
+                }
+            }
+        }
+        i += 1;
+    }
+    result.push_str(&out[last..]);
+    result
+}
+
+/// Index of the `)` matching the `(` at `open`, skipping string literals and
+/// honoring nesting. `None` if unbalanced.
+fn matching_paren(b: &[u8], open: usize) -> Option<usize> {
+    let n = b.len();
+    let mut depth = 0i32;
+    let mut i = open;
+    while i < n {
+        match b[i] {
+            b'"' => {
+                i += 1;
+                while i < n {
+                    match b[i] {
+                        b'\\' => i += 2,
+                        b'"'  => { i += 1; break; }
+                        _     => i += 1,
+                    }
+                }
+                continue;
+            }
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 { return Some(i); }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}

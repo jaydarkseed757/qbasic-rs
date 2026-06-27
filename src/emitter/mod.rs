@@ -3003,10 +3003,17 @@ impl Emitter {
     /// leftmost leaf is exactly the LHS lvalue `lhs`, return the appended terms
     /// (`[a, b, …]`) so the caller can emit `s.push_str(&a); s.push_str(&b); …`
     /// instead of rebuilding the whole string with `format!`. Returns `None`
-    /// (→ keep the `format!` path) when it isn't such a chain, when the leftmost
-    /// leaf is a *different* variable (`G$ = M$ + K$`), or when any appended term
-    /// references the LHS variable — sequential `push_str` would then observe a
-    /// half-built string, unlike QB's evaluate-then-assign semantics.
+    /// (→ keep the `format!` path) when any of these hold:
+    /// - it isn't such a chain, or the leftmost leaf is a *different* variable
+    ///   (`G$ = M$ + K$`);
+    /// - an appended term textually references the LHS variable — sequential
+    ///   `push_str` would observe a half-built string, unlike QB's evaluate-
+    ///   then-assign semantics;
+    /// - an appended term is a user-FUNCTION call, which may *implicitly* read
+    ///   the LHS (shared/byref) inside its body and see a half-built string —
+    ///   `expr_refs_lvalue` cannot inspect the callee, so bail conservatively;
+    /// - an appended term is not string-typed, since `push_str(&<non-str>)`
+    ///   would not compile (the Display-based `format!` path tolerates it).
     fn concat_append_terms<'a>(&self, expr: &'a Expr, lhs: &str) -> Option<Vec<&'a Expr>> {
         fn flatten<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) -> &'a Expr {
             if let Expr::BinOp { op: BinOp::Add, lhs, rhs } = e {
@@ -3025,7 +3032,38 @@ impl Emitter {
             _ => return None,
         }
         if terms.iter().any(|t| self.expr_refs_lvalue(t, lhs)) { return None; }
+        if terms.iter().any(|t| self.expr_calls_user_fn(t)) { return None; }
+        if !terms.iter().all(|t| is_str_expr(t) || self.is_str_expr_ctx(t)) { return None; }
         Some(terms)
+    }
+
+    /// True if `e` contains a call to a user-defined SUB/FUNCTION (as opposed to
+    /// a built-in like `CHR$`/`LEFT$`). Covers both the explicit `Fn(...)` call
+    /// form and the bare zero-arg `Fn` reference QB treats as a call. Built-ins
+    /// take their inputs as explicit args (already covered by `expr_refs_lvalue`)
+    /// and never read the accumulator implicitly, so they are intentionally not
+    /// matched here.
+    fn expr_calls_user_fn(&self, e: &Expr) -> bool {
+        let is_user = |name: &str, ty: &QbType| {
+            self.user_fns.contains(&rust_ident(name))
+                || self.user_fns.contains(&rust_ident_typed(name, ty))
+        };
+        match e {
+            // Bare zero-arg user FUNCTION reference (`G$ = … + Tag$`).
+            Expr::Var(LValue::Scalar { name, ty }) => is_user(name, ty),
+            Expr::Var(LValue::Index { indices, .. })
+            | Expr::Var(LValue::FieldIndex { indices, .. }) =>
+                indices.iter().any(|ix| self.expr_calls_user_fn(ix)),
+            Expr::Call { name, args } =>
+                self.user_fns.contains(&rust_ident(name))
+                    || args.iter().any(|a| self.expr_calls_user_fn(a)),
+            Expr::BinOp { lhs, rhs, .. } =>
+                self.expr_calls_user_fn(lhs) || self.expr_calls_user_fn(rhs),
+            Expr::UnOp { operand, .. } => self.expr_calls_user_fn(operand),
+            Expr::Point { x, y } =>
+                self.expr_calls_user_fn(x) || self.expr_calls_user_fn(y),
+            _ => false,
+        }
     }
 
     /// True if `e` reads the lvalue whose emitted form is `target` anywhere

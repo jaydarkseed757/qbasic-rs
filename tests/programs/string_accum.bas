@@ -1,4 +1,5 @@
 ' Test: T5 string accumulation (s$ = s$ + ... → push_str)
+DIM SHARED H$
 
 ' Single-term accumulation in a loop
 s$ = ""
@@ -25,4 +26,14 @@ t$ = "abc"
 t$ = t$ + LEFT$(t$, 1)
 PRINT t$
 
+' Appended term is a FUNCTION that implicitly reads the shared LHS — must keep
+' evaluate-then-assign semantics (Tag$ sees the ORIGINAL H$="A", not "AB")
+H$ = "A"
+H$ = H$ + "B" + Tag$
+PRINT H$
+
 PRINT "done"
+
+FUNCTION Tag$
+  Tag$ = "<" + H$ + ">"
+END FUNCTION

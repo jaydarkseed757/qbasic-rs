@@ -1414,43 +1414,30 @@ impl Emitter {
                 self.line(&format!("let __for_to_{v}: f64 = {t};"));
 
                 // T3 — when STEP is a compile-time numeric literal (or the default
-                // +1), the dual-direction guard has a dead half. Emit a single
+                // +1), the dual-direction guard has a dead half: emit a single
                 // comparison and inline the constant increment. A non-literal (or
                 // STEP 0, whose sign is undefined) keeps the runtime-checked form.
-                fn lit_sign(e: &Expr) -> Option<bool> {
-                    match e {
-                        Expr::IntLit(n)   => if *n > 0 { Some(true) }
-                                             else if *n < 0 { Some(false) } else { None },
-                        Expr::FloatLit(f) => if *f > 0.0 { Some(true) }
-                                             else if *f < 0.0 { Some(false) } else { None },
-                        Expr::UnOp { op: UnOp::Neg, operand } => lit_sign(operand).map(|p| !p),
-                        _ => None,
-                    }
-                }
+                // Only the loop condition and increment differ between the two
+                // forms; the body emission is shared.
                 let const_sign = match step {
                     None    => Some(true),          // default STEP +1
                     Some(e) => lit_sign(e),
                 };
-                if let Some(positive) = const_sign {
+                let (cond, incr) = if let Some(positive) = const_sign {
                     let cmp = if positive { "<=" } else { ">=" };
-                    self.line(&format!("while {vref} {cmp} __for_to_{v} {{"));
-                    self.indent();
-                    self.emit_stmts(body)?;
-                    self.line(&format!("{vref} += {s};"));
-                    self.dedent();
-                    self.line("}");
+                    (format!("{vref} {cmp} __for_to_{v}"), format!("{vref} += {s};"))
                 } else {
                     self.line(&format!("let __for_step_{v}: f64 = {s};"));
-                    self.line(&format!(
-                        "while (__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
-                               (__for_step_{v} < 0.0 && {vref} >= __for_to_{v}) {{"
-                    ));
-                    self.indent();
-                    self.emit_stmts(body)?;
-                    self.line(&format!("{vref} += __for_step_{v};"));
-                    self.dedent();
-                    self.line("}");
-                }
+                    (format!("(__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
+                              (__for_step_{v} < 0.0 && {vref} >= __for_to_{v})"),
+                     format!("{vref} += __for_step_{v};"))
+                };
+                self.line(&format!("while {cond} {{"));
+                self.indent();
+                self.emit_stmts(body)?;
+                self.line(&incr);
+                self.dedent();
+                self.line("}");
             }
 
             Stmt::While { cond, body } => {
@@ -2810,6 +2797,22 @@ impl Emitter {
         Ok(())
     }
 
+    /// The PRINT "part" expression for a scalar arg `e` whose lifted form is
+    /// `v`: a string value → `qb_str(...)` (a string *literal* drops the
+    /// `&(...)` wrapper, since `qb_str` takes `impl Display`); a numeric value →
+    /// `qb_print_num(v)` (QB's leading-sign-space + trailing-space convention).
+    fn print_scalar_part(&self, e: &Expr, v: &str) -> String {
+        if is_str_expr(e) || self.is_str_expr_ctx(e) {
+            if matches!(e, Expr::StrLit(_)) {
+                format!("qb_str({v})")
+            } else {
+                format!("qb_str(&({v}))")
+            }
+        } else {
+            format!("qb_print_num({v})")
+        }
+    }
+
     fn emit_print(&mut self, args: &[PrintArg], newline: bool) -> Result<()> {
         // The runtime's print/println accept &[PrintItem] where each item is
         // either a string value or a "comma zone" placeholder.  To keep the ABI
@@ -2851,18 +2854,7 @@ impl Emitter {
                 match arg {
                     PrintArg::Expr(e) => {
                         let v = self.lift_expr(e);
-                        if is_str_expr(e) || self.is_str_expr_ctx(e) {
-                            // qb_str takes `impl Display`; a bare &str literal is
-                            // already Display, so drop the `&(...)` wrapper for literals.
-                            if matches!(e, Expr::StrLit(_)) {
-                                parts.push(format!("qb_str({v})"));
-                            } else {
-                                parts.push(format!("qb_str(&({v}))"));
-                            }
-                        } else {
-                            // Numeric: QB PRINT adds leading sign-space and trailing space
-                            parts.push(format!("qb_print_num({v})"));
-                        }
+                        parts.push(self.print_scalar_part(e, &v));
                     }
                     PrintArg::Tab(e) => {
                         let v = self.lift_expr(e);
@@ -2886,15 +2878,7 @@ impl Emitter {
                 match arg {
                     PrintArg::Expr(e) => {
                         let v = self.lift_expr(e);
-                        if is_str_expr(e) || self.is_str_expr_ctx(e) {
-                            if matches!(e, Expr::StrLit(_)) {
-                                parts.push(format!("qb_str({v})"));
-                            } else {
-                                parts.push(format!("qb_str(&({v}))"));
-                            }
-                        } else {
-                            parts.push(format!("qb_print_num({v})"));
-                        }
+                        parts.push(self.print_scalar_part(e, &v));
                     }
                     PrintArg::Tab(e) => {
                         let v = self.lift_expr(e);
@@ -4921,6 +4905,24 @@ mod deref_paren_tests {
         assert_eq!(simplify_parens("qb_print_num(i)"), "qb_print_num(i)");
         assert_eq!(simplify_parens("qb_val(&ans_s)"), "qb_val(&ans_s)");
         assert_eq!(simplify_parens("qb_str(\"FizzBuzz\")"), "qb_str(\"FizzBuzz\")");
+    }
+
+    #[test]
+    fn lit_sign_classifies_literals() {
+        use super::lit_sign;
+        use crate::parser::{Expr, UnOp};
+        assert_eq!(lit_sign(&Expr::IntLit(3)), Some(true));
+        assert_eq!(lit_sign(&Expr::IntLit(-3)), Some(false));
+        assert_eq!(lit_sign(&Expr::IntLit(0)), None);
+        // f64-precise: fractional steps classify correctly (i64 would truncate).
+        assert_eq!(lit_sign(&Expr::FloatLit(0.5)), Some(true));
+        assert_eq!(lit_sign(&Expr::FloatLit(-0.5)), Some(false));
+        // Unary negation flips the inner sign.
+        let neg = Expr::UnOp { op: UnOp::Neg, operand: Box::new(Expr::IntLit(2)) };
+        assert_eq!(lit_sign(&neg), Some(false));
+        // Non-literal (a variable) → None → keeps the runtime-checked FOR form.
+        assert_eq!(lit_sign(&Expr::Var(crate::parser::LValue::Scalar {
+            name: "x".into(), ty: crate::parser::QbType::Single })), None);
     }
 
     #[test]

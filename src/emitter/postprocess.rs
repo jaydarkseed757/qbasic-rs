@@ -205,6 +205,23 @@ pub(super) fn remove_unnecessary_mut(out: &str) -> String {
     result
 }
 
+/// Given `b[start] == b'"'`, return the index just past the matching closing
+/// quote, honoring `\"` and `\\` escapes. Shared by every byte-scanning
+/// postprocess pass so Rust string literals are skipped verbatim (a `(`, `)`,
+/// `;`, etc. inside a literal must never be treated as code).
+fn skip_string_literal(b: &[u8], start: usize) -> usize {
+    let n = b.len();
+    let mut i = start + 1;
+    while i < n {
+        match b[i] {
+            b'\\' => i += 2,
+            b'"'  => { i += 1; break; }
+            _     => i += 1,
+        }
+    }
+    i
+}
+
 // ── Post-processing: strip redundant parentheses around simple derefs ─────────
 //
 // By-ref scalar params (`&mut f64` / `&mut String`) are read as `(*name)` at
@@ -233,17 +250,7 @@ pub(super) fn strip_deref_parens(out: &str) -> String {
 
     while i < n {
         // Skip over Rust string literals verbatim (respecting \" and \\ escapes).
-        if b[i] == b'"' {
-            i += 1;
-            while i < n {
-                match b[i] {
-                    b'\\' => i += 2,
-                    b'"'  => { i += 1; break; }
-                    _     => i += 1,
-                }
-            }
-            continue;
-        }
+        if b[i] == b'"' { i = skip_string_literal(b, i); continue; }
 
         // Match a `(*ident)` group.
         if b[i] == b'(' && i + 1 < n && b[i + 1] == b'*' {
@@ -296,17 +303,7 @@ pub(super) fn simplify_parens(out: &str) -> String {
 
     while i < n {
         // Skip Rust string literals verbatim (respecting \" and \\ escapes).
-        if b[i] == b'"' {
-            i += 1;
-            while i < n {
-                match b[i] {
-                    b'\\' => i += 2,
-                    b'"'  => { i += 1; break; }
-                    _     => i += 1,
-                }
-            }
-            continue;
-        }
+        if b[i] == b'"' { i = skip_string_literal(b, i); continue; }
 
         if b[i] == b'(' {
             // Rule 2 — `= (E);`. Require a real assignment `= ` (not `==`, `<=`,
@@ -343,14 +340,7 @@ pub(super) fn simplify_parens(out: &str) -> String {
                 let a_start = i + 1;
                 let mut j = a_start;
                 if j < n && b[j] == b'"' {
-                    j += 1;
-                    while j < n {
-                        match b[j] {
-                            b'\\' => j += 2,
-                            b'"'  => { j += 1; break; }
-                            _     => j += 1,
-                        }
-                    }
+                    j = skip_string_literal(b, j);
                 } else {
                     while j < n && (b[j].is_ascii_alphanumeric() || b[j] == b'_' || b[j] == b'.') {
                         j += 1;
@@ -379,17 +369,7 @@ fn matching_paren(b: &[u8], open: usize) -> Option<usize> {
     let mut i = open;
     while i < n {
         match b[i] {
-            b'"' => {
-                i += 1;
-                while i < n {
-                    match b[i] {
-                        b'\\' => i += 2,
-                        b'"'  => { i += 1; break; }
-                        _     => i += 1,
-                    }
-                }
-                continue;
-            }
+            b'"' => { i = skip_string_literal(b, i); continue; }
             b'(' => depth += 1,
             b')' => {
                 depth -= 1;

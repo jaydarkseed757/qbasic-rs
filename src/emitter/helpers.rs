@@ -33,6 +33,20 @@ pub(super) fn starts_with_balanced_paren(s: &str) -> bool {
     false
 }
 
+/// Sign of a compile-time numeric-literal expression: `Some(true)` positive,
+/// `Some(false)` negative, `None` for zero or a non-literal. f64-precise (so a
+/// fractional `STEP 0.5`/`-0.5` classifies correctly — unlike the i64
+/// `lower_bound_i64`, which would truncate it to 0). Used by the T3 constant-
+/// step FOR optimization.
+pub(super) fn lit_sign(e: &Expr) -> Option<bool> {
+    match e {
+        Expr::IntLit(n)   => if *n > 0 { Some(true) } else if *n < 0 { Some(false) } else { None },
+        Expr::FloatLit(f) => if *f > 0.0 { Some(true) } else if *f < 0.0 { Some(false) } else { None },
+        Expr::UnOp { op: UnOp::Neg, operand } => lit_sign(operand).map(|p| !p),
+        _ => None,
+    }
+}
+
 /// Precedence of the QB arithmetic operators that emit as *infix* Rust operators
 /// — the only operators where operand parenthesization can change parsing. Every
 /// other QB operator emits as a call (`qb_mod`, `qb_idiv`, `qb_and`, …) or a

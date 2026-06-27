@@ -4916,4 +4916,14 @@ mod deref_paren_tests {
         assert_eq!(simplify_parens("qb_val(&ans_s)"), "qb_val(&ans_s)");
         assert_eq!(simplify_parens("qb_str(\"FizzBuzz\")"), "qb_str(\"FizzBuzz\")");
     }
+
+    #[test]
+    fn simplify_keeps_macro_and_path_parens() {
+        // `(` after `!` (macro) or `:` (path) is not a grouping paren — stripping
+        // would yield invalid `vec!x` / `Foo::x`. (Latent: the emitter doesn't
+        // produce single-atom macro!(…)/::(…) today, but the guard must hold.)
+        assert_eq!(simplify_parens("vec!(x)"), "vec!(x)");
+        assert_eq!(simplify_parens("Foo::(x)"), "Foo::(x)");
+        assert_eq!(simplify_parens("println!(msg)"), "println!(msg)");
+    }
 }

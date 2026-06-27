@@ -330,11 +330,15 @@ pub(super) fn simplify_parens(out: &str) -> String {
 
             // Rule 1 — `(atom)`. Atom = one identifier/dotted-path/number
             // ([A-Za-z0-9_.]) OR one string literal, terminated by ')'. Only when
-            // the `(` is a *grouping* paren, not a call/index paren — i.e. it is
-            // not preceded by an identifier char or a closing `)`/`]`. This keeps
-            // `qb_str("(a)")` and `qb_print_num(i)` (the `(` is the call) intact.
+            // the `(` is a *grouping* paren, not a call/index/macro/path paren —
+            // i.e. it is not preceded by an identifier char, a closing `)`/`]`, a
+            // `!` (macro invocation `vec!(…)`), or a `:` (path `Foo::(…)`). This
+            // keeps `qb_str("(a)")`, `qb_print_num(i)`, and any future
+            // `macro!(x)` / `Foo::(x)` intact rather than mangling them to
+            // `macro!x` / `Foo::x`.
             let is_grouping = i == 0 || !(b[i - 1].is_ascii_alphanumeric()
-                || b[i - 1] == b'_' || b[i - 1] == b')' || b[i - 1] == b']');
+                || b[i - 1] == b'_' || b[i - 1] == b')' || b[i - 1] == b']'
+                || b[i - 1] == b'!' || b[i - 1] == b':');
             if is_grouping {
                 let a_start = i + 1;
                 let mut j = a_start;

@@ -33,6 +33,41 @@ pub(super) fn starts_with_balanced_paren(s: &str) -> bool {
     false
 }
 
+/// Precedence of the QB arithmetic operators that emit as *infix* Rust operators
+/// — the only operators where operand parenthesization can change parsing. Every
+/// other QB operator emits as a call (`qb_mod`, `qb_idiv`, `qb_and`, …) or a
+/// self-delimited form (`qb_from_bool(..)`, `.powf(..)`, `(-x)`), so its operands
+/// never need extra parens. Mul/Div bind tighter than Add/Sub.
+pub(super) fn arith_prec(op: &BinOp) -> Option<u8> {
+    match op {
+        BinOp::Mul | BinOp::Div => Some(2),
+        BinOp::Add | BinOp::Sub => Some(1),
+        _ => None,
+    }
+}
+
+/// Drop the redundant outer parens from an already-emitted arithmetic operand
+/// `child_str` when doing so provably preserves the AST — and therefore the
+/// exact f64 evaluation order, since float arithmetic is **not** associative, so
+/// `a + (b - c)` must keep its parens. The rule reproduces Rust's left-
+/// associative parse: a LEFT operand may drop iff its precedence ≥ the parent's;
+/// a RIGHT operand only iff strictly greater. The caller still wraps the parent
+/// expression in its own outer parens, so every use-site (`as` casts, `.powf`,
+/// unary `-`) stays safe — this only de-nests the *inner* operands. The
+/// `starts_with_balanced_paren` guard makes a stray `)` inside a string literal
+/// (paren-counting isn't literal-aware) conservatively skip the strip.
+pub(super) fn arith_operand(child: &Expr, child_str: String, parent_prec: u8, is_left: bool) -> String {
+    if let Expr::BinOp { op, .. } = child {
+        if let Some(cp) = arith_prec(op) {
+            let droppable = if is_left { cp >= parent_prec } else { cp > parent_prec };
+            if droppable && starts_with_balanced_paren(&child_str) {
+                return child_str[1..child_str.len() - 1].to_string();
+            }
+        }
+    }
+    child_str
+}
+
 /// Format an array subscript `[<idx> as usize]`, adding precedence-guarding
 /// parens around `idx` only when it isn't already a single balanced group.
 /// Avoids the `[((*x)) as usize]` double-paren that arises when `idx` is a

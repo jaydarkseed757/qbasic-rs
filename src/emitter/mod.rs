@@ -4252,11 +4252,14 @@ impl Emitter {
                 } else {
                     (l.clone(), r.clone())
                 };
+                // Arithmetic infix ops keep their own outer parens (so every
+                // use-site stays safe), but de-nest their operands precedence-
+                // aware via arith_operand — tree-preserving, so f64 order is exact.
                 match op {
-                    BinOp::Add    => format!("({l} + {r})"),
-                    BinOp::Sub    => format!("({l} - {r})"),
-                    BinOp::Mul    => format!("({l} * {r})"),
-                    BinOp::Div    => format!("({l} / {r})"),
+                    BinOp::Add    => format!("({} + {})", arith_operand(lhs, l, 1, true), arith_operand(rhs, r, 1, false)),
+                    BinOp::Sub    => format!("({} - {})", arith_operand(lhs, l, 1, true), arith_operand(rhs, r, 1, false)),
+                    BinOp::Mul    => format!("({} * {})", arith_operand(lhs, l, 2, true), arith_operand(rhs, r, 2, false)),
+                    BinOp::Div    => format!("({} / {})", arith_operand(lhs, l, 2, true), arith_operand(rhs, r, 2, false)),
                     BinOp::IntDiv => format!("qb_idiv({l}, {r})"),
                     BinOp::Pow    => format!("{l}.powf({r})"),
                     BinOp::Mod    => format!("qb_mod({l}, {r})"),
@@ -4455,11 +4458,14 @@ impl Emitter {
                 } else {
                     (l.clone(), r.clone())
                 };
+                // Arithmetic infix ops keep their own outer parens (so every
+                // use-site stays safe), but de-nest their operands precedence-
+                // aware via arith_operand — tree-preserving, so f64 order is exact.
                 match op {
-                    BinOp::Add    => format!("({l} + {r})"),
-                    BinOp::Sub    => format!("({l} - {r})"),
-                    BinOp::Mul    => format!("({l} * {r})"),
-                    BinOp::Div    => format!("({l} / {r})"),
+                    BinOp::Add    => format!("({} + {})", arith_operand(lhs, l, 1, true), arith_operand(rhs, r, 1, false)),
+                    BinOp::Sub    => format!("({} - {})", arith_operand(lhs, l, 1, true), arith_operand(rhs, r, 1, false)),
+                    BinOp::Mul    => format!("({} * {})", arith_operand(lhs, l, 2, true), arith_operand(rhs, r, 2, false)),
+                    BinOp::Div    => format!("({} / {})", arith_operand(lhs, l, 2, true), arith_operand(rhs, r, 2, false)),
                     BinOp::IntDiv => format!("qb_idiv({l}, {r})"),
                     BinOp::Pow    => format!("{l}.powf({r})"),
                     BinOp::Mod    => format!("qb_mod({l}, {r})"),
@@ -4915,6 +4921,33 @@ mod deref_paren_tests {
         assert_eq!(simplify_parens("qb_print_num(i)"), "qb_print_num(i)");
         assert_eq!(simplify_parens("qb_val(&ans_s)"), "qb_val(&ans_s)");
         assert_eq!(simplify_parens("qb_str(\"FizzBuzz\")"), "qb_str(\"FizzBuzz\")");
+    }
+
+    #[test]
+    fn arith_operand_precedence_rule() {
+        use super::arith_operand;
+        use crate::parser::{Expr, BinOp};
+        let atom = || Box::new(Expr::FloatLit(1.0));
+        let mk = |op| Expr::BinOp { op, lhs: atom(), rhs: atom() };
+        let add = mk(BinOp::Add);
+        let mul = mk(BinOp::Mul);
+        let sub = mk(BinOp::Sub);
+
+        // Mul operand under Add (prec 2 vs 1): drop on both sides.
+        assert_eq!(arith_operand(&mul, "(a * b)".into(), 1, true),  "a * b");
+        assert_eq!(arith_operand(&mul, "(a * b)".into(), 1, false), "a * b");
+        // Add operand under Add (equal prec): drop on LEFT only — RIGHT must keep
+        // parens (f64 addition is not associative).
+        assert_eq!(arith_operand(&add, "(a + b)".into(), 1, true),  "a + b");
+        assert_eq!(arith_operand(&add, "(a + b)".into(), 1, false), "(a + b)");
+        // Sub operand on the right of any same/looser parent keeps parens.
+        assert_eq!(arith_operand(&sub, "(a - b)".into(), 1, false), "(a - b)");
+        // Add operand under Mul (prec 1 vs 2): keep on both sides.
+        assert_eq!(arith_operand(&add, "(a + b)".into(), 2, true),  "(a + b)");
+        assert_eq!(arith_operand(&add, "(a + b)".into(), 2, false), "(a + b)");
+        // Non-arithmetic child (a call) is never unwrapped.
+        let call = Expr::Call { name: "qb_mod".into(), args: vec![] };
+        assert_eq!(arith_operand(&call, "qb_mod(a, b)".into(), 1, true), "qb_mod(a, b)");
     }
 
     #[test]

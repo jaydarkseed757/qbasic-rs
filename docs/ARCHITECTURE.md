@@ -141,7 +141,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
-| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE` (simulated byte store), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `WAIT port, mask[, xormask]` (VGA retrace sync — pumps events), `DEF SEG` (parsed/ignored) |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE`/`PEEK` (segment-aware: framebuffer pixels under `DEF SEG = &HA000`+SCREEN 13, ROM 8×8 font at `&HF000:FA6E`, simulated byte map otherwise), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `WAIT port, mask[, xormask]` (real vsync — wall-clock retrace bit, presents at retrace), `DEF SEG [= n]` (segment register for POKE/PEEK/BSAVE), `VARSEG`/`VARPTR` (stub → 0) |
 | **Operators** | `AND`, `OR`, `XOR`, `NOT`, `EQV`, `IMP`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
@@ -152,7 +152,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Type / convert** | `CINT CLNG CSNG CDBL`; binary `MKD$ MKI$ MKS$ MKL$` / `CVD CVI CVS CVL` |
 | **String** | `LEN LEFT$ RIGHT$ MID$ UCASE$ LCASE$ LTRIM$ RTRIM$ STR$ VAL CHR$ ASC INSTR SPACE$ STRING$ HEX$ OCT$` |
 | **Runtime / system** | `RND TIMER INKEY$ INPUT$ POINT PMAP PEEK ERR EOF LOF ENVIRON$ DIR$ UBOUND LBOUND` |
-| **Image load** | `BLOAD file$[,offset]` → blits a raw/BSAVE screen image into the framebuffer (the `DEF SEG = &HA000` video-memory case; `DEF SEG` itself is a no-op). `BSAVE` and non-video targets are unmodeled. |
+| **Image load/save** | `BLOAD file$[,offset]` → blits a raw/BSAVE screen image into the framebuffer; `BSAVE file$, offset, length` → dumps framebuffer bytes with the 7-byte BSAVE header (exact mirror — programs use the pair to cache precomputed frames). Both model the `DEF SEG = &HA000` video-memory case only; non-video segments are a no-op. |
 
 ### `DEF FN` — both single-line and multi-line supported
 - Single-line: `DEF FnName(x) = expr` (emitted as an inline-expression fn).
@@ -1001,13 +1001,38 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M20 — Demoscene batch: DEF SEG, segment-aware POKE/PEEK, BSAVE, WAIT vsync ✅
+
+`demo.bas` became a multi-scene megademo drawing the classic way: POKE pixels into
+`&HA000`, PEEK the ROM font at `&HF000:FA6E`, sync with `WAIT &H3DA, 8`, cache
+textures with `BSAVE`. Four features landed together (plus one regression fix):
+
+- **`DEF SEG [= expr]`** — real statement (`Stmt::DefSeg`) + `def_seg` register on
+  `Runtime`; bare form restores segment 0. Previously skipped to EOL.
+- **Segment-aware POKE/PEEK** — `&HA000`+SCREEN 13 → linear framebuffer pixel
+  write/read (POKE `auto_present()`s); `&HF000` → ROM BIOS 8×8 font served from
+  `FONT_8X8` (offsets `FA6E..FA6E+2048`); other segments → the simulated
+  `HashMap<u32,u8>` map as before.
+- **`BSAVE file$, offset, length`** — mirror of BLOAD: 7-byte header (0xFD, seg,
+  ofs, len LE) + framebuffer slice; `&HA000` only, else no-op.
+- **`WAIT &H3DA, 8[, 8]` real vsync** — wall-clock retrace bit (asserted last
+  ~2 ms of each `frame_interval_ms` period); wait-for-retrace completion
+  `present()`s the frame; double-wait pair = one frame edge; headless returns
+  immediately; unmodeled ports/masks never block; 2-frame safety deadline.
+- **`VARSEG`/`VARPTR` → 0.0 stub** — money.bas's `DEF SEG = VARSEG(asm)` surfaced
+  once DEF SEG expressions were parsed; segment 0 = old behavior.
+
+Verified headlessly frame-by-frame (starfield, ROM-font title, cube, plasma +
+byte-correct `PLASMA.DAT` cache). 133 unit, 33/33 integration, 52/52 build-all,
+10/10 goldens.
+
 ### M19 — WAIT statement + emitter module split + demo.bas (build-all 52/52) ✅
 
 **`WAIT port, mask[, xormask]`** — new keyword (`Token::Wait` → `Stmt::Wait` →
 `__rt.qb_wait()`). On real hardware `WAIT &H3DA, 8` spins until the VGA
-vertical-retrace status bit is set; the runtime has no port register so `qb_wait`
-calls `pump_events()` and returns (programs are already paced by their animation
-loop). 11 compile errors in `demo.bas` were caused by WAIT being lexed as a
+vertical-retrace status bit is set; at this milestone `qb_wait` just called
+`pump_events()` and returned (upgraded to a real wall-clock retrace model in M20).
+11 compile errors in `demo.bas` were caused by WAIT being lexed as a
 user-SUB call. `demo.bas` now builds and runs correctly.
 
 **`src/emitter.rs` (6,812 lines) split into `src/emitter/`** — the ~2,200 lines of free

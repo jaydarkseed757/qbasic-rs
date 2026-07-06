@@ -1144,9 +1144,10 @@ absent, real image blit when present):
   7-byte BSAVE header when the `0xFD` magic is present, and copies the bytes straight into
   the palette-indexed framebuffer at `offset` (one byte/pixel = the MCGA layout), then
   `present()`s. Missing file = silent no-op (guarded by `DIR$`); off-screen bytes clip.
-  `DEF SEG` stays a no-op — video memory is the only `BLOAD` target we model; `BSAVE` and
-  non-video segments are unmodeled. Covered by `bload_tests` (runtime). build-all is
-  **51/51** (pin.bas was failing to compile before this).
+  At the time, `DEF SEG` was a no-op and `BSAVE` unmodeled — both since superseded (see
+  the "DEF SEG + segment-aware POKE/PEEK + BSAVE + WAIT vsync" section below). Covered
+  by `bload_tests` (runtime). build-all was **51/51** (pin.bas was failing to compile
+  before this).
 
 ### `WAIT` statement + emitter module split (build-all 52/52)
 
@@ -1154,9 +1155,9 @@ absent, real image blit when present):
   `src/emitter/mod.rs`, `runtime/src/lib.rs`) — `Token::Wait` →
   `Stmt::Wait { port, mask, xormask }` → `__rt.qb_wait(port, mask, xormask)`. On
   real hardware `WAIT &H3DA, 8` blocks until `(INP(port) XOR xormask) AND mask !=
-  0` — the VGA vertical-retrace status bit. The runtime has no port register, so
-  `qb_wait` just `pump_events()` and returns (programs are already paced by their
-  own animation loop and don't need sub-millisecond port timing). Without the
+  0` — the VGA vertical-retrace status bit. Initially `qb_wait` just
+  `pump_events()`-ed and returned; it has since been upgraded to a real wall-clock
+  retrace model (see the "DEF SEG + …" section below). Without the
   keyword, `WAIT` lexed as a user-SUB call and emitted as an undefined
   `wait(port, mask)` — 11 such calls broke `demo.bas`'s compile. Parser mirrors
   the `OUT`/`POKE` pattern (statement only; the optional third arg is the XOR
@@ -1223,6 +1224,56 @@ and only the plain-numeric / string-concat paths are affected.
   by `tests/programs/string_accum.bas` (single, chain, different-leftmost-var, and
   self-referential-term cases). **Deferred:** `.is_empty()` for `(s).as_str() ==
   ""` (touches the regression-prone string-comparison emitter).
+
+### DEF SEG + segment-aware POKE/PEEK + BSAVE + WAIT vsync (demoscene batch, demo.bas)
+
+`demo.bas` grew into a multi-scene megademo (starfield, ROM-font titles, wireframe
+cube, plasma, copper bars, tunnel, vector morph, starship, credits) written in the
+classic demoscene style: draw by POKEing VGA memory directly, read the ROM font via
+PEEK, sync to the vertical retrace with WAIT, and cache precomputed textures with
+BSAVE. Four interlocking features made it compile AND render correctly:
+
+- **`DEF SEG [= expr]` is a real statement** — `Stmt::DefSeg(Option<Expr>)`
+  (`src/parser.rs` `parse_def`; bare `DEF SEG` = restore default segment 0) →
+  `__rt.set_def_seg(v)` with a `def_seg: u32` register on `Runtime`. Previously the
+  whole line was skipped, which also silently hid any expression on it (see VARSEG
+  below).
+- **Segment-aware `POKE`/`PEEK`** (`runtime/src/lib.rs` `qb_poke`/`qb_peek`):
+  - `DEF SEG = &HA000` + SCREEN 13 → the address is a linear framebuffer offset
+    (y*320+x, one byte per pixel = MCGA layout): POKE plots a pixel (with
+    `auto_present()`), PEEK reads one back. This is the demoscene draw-via-POKE
+    idiom — demo.bas's starfield, plasma, copper bars, and tunnel drew *nothing*
+    before this.
+  - `DEF SEG = &HF000` → PEEKs in `FA6E..FA6E+2048` serve the ROM BIOS 8×8 font
+    from our `FONT_8X8` table (the classic "PEEK the ROM font to draw scaled
+    bigtext" trick — demo.bas's `DrawText` letters were invisible before).
+  - Any other segment (including the default 0) → the simulated
+    `HashMap<u32, u8>` memory map, exactly as before (pokeit/evil unaffected).
+- **`BSAVE file$, offset, length`** (`Runtime::qb_bsave`, dispatched in the
+  `Stmt::Call` built-in chain next to `bload`) — the exact mirror of `BLOAD`:
+  writes the 7-byte header (magic `0xFD`, segment, offset, length, all LE) + the
+  framebuffer slice. Only `DEF SEG = &HA000` is modeled; other segments are a
+  silent no-op. demo.bas uses the BLOAD/BSAVE pair to cache its 64,000-byte
+  plasma/tunnel patterns (`PLASMA.DAT`/`TUNNEL.DAT`) across runs — verified
+  byte-correct (`FD 00 A0 00 00 00 FA` + 64000 pixels).
+- **`WAIT &H3DA, 8[, xormask]` really paces to vsync** (`Runtime::qb_wait`) — the
+  retrace bit is modeled from the wall clock: asserted the last ~2 ms of every
+  `frame_interval_ms` period (default 16 ms ≈ 60 Hz). `WAIT &H3DA, 8` blocks until
+  retrace starts **and then `present()`s the frame** (the draw-then-flip-at-vsync
+  boundary); the double-wait prefix `WAIT &H3DA, 8, 8` blocks until the previous
+  retrace ends, so the classic pair syncs to exactly one frame edge. Guards:
+  headless runs return immediately (goldens unaffected), unmodeled ports/masks
+  keep the old pump-and-return (never hang on an unemulated bit), and a 2-frame
+  safety deadline bounds the worst case.
+- **`VARSEG`/`VARPTR` stub → `0.0`** (`lift_expr` Call arm) — regression caught by
+  build-all: money.bas's `DEF SEG = VARSEG(ScrollUpAsm(1))` (a CALL ABSOLUTE
+  machine-code trick we don't model) was previously hidden inside the skipped DEF
+  SEG line. Segment 0 routes its POKEs to the memory map — same net behavior as
+  the old skip.
+
+Verified headlessly frame-by-frame (QBC_KEYS scene advance + QBC_DUMP): POKE
+starfield, rainbow ROM-font title, wireframe cube, full-screen plasma + cache.
+(Windowed vsync pacing is the one thing headless can't prove — verify by eye.)
 
 ## Known Issues / TODO
 

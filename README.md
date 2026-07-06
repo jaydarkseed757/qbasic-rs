@@ -85,7 +85,8 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
-| `blackjack.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
+| `demo.bas` | Multi-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, copper bars, tunnel (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync) | ✅ |
+| `blackjak.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
@@ -106,7 +107,7 @@ All **52 bundled programs** in `basic-src/` transpile and run
 - **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT (solid and `CHR$(n)` pattern tiling), PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
 - **Sound**: PLAY (full MML parser, foreground + background mode, `PLAY(n)` notes-remaining query), SOUND, BEEP — wired to `rodio`
 - **I/O**: PRINT, PRINT USING, INPUT, LOCATE, COLOR, CLS, INKEY$, `MID$(s,p,l) = v` in-place assignment, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization
-- **Memory**: POKE (simulated byte store via `HashMap<u32, u8>`), PEEK (reads back stored byte or 0), DEF SEG (parsed/ignored)
+- **Memory**: DEF SEG segment register with segment-aware POKE/PEEK — `&HA000` + SCREEN 13 pokes/peeks framebuffer pixels directly (the demoscene draw-via-POKE idiom), `&HF000:FA6E` PEEKs serve the ROM BIOS 8×8 font (scaled-bigtext trick), other segments use a simulated byte map. BLOAD/BSAVE load/save framebuffer images with the 7-byte BSAVE header. `WAIT &H3DA, 8` really syncs to a modeled vertical retrace (~60 Hz, presents at the flip)
 
 ### GOTO → state machine
 Line-numbered BASIC programs that use GOTO are compiled to a `match __pc { ... }` state machine, with each line number becoming a match arm. Programs that use only GOSUB get clean named Rust functions instead.

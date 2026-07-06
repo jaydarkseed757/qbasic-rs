@@ -151,6 +151,8 @@ pub enum Stmt {
     Poke { addr: Expr, val: Expr },
     Out  { port: Expr, val: Expr },
     Wait { port: Expr, mask: Expr, xormask: Option<Expr> },
+    /// `DEF SEG [= seg]` — None restores the default segment.
+    DefSeg(Option<Expr>),
     Sound { freq: Expr, duration: Expr },
     Beep,
     Randomize(Option<Expr>),
@@ -1080,7 +1082,20 @@ impl Parser {
             _ => false,
         };
         if !is_fn {
-            // DEF SEG, DEF SEG = n, or anything else — skip rest of line.
+            // DEF SEG [= expr] — segment-aware POKE/PEEK/BSAVE routing. Bare
+            // `DEF SEG` restores the default data segment (modeled as 0).
+            let is_seg = matches!(self.peek(), Token::Ident(s) if s.eq_ignore_ascii_case("SEG"));
+            if is_seg {
+                self.advance(); // consume SEG
+                let seg = if self.peek() == &Token::Eq {
+                    self.advance(); // consume =
+                    Some(self.parse_expr()?)
+                } else {
+                    None
+                };
+                return Ok(Stmt::DefSeg(seg));
+            }
+            // Anything else unmodeled after DEF — skip rest of line.
             while !self.at_eol() { self.advance(); }
             return Ok(Stmt::Block(vec![]));  // no-op block
         }

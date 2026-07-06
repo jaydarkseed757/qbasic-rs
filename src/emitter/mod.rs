@@ -1821,6 +1821,13 @@ impl Emitter {
                 self.line(&format!("__rt.qb_wait({p}, {m}, {x});"));
             }
 
+            Stmt::DefSeg(seg) => {
+                // DEF SEG = n routes POKE/PEEK/BSAVE at the runtime; bare DEF SEG
+                // restores the default data segment (0).
+                let v = seg.as_ref().map(|e| self.lift_expr(e)).unwrap_or_else(|| "0.0".into());
+                self.line(&format!("__rt.set_def_seg({v});"));
+            }
+
             Stmt::Sound { freq, duration } => {
                 // Hoist both args to temps to prevent double-borrow when freq
                 // or duration contains __rt calls (e.g. RND).
@@ -1985,6 +1992,21 @@ impl Emitter {
                         .map(|e| self.emit_expr(e).unwrap())
                         .unwrap_or_else(|| "0.0".into());
                     self.line(&format!("__rt.qb_bload({path}, {off});"));
+                } else if fn_lower == "bsave" {
+                    // BSAVE file$, offset, length → dump framebuffer bytes with the
+                    // 7-byte BSAVE header (mirror of BLOAD)
+                    let path = match args.first() {
+                        Some(e @ Expr::StrLit(_)) => self.emit_expr(e).unwrap(),
+                        Some(e) => format!("&({})", self.emit_expr(e).unwrap()),
+                        None => "\"\"".into(),
+                    };
+                    let off = args.get(1)
+                        .map(|e| self.emit_expr(e).unwrap())
+                        .unwrap_or_else(|| "0.0".into());
+                    let len = args.get(2)
+                        .map(|e| self.emit_expr(e).unwrap())
+                        .unwrap_or_else(|| "0.0".into());
+                    self.line(&format!("__rt.qb_bsave({path}, {off}, {len});"));
                 } else if self.user_subs.contains(&fn_lower) {
                     // User-defined SUB — prepend __rt, __gs; string args by-ref
                     let (a, writebacks) = self.emit_call_args_with_wb(&fn_lower, args);
@@ -4103,6 +4125,14 @@ impl Emitter {
                 }
                 if name_lc == "inp" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_in({})", a[0]));
+                }
+                // VARSEG/VARPTR — segment/offset of a variable, used for CALL
+                // ABSOLUTE machine-code tricks we don't model. Stub to 0 so
+                // `DEF SEG = VARSEG(x)` selects segment 0 (the default) and any
+                // following POKEs land in the simulated memory map, matching the
+                // behavior from when DEF SEG lines were skipped entirely.
+                if name_lc == "varseg" || name_lc == "varptr" {
+                    return "0.0".into();
                 }
                 // PLAY(n) function form — returns notes remaining in background queue.
                 if name_lc == "play" {

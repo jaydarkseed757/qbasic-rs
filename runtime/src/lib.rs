@@ -500,6 +500,10 @@ pub struct Runtime {
     idle_polls: u32,
     /// Simulated byte memory for POKE/PEEK.  QB POKE stores a byte; PEEK reads it back.
     poke_mem: std::collections::HashMap<u32, u8>,
+    /// Current DEF SEG segment (0 = default DGROUP). 0xA000 routes POKE/PEEK to
+    /// the framebuffer (SCREEN 13 linear layout); 0xF000 serves PEEKs of the ROM
+    /// BIOS 8×8 font at F000:FA6E from FONT_8X8.
+    def_seg: u32,
     /// VGA DAC state for OUT &H3C8/&H3C9 port writes.
     dac_write_idx: usize,  // current palette entry being written (auto-advances)
     dac_channel:   u8,     // which sub-channel: 0=R, 1=G, 2=B
@@ -662,6 +666,7 @@ impl Runtime {
             present_count: 0,
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
+            def_seg: 0,
             dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
             dac_read_idx:  0, dac_read_ch:  0,
         }
@@ -758,6 +763,7 @@ impl Runtime {
             present_count: 0,
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
+            def_seg: 0,
             dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
             dac_read_idx:  0, dac_read_ch:  0,
         };
@@ -2362,18 +2368,74 @@ impl Runtime {
         sound::play_beep();
     }
 
-    /// POKE addr, val — store a byte in the simulated memory map.
-    /// QB's POKE stores an unsigned byte (0–255) at the given address.
+    /// DEF SEG = n — set the segment POKE/PEEK/BSAVE operate in (0 = default).
+    pub fn set_def_seg(&mut self, seg: f64) {
+        self.def_seg = (seg as i64) as u32 & 0xFFFF;
+    }
+
+    /// POKE addr, val — store a byte.
+    ///
+    /// With `DEF SEG = &HA000` in SCREEN 13, `addr` is a linear framebuffer
+    /// offset (y*320+x, one byte per pixel = the MCGA layout), so the write is a
+    /// direct pixel plot — the demoscene "draw via POKE" idiom. Any other
+    /// segment/mode stores into the simulated memory map as before.
     pub fn qb_poke(&mut self, addr: f64, val: f64) {
         let a = (addr as i64) as u32;
         let v = ((val as i64) & 0xFF) as u8;
+        if self.def_seg == 0xA000 && self.screen_mode == 13 {
+            let ofs = a as usize;
+            if ofs < self.fb.len() {
+                self.fb[ofs] = v;
+                self.auto_present();
+            }
+            return;
+        }
         self.poke_mem.insert(a, v);
     }
 
-    /// PEEK(addr) — read a byte previously written by POKE (returns 0 if never written).
+    /// PEEK(addr) — read a byte.
+    ///
+    /// Segment-aware, mirroring `qb_poke`:
+    /// - `DEF SEG = &HA000` + SCREEN 13 → framebuffer pixel read.
+    /// - `DEF SEG = &HF000` → the ROM BIOS 8×8 font at F000:FA6E (the classic
+    ///   "PEEK the ROM font to draw scaled text" trick) is served from FONT_8X8.
+    /// - anything else → the simulated memory map (0 if never written).
     pub fn qb_peek(&mut self, addr: f64) -> f64 {
         let a = (addr as i64) as u32;
+        if self.def_seg == 0xA000 && self.screen_mode == 13 {
+            let ofs = a as usize;
+            return if ofs < self.fb.len() { self.fb[ofs] as f64 } else { 0.0 };
+        }
+        if self.def_seg == 0xF000 {
+            const FONT_BASE: u32 = 0xFA6E;
+            if (FONT_BASE..FONT_BASE + 256 * 8).contains(&a) {
+                let rel = (a - FONT_BASE) as usize;
+                return FONT_8X8[rel / 8][rel % 8] as f64;
+            }
+            return 0.0;
+        }
         self.poke_mem.get(&a).copied().unwrap_or(0) as f64
+    }
+
+    /// BSAVE file$, offset, length — dump `length` bytes of the current segment
+    /// starting at `offset` with the 7-byte QB BSAVE header (magic 0xFD, segment,
+    /// offset, length — all little-endian). Only video memory (`DEF SEG = &HA000`)
+    /// is modeled: the bytes come from the palette-indexed framebuffer, making
+    /// this the exact mirror of `qb_bload` (programs use the pair to cache a
+    /// precomputed frame to disk). Other segments are a silent no-op.
+    pub fn qb_bsave(&mut self, path: &str, offset: f64, length: f64) {
+        if self.def_seg != 0xA000 { return; }
+        let off = offset.max(0.0) as usize;
+        let len = length.max(0.0) as usize;
+        if off >= self.fb.len() { return; }
+        let n = len.min(self.fb.len() - off);
+        let mut out = Vec::with_capacity(7 + n);
+        out.push(0xFDu8);
+        out.extend_from_slice(&(self.def_seg as u16).to_le_bytes());
+        out.extend_from_slice(&(off as u16).to_le_bytes());
+        out.extend_from_slice(&(n as u16).to_le_bytes());
+        out.extend_from_slice(&self.fb[off..off + n]);
+        let _ = std::fs::write(path, out);
     }
 
     /// OUT port, val — write a byte to a hardware I/O port.
@@ -2439,11 +2501,45 @@ impl Runtime {
 
     /// WAIT port, mask[, xormask] — spin until (INP(port) XOR xormask) AND mask != 0.
     ///
-    /// On real hardware `WAIT &H3DA, 8` waits for the VGA vertical-retrace bit.
-    /// We have no real VGA status register, so we just pump window events and
-    /// yield briefly — the programs using this are already timed by the main
-    /// animation loop and don't need sub-millisecond port timing.
-    pub fn qb_wait(&mut self, _port: f64, _mask: f64, _xormask: f64) {
+    /// Port 0x3DA bit 3 (vertical retrace) is modeled from the wall clock so the
+    /// classic vsync idioms really pace to the frame rate: the retrace bit is
+    /// asserted for the last ~2 ms of every `frame_interval_ms` period. Both
+    /// forms work — `WAIT &H3DA, 8` blocks until retrace starts (and presents the
+    /// frame: that is the demoscene "draw, then flip at vsync" boundary), and the
+    /// double-wait prefix `WAIT &H3DA, 8, 8` blocks until the previous retrace
+    /// ends, so the pair syncs to exactly one frame edge. Headless runs return
+    /// immediately (no pacing wanted). Unmodeled ports/masks pump events and
+    /// return — never hang on a bit we don't emulate.
+    pub fn qb_wait(&mut self, port: f64, mask: f64, xormask: f64) {
+        let m = (mask as i64) as u8;
+        let x = (xormask as i64) as u8;
+        // Only the 0x3DA retrace bit is modeled; anything else = old no-op path.
+        if self.headless_cfg.is_some() || (port as u16) != 0x3DA || (m & 8) == 0 {
+            self.pump_events();
+            return;
+        }
+        let period = self.frame_interval_ms.max(1);
+        let retrace_ms = 2u64.min(period - 1).max(1);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(2 * period);
+        let mut polls = 0u32;
+        loop {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            let in_retrace = now_ms % period >= period - retrace_ms;
+            let status: u8 = if in_retrace { 8 } else { 0 };
+            if ((status ^ x) & m) != 0 { break; }
+            if std::time::Instant::now() >= deadline { break; } // safety: never hang
+            std::thread::sleep(std::time::Duration::from_micros(300));
+            polls += 1;
+            if polls % 16 == 0 { self.pump_events(); }
+        }
+        // Completing a wait FOR retrace (xor bit clear) is the frame boundary —
+        // flush the frame like a real vsynced page flip.
+        if (x & 8) == 0 {
+            self.present();
+        }
         self.pump_events();
     }
 

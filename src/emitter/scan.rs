@@ -219,6 +219,9 @@ pub(super) fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(
                     scan_expr(mask, result, added, exclude);
                     if let Some(x) = xormask { scan_expr(x, result, added, exclude); }
                 }
+                Stmt::DefSeg(seg) => {
+                    if let Some(s) = seg { scan_expr(s, result, added, exclude); }
+                }
                 Stmt::Poke { addr, val } | Stmt::Out { port: addr, val } => {
                     scan_expr(addr, result, added, exclude);
                     scan_expr(val, result, added, exclude);

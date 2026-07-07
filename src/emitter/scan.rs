@@ -168,6 +168,11 @@ pub(super) fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(
                     scan_expr(fmt, result, added, exclude);
                     for a in args { scan_expr(a, result, added, exclude); }
                 }
+                Stmt::PrintFileUsing { file_num, fmt, args, .. } => {
+                    scan_expr(file_num, result, added, exclude);
+                    scan_expr(fmt, result, added, exclude);
+                    for a in args { scan_expr(a, result, added, exclude); }
+                }
                 // Graphics statements — scan all sub-expressions for vars
                 Stmt::Line { x1, y1, x2, y2, color, .. } => {
                     if let Some(e) = x1 { scan_expr(e, result, added, exclude); }
@@ -690,6 +695,11 @@ pub(super) fn collect_typed_array_fields(prog: &AnalyzedProgram)
                 }
             }
             Stmt::PrintUsing { fmt, args, .. } => {
+                visit_expr(fmt, map, dims);
+                for a in args { visit_expr(a, map, dims); }
+            }
+            Stmt::PrintFileUsing { file_num, fmt, args, .. } => {
+                visit_expr(file_num, map, dims);
                 visit_expr(fmt, map, dims);
                 for a in args { visit_expr(a, map, dims); }
             }
@@ -1217,6 +1227,11 @@ pub(super) fn collect_scalar_names_stmt(stmt: &Stmt, out: &mut HashMap<String, Q
             collect_scalar_names_expr(fmt, out);
             for e in args { collect_scalar_names_expr(e, out); }
         }
+        Stmt::PrintFileUsing { file_num, fmt, args, .. } => {
+            collect_scalar_names_expr(file_num, out);
+            collect_scalar_names_expr(fmt, out);
+            for e in args { collect_scalar_names_expr(e, out); }
+        }
         Stmt::Input { vars, .. } => {
             for lv in vars {
                 if let LValue::Scalar { name, ty } = lv {
@@ -1392,6 +1407,11 @@ pub(super) fn collect_array_use_refs_stmt(stmt: &Stmt, known_arrays: &HashSet<St
             }
         }
         Stmt::PrintUsing { fmt, args, .. } => {
+            scan_expr(fmt, known_arrays, out);
+            for e in args { scan_expr(e, known_arrays, out); }
+        }
+        Stmt::PrintFileUsing { file_num, fmt, args, .. } => {
+            scan_expr(file_num, known_arrays, out);
             scan_expr(fmt, known_arrays, out);
             for e in args { scan_expr(e, known_arrays, out); }
         }

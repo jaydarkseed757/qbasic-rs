@@ -1971,6 +1971,10 @@ impl Emitter {
                         .map(|e| self.emit_expr(e).unwrap())
                         .unwrap_or_else(|| "0.0".into());
                     self.line(&format!("__rt.sleep({a});"));
+                } else if fn_lower == "system" {
+                    // SYSTEM — exit to DOS immediately, no wait-for-key
+                    // (programs do their own "press any key" prompt first).
+                    self.line("__rt.qb_system();");
                 } else if matches!(fn_lower.as_str(), "chain" | "shell" | "environ") {
                     // CHAIN loads another BASIC program — treat as program end
                     self.line(&format!("// STUB: {name}"));
@@ -2058,6 +2062,33 @@ impl Emitter {
                     self.line(&format!("__rt.println(&[{tmp}]);"));
                 } else {
                     self.line(&format!("__rt.print(&[{tmp}]);"));
+                }
+            }
+
+            Stmt::PrintFileUsing { file_num, fmt, args, newline } => {
+                // Same formatting as PRINT USING, but the result goes to the file.
+                let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
+                let f = self.emit_expr(fmt)?;
+                let mut qb_vals: Vec<String> = Vec::new();
+                for e in args {
+                    let v = self.emit_expr(e).unwrap_or_else(|_| "0.0".into());
+                    if self.is_str_expr_ctx(e) {
+                        let sn = format!("__pu_s{}", self.lift_counter);
+                        self.lift_counter += 1;
+                        self.line(&format!("let {sn} = ({v}).to_string();"));
+                        qb_vals.push(format!("QbVal::Str(&{sn})"));
+                    } else {
+                        qb_vals.push(format!("QbVal::Num({v})"));
+                    }
+                }
+                let arr = format!("[{}]", qb_vals.join(", "));
+                let tmp = format!("__pu{}", self.lift_counter);
+                self.lift_counter += 1;
+                self.line(&format!("let {tmp} = qb_print_using(&({f}), &{arr});"));
+                if *newline {
+                    self.line(&format!("__rt.write_file(({fnum}) as u8, &({tmp} + \"\\n\"));"));
+                } else {
+                    self.line(&format!("__rt.write_file(({fnum}) as u8, &{tmp});"));
                 }
             }
 
@@ -4126,6 +4157,9 @@ impl Emitter {
                 if name_lc == "inp" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_in({})", a[0]));
                 }
+                if name_lc == "eof" && a.len() == 1 {
+                    return hoist(self, format!("__rt.qb_eof({})", a[0]));
+                }
                 // VARSEG/VARPTR — segment/offset of a variable, used for CALL
                 // ABSOLUTE machine-code tricks we don't model. Stub to 0 so
                 // `DEF SEG = VARSEG(x)` selects segment 0 (the default) and any
@@ -4530,6 +4564,20 @@ impl Emitter {
                         .map(|e| self.emit_expr_inner(e).unwrap_or_else(|_| "1.0".into()))
                         .unwrap_or_else(|| "1.0".into());
                     return Ok(format!("__rt.input_str({n})"));
+                }
+                // PEEK / INP / EOF also need __rt (previously only routed in
+                // lift_expr, so a bare `WHILE NOT EOF(1)` condition — which comes
+                // through emit_cond_expr → emit_expr_inner — emitted an undefined
+                // free fn). Inline is fine here: a condition/assignment context
+                // holds no other __rt borrow.
+                if (upper == "PEEK" || upper == "INP" || upper == "EOF") && args.len() == 1 {
+                    let a0 = self.emit_expr_inner(&args[0])?;
+                    let m = match upper.as_str() {
+                        "PEEK" => "qb_peek",
+                        "INP"  => "qb_in",
+                        _      => "qb_eof",
+                    };
+                    return Ok(format!("__rt.{m}({a0})"));
                 }
 
                 // UBOUND(arr[, dim]) / LBOUND(arr[, dim])

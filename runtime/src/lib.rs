@@ -504,6 +504,14 @@ pub struct Runtime {
     /// the framebuffer (SCREEN 13 linear layout); 0xF000 serves PEEKs of the ROM
     /// BIOS 8×8 font at F000:FA6E from FONT_8X8.
     def_seg: u32,
+    /// True once the program has synced to the modeled vertical retrace
+    /// (`WAIT &H3DA, 8`). A vsync-paced program composes each frame with
+    /// erase/draw/overdraw steps and flips at the WAIT — so mid-frame presents
+    /// (`put_sprite`'s unconditional blit, `auto_present`'s timer) are
+    /// suppressed to keep composition intermediates off the screen (e.g. a
+    /// scroller's letters PUT over a pillar that only gets redrawn on top at
+    /// end of frame). Reset by `screen()` so non-WAIT scenes present normally.
+    vsync_paced: bool,
     /// VGA DAC state for OUT &H3C8/&H3C9 port writes.
     dac_write_idx: usize,  // current palette entry being written (auto-advances)
     dac_channel:   u8,     // which sub-channel: 0=R, 1=G, 2=B
@@ -667,6 +675,7 @@ impl Runtime {
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
             def_seg: 0,
+            vsync_paced: false,
             dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
             dac_read_idx:  0, dac_read_ch:  0,
         }
@@ -764,6 +773,7 @@ impl Runtime {
             idle_polls: 0,
             poke_mem: std::collections::HashMap::new(),
             def_seg: 0,
+            vsync_paced: false,
             dac_write_idx: 0, dac_channel: 0, dac_pending_r: 0, dac_pending_g: 0,
             dac_read_idx:  0, dac_read_ch:  0,
         };
@@ -819,6 +829,10 @@ impl Runtime {
     pub fn screen(&mut self, mode: f64) {
         self.screen_mode = mode as u8;
         self.had_screen_call = true;
+        // A mode switch starts a fresh scene: presume it is NOT vsync-paced
+        // until it WAITs on the retrace again (restores normal auto-presents
+        // for scenes that don't use WAIT).
+        self.vsync_paced = false;
         // Pixel framebuffer dimensions per mode.
         // Mode 0 (text): 80×25 chars × 8×16 px = 640×400 pixels.
         let (w, h) = match mode as u8 {
@@ -1401,11 +1415,22 @@ impl Runtime {
         }
     }
 
-    /// EOF(n) — true if at end of sequential file or file not open.
-    pub fn eof_check(&self, file_num: u8) -> bool {
-        // For sequential files we check if the reader is exhausted.
-        // BufReader has no reliable is_eof; use fill_buf to check.
-        true // conservative: most programs only check EOF in loops; let read return "" to signal it
+    /// EOF(n) — QB boolean: -1.0 at end of a sequential input file (or when the
+    /// handle isn't open for reading), 0.0 while data remains. Peeks the
+    /// BufReader via `fill_buf` without consuming anything.
+    pub fn qb_eof(&mut self, file_num: f64) -> f64 {
+        if let Some(QbFile::Sequential { reader: Some(r), .. }) =
+            self.files.get_mut(&(file_num as u8))
+        {
+            match r.fill_buf() {
+                Ok(buf) if !buf.is_empty() => 0.0,
+                _ => -1.0,
+            }
+        } else {
+            // Random-access GET-past-end isn't tracked; unopened handles are
+            // EOF. Reporting EOF keeps `DO WHILE NOT EOF(n)` loops terminating.
+            -1.0
+        }
     }
 
     // ── DATA / READ ───────────────────────────────────────────────────────────
@@ -1485,6 +1510,10 @@ impl Runtime {
     #[inline]
     fn auto_present(&mut self) {
         if self.fullspeed { return; }
+        // Vsync-paced programs flip at WAIT &H3DA — never blit mid-frame
+        // (composition intermediates like a scroller's pre-overdraw letters
+        // must stay off the screen).
+        if self.vsync_paced { return; }
         self.pset_counter = self.pset_counter.wrapping_add(1);
         if self.pace_ms > 0 {
             // Paced mode (REM QBC PACE n): hold a steady blit cadence by
@@ -1683,9 +1712,11 @@ impl Runtime {
             }
         }
         // PUT is a sprite-level operation (typically 1–2 per animation frame),
-        // not a pixel-level one — always blit immediately so sprite animation
-        // (banana flight, gorilla arm raise) is visible.
-        self.present();
+        // not a pixel-level one — blit immediately so sprite animation (banana
+        // flight, gorilla arm raise) is visible. Exception: a vsync-paced
+        // program (WAIT &H3DA) flips at the WAIT instead, so its multi-step
+        // frame composition (PUT then overdraw) never leaks to the screen.
+        if !self.vsync_paced { self.present(); }
     }
 
     /// PUT for CGA SCREEN 1 (2 bits/pixel, packed — not planar).
@@ -1723,7 +1754,7 @@ impl Runtime {
                 self.put_pixel(fb_idx, color, mask, action);
             }
         }
-        self.present();
+        if !self.vsync_paced { self.present(); }
     }
 
     /// GET (x1,y1)-(x2,y2), array — capture a screen region into a QB sprite
@@ -1867,7 +1898,7 @@ impl Runtime {
                 self.put_pixel(fb_idx, color, mask, action);
             }
         }
-        self.present();
+        if !self.vsync_paced { self.present(); }
     }
 
     /// GET for MCGA SCREEN 13 — capture into the 8-bpp chunky INTEGER layout
@@ -2536,10 +2567,13 @@ impl Runtime {
             if polls % 16 == 0 { self.pump_events(); }
         }
         // Completing a wait FOR retrace (xor bit clear) is the frame boundary —
-        // flush the frame like a real vsynced page flip.
+        // flush the frame like a real vsynced page flip. From this point on the
+        // program is vsync-paced: the WAIT becomes the only present point and
+        // mid-frame blits are suppressed (see the `vsync_paced` field docs).
         if (x & 8) == 0 {
             self.present();
         }
+        self.vsync_paced = true;
         self.pump_events();
     }
 
@@ -2686,6 +2720,15 @@ impl Runtime {
         // Drop will run after process::exit is NOT called here — we do the
         // wait ourselves so we can call process::exit cleanly afterward.
         self.wait_for_key();
+        std::process::exit(0);
+    }
+
+    /// SYSTEM — exit to DOS immediately. Unlike END (→ `quit()`), SYSTEM never
+    /// holds the window open on a keypress — programs that use it have done
+    /// their own "press any key" prompt already. Headless runs still
+    /// dump/checksum first (process::exit skips Drop).
+    pub fn qb_system(&mut self) -> ! {
+        if self.headless_cfg.is_some() { self.headless_finish(); }
         std::process::exit(0);
     }
 

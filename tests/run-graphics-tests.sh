@@ -115,7 +115,13 @@ for entry in "${TESTS[@]}"; do
     out="$(QBC_HEADLESS=1 QBC_SEED="$seed" QBC_KEYS="$keys" \
            QBC_EXIT_AFTER="$exitp" QBC_CHECKSUM=1 \
            timeout 30 "$bin" 2>/dev/null || true)"
-    sum="$(printf '%s\n' "$out" | grep -o 'QBC_CHECKSUM=[0-9a-f]*' | head -1 | cut -d= -f2)"
+    # `|| true` guards the whole pipe: under `set -o pipefail`, a run that
+    # produced no checksum (crashed/timed out) makes `grep -o` return 1 (no
+    # match), which — without this guard — aborts the ENTIRE script right
+    # here via `set -e`, silently skipping every remaining test and the
+    # final "Results:" summary instead of reporting "no checksum" for just
+    # this one test and continuing.
+    sum="$(printf '%s\n' "$out" | grep -o 'QBC_CHECKSUM=[0-9a-f]*' | head -1 | cut -d= -f2 || true)"
     if [ -z "$sum" ]; then
         echo "FAIL: $name  [no checksum — did it render/exit?]"
         ((fail++)) || true; errors+=("$name: no checksum"); continue

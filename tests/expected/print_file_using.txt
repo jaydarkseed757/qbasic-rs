@@ -1,0 +1,4 @@
+ALPHA         42   3.14
+LONGERNAME 12345  99.90
+ $1234.50
+done

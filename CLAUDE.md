@@ -73,15 +73,15 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **52/52** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **53/53** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
-kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix, qmaze,
-duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
+qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
-- **33/33** integration (`tests/run-tests.sh`, stdout-based)
-- **130** runtime unit tests (`cargo test --workspace`)
+- **34/34** integration (`tests/run-tests.sh`, stdout-based)
+- **133** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -158,12 +158,22 @@ been made and controls two behaviours:
 - `print_gfx()` echoes to stdout when `!had_screen_call` so integration tests
   capture output; graphics programs are window-only.
 
-### 9. PUT (sprite blit) always calls present()
+### 9. PUT (sprite blit) always calls present() — except when vsync-paced
 `put_sprite` (QB `PUT`) calls `self.present()` directly after each blit.
 Sprite blits are game-level operations (1–2 per animation frame); always
 flushing ensures animations like the banana flight are visible.
 Pixel-level operations (PSET, LINE segments, CIRCLE points) use `auto_present()`
 which throttles to one blit per 256 calls / frame interval.
+
+**Exception**: a program that has synced with `WAIT &H3DA, 8` (the modeled VGA
+retrace) sets `vsync_paced = true` on `Runtime`, and BOTH `put_sprite`'s
+immediate present and `auto_present`'s timer are suppressed until the next
+`SCREEN` call resets it. This is for demoscene-style code that composes an
+entire frame (erase, PUT sprites, redraw overlays) and expects nothing to hit
+the window until it flips at the WAIT — without this, mid-frame composition
+states (e.g. a scroller's letters sitting on top of a pillar before the pillar
+is redrawn over them) leak to the screen. gorilla/donkey never call WAIT, so
+their behavior — and their golden checksums — are unaffected.
 
 ### 10. User-defined TYPEs — recursive flattening
 TYPE fields are flattened to `__`-joined scalar variable names:
@@ -337,7 +347,7 @@ The bundled programs in `basic-src/` are for manual/visual verification only.
 8. **PAINT boundary**: flood fill stops at `border_color` exactly — wrong colour bleeds through gorilla sprites
 9. **GOSUB vs SUB**: `GOSUB 100` jumps to a line-label in the same scope; `CALL MySub` calls a named SUB — both appear in QB programs, both must work
 10. **SCREEN 0 after graphics**: gorilla.bas calls `SCREEN 0` inside `Intro` (text mode title screen) even though the window is already open from `SCREEN 9` in `InitVars`. The `had_screen_call` flag handles this — all text still renders in the open window.
-11. **PUT always presents**: `put_sprite` calls `present()` directly (not `auto_present()`). Do not revert this — banana animation becomes invisible without it.
+11. **PUT always presents**: `put_sprite` calls `present()` directly (not `auto_present()`). Do not revert this — banana animation becomes invisible without it. (Suppressed only when `vsync_paced` — see §9.)
 12. **PRINT USING field width**: the field width is the literal character count of the format spec. The previous off-by-one that padded every field one space too wide is fixed. `^^^^` exponential notation and `%` wide-field overflow are implemented.
 13. **Multi-statement lines**: `A = 1 : B = 2 : PRINT A+B` — colon separates statements; the lexer emits `Token::Newline` for both `\n` and `:`.
 14. **QB1.1 DOS compatibility (`.bas` files only)**:
@@ -1275,8 +1285,112 @@ Verified headlessly frame-by-frame (QBC_KEYS scene advance + QBC_DUMP): POKE
 starfield, rainbow ROM-font title, wireframe cube, full-screen plasma + cache.
 (Windowed vsync pacing is the one thing headless can't prove — verify by eye.)
 
+### Vsync-paced frame composition (`vsync_paced`), SYSTEM, PRINT #n USING, real EOF, bench.bas (build-all 53/53)
+
+Testing `demo.bas` on real hardware surfaced a rendering bug in the wavy
+sine-scroller scene: letters appeared to clip incorrectly against the pillar
+graphics. Root cause was a **painter's-algorithm assumption our runtime broke**:
+QB composes a frame (erase → move → PUT sprites → redraw overlays) entirely
+between vertical retraces, so intermediate states are never visible on real
+hardware — but our runtime was presenting mid-composition, because
+`put_sprite` always blits immediately (§9) and `auto_present`'s timer can also
+fire between statements. The scroller's letters showed up sitting on top of
+the pillars *before* the pillars got redrawn over them, and the erase LINEs
+briefly punched black holes in the pillar bodies.
+
+- **`vsync_paced: bool` on `Runtime`** — set the moment a program completes a
+  `WAIT &H3DA, 8` (retrace-start) wait; cleared by every `SCREEN` call (so a
+  later non-WAIT scene presents normally again). While set, `put_sprite`'s
+  unconditional `present()` and `auto_present`'s timer-driven blit are both
+  suppressed — the WAIT's own `present()` (already implemented — see the DEF
+  SEG/WAIT section above) becomes the *only* flip point, exactly mirroring
+  real VGA's draw-during-blank/flip-at-retrace behavior. Verified headlessly
+  (captured mid-scene frames show the letters composing correctly behind the
+  pillars) and confirmed the full test suite (gorilla/donkey never call WAIT,
+  so their behavior and golden checksums are provably unaffected).
+
+While fixing `bench.bas` (the interpreter-vs-native benchmark the demo's
+effect budget is tuned against) so it would even compile and produce correct
+output, three more gaps surfaced — all were latent for every program, not just
+this one:
+
+- **`SYSTEM` was unmodeled** — fell through to the generic unknown-SUB path
+  and emitted an undefined `system()` call. New `Runtime::qb_system()`: exits
+  immediately (headless dump/checksum first), critically **without**
+  `wait_for_key()` — unlike `END`/`quit()`, `SYSTEM` never holds the window
+  open, since programs that use it (bench.bas included) do their own "press
+  any key" prompt first.
+- **`PRINT #n, USING fmt$; args` was never parsed** — the file-print path went
+  straight to the plain-arg parser, so `USING` was read as an empty numeric
+  variable reference and the format string printed literally instead of
+  formatting the values. New `Stmt::PrintFileUsing` (parser: shared
+  `parse_using_tail()` helper used by both `PRINT USING` and `PRINT #n, USING`;
+  emitter: identical `qb_print_using` value-building as `PrintUsing`, written
+  to the file instead of stdout). All four AST-collection scan passes
+  (`collect_scalar_names_stmt`, cross-boundary array/scalar detection, etc.)
+  got matching arms — cross-GOSUB scalars referenced only inside a `PRINT #n,
+  USING` now promote correctly, same as the existing `PrintUsing` fix from the
+  kingdom.bas milestone.
+- **`EOF(n)` never worked, in any program** — both ends were stubs:
+  `Runtime::eof_check` hardcoded `true` (dead code, unused), and the free
+  `qb_eof_fn` hardcoded `0.0` ("never EOF"). Worse, a bare `WHILE NOT EOF(1)`
+  condition routes through `emit_cond_expr` → `emit_expr_inner`, which had
+  **no** `__rt` routing for `EOF`/`PEEK`/`INP` at all — those three only
+  worked inside `lift_expr`'s hoisting path, so a bare condition emitted an
+  undefined free-function call. Fixed: real `Runtime::qb_eof` peeks the
+  sequential-file `BufReader` via `fill_buf` (true EOF, QB boolean −1.0/0.0,
+  no bytes consumed) and routes through **both** expression-emission paths;
+  `PEEK`/`INP` got the same second routing, closing the identical latent gap
+  for them in bare conditions. No bundled program had ever exercised
+  `EOF` before this, so nothing had caught it. New integration test
+  `tests/programs/print_file_using.bas` covers both the USING-format fix and
+  an `EOF`-driven read-back loop.
+
+`basic-src/bench.bas` measures the demo's hot-loop operations (empty
+FOR/NEXT, integer math, array access, POKE/PEEK, PSET, LINE, GET/PUT, empty
+SUB call) as ops/sec + ops-per-60fps-frame-budget, run once under real
+QBasic 1.1 interpreted in DOSBox-X (Pentium 66 MHz, same cycle count as the
+demo) and once transpiled to native Rust. Measured speedup ranges **~30×**
+(LINE, bandwidth-bound — both platforms spend real time touching pixels) to
+**~275×** (integer multiply/divide, dispatch-bound — pure interpreter
+bytecode-fetch overhead disappears in native code). Full comparison table in
+`README.md`'s Performance section. This is the empirical justification for
+`PEEK+POKE RMW`'s "killed shadebobs v1" comment in `bench.bas` — 73K ops/sec
+on real hardware vs. 8M ops/sec natively means the per-pixel read-modify-write
+budget that broke shadebobs on period hardware is a non-issue now.
+
 ## Known Issues / TODO
 
+- **`gorilla`/`donkey` golden tests are load-sensitive (intermittent flakes,
+  pre-existing).** Bisected during the M21 session by stashing all M21 changes
+  and re-testing the clean, already-pushed baseline commit: both flakes
+  reproduce **identically** with or without M21's changes, so neither is a
+  regression from any recent change.
+  - `gorilla` fails its checksum non-deterministically (observed ~3-in-4 under
+    heavy concurrent system load, 0-in-4 once the system settled). Likely
+    cause: gorilla.bas's `Rest()` SUB paces via real wall-clock `TIMER` (not
+    simulated frame count) — `CalcDelay!` returns the fixed `SPEEDCONST`, so
+    it's not a speed-calibration issue, but under CPU contention the scripted
+    `QBC_KEYS` stream and `Rest()`'s wall-clock waits can interleave
+    differently, landing the `presents:80` capture on a different simulation
+    frame (e.g. before vs. after the banana becomes visible).
+  - `donkey` occasionally produces **no checksum at all** (times out its full
+    30s `timeout` with zero output), reproduced on the clean baseline under
+    heavy load. Root cause not yet isolated (donkey.bas has no TIMER/SLEEP
+    calls, so it's a different mechanism than gorilla's — possibly headless
+    event-pump/window-init contention).
+  - A real fix for either would need the affected pacing/init path to key off
+    a simulated/injectable clock in headless mode rather than wall time or
+    real scheduling. Until then: if either flakes in CI or a local run, retry
+    once on an idle system before assuming a real regression.
+  - **Bonus finding while debugging this:** `tests/run-graphics-tests.sh` had
+    a latent bug (now fixed) that made the "no checksum" case far worse than
+    a mere per-test failure — `sum="$(... | grep -o ... | ...)"` had no
+    `|| true` guard, so under `set -o pipefail` a `grep` no-match (exactly the
+    "no checksum" case) aborted the **entire script** via `set -e`, silently
+    skipping every remaining test and the final `Results:` summary instead of
+    reporting one clean "no checksum" failure and continuing. This is what
+    made the `donkey` flake invisible until the pipe was patched.
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a
   256-entry table; `screen(13)` loads the authentic VGA BIOS power-on default
   palette (`vga256_default()` — 16 EGA + 16 grays + 216-color HSV cube, matches

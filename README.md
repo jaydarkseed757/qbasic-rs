@@ -38,6 +38,37 @@ The transpiler (`qbc`) reads a QBasic source file, walks the AST, and emits a se
 
 ---
 
+## Performance
+
+`basic-src/bench.bas` measures the hot-loop operations the mega-demo actually uses (empty loops, integer math, array access, POKE/PEEK, PSET, LINE, GET/PUT sprites, empty SUB calls) and reports ops/sec plus an ops-per-60fps-frame budget. Run it two ways and compare:
+
+- **Real QBasic 1.1**, interpreted, under DOSBox-X emulating a Pentium 66 MHz (`bench.sh`, same cycle count as the demo)
+- **Transpiled to native Rust** via `qbc`, run headless on Apple Silicon
+
+| Test | DOSBox-X P66 (ops/sec) | Native Rust (ops/sec) | Speedup |
+|---|---:|---:|---:|
+| EMPTY FOR/NEXT | 383,521 | 40,000,000 | **~104×** |
+| INTEGER ADD | 143,551 | 30,000,000 | **~209×** |
+| INT MUL+IDIV | 72,727 | 20,000,000 | **~275×** |
+| ARRAY RD+WR | 117,701 | 20,000,000 | **~170×** |
+| LUT SINE STEP | 67,546 | 10,000,000 | **~148×** |
+| POKE | 139,130 | 10,000,000 | **~72×** |
+| PEEK+POKE RMW | 73,405 | 8,000,000 | **~109×** |
+| PSET | 90,888 | 6,000,000 | **~66×** |
+| LINE 320PX | 36,312 | 1,082,834 | **~30×** |
+| LINE BF 24×24 | 19,033 | 1,885,546 | **~99×** |
+| GET 24×24 | 14,105 | 1,235,035 | **~88×** |
+| PUT 24×24 | 14,504 | 1,778,113 | **~123×** |
+| EMPTY SUB CALL | 121,040 | 20,000,000 | **~165×** |
+
+A few things stand out:
+
+- **Pure interpreter dispatch overhead is where the biggest wins are.** `INT MUL+IDIV` (~275×) and `INTEGER ADD` (~209×) are near-instant in native code but pay QBasic's per-statement bytecode-fetch cost on real hardware every time.
+- **Graphics ops scale less dramatically (~30–123×)** because both platforms spend real time touching pixel data — the work is bandwidth-bound, not dispatch-bound. `LINE 320PX` (~30×) is the smallest multiplier for exactly this reason.
+- **This is why the demo can afford more** — `bench.bas`'s own comment notes `PEEK+POKE RMW` "killed shadebobs v1" on real hardware (73K ops/sec); at 8M ops/sec natively, that per-pixel read-modify-write loop stops being a constraint.
+
+---
+
 ## Quick start
 
 ```bash
@@ -85,16 +116,17 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
-| `demo.bas` | Multi-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, copper bars, tunnel (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync) | ✅ |
+| `demo.bas` | Multi-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, copper bars, tunnel, wavy sine scroller (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync) | ✅ |
+| `bench.bas` | Interpreter-vs-native benchmark — hot-loop ops/sec + ops-per-frame budget for the demo's operations — see [Performance](#performance) | ✅ |
 | `blackjak.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
-All **52 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 52/52). The full set also includes `nibbles`,
+All **53 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 53/53). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
-`towers`, `pride`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
+`towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
 
 ---
 
@@ -106,7 +138,7 @@ All **52 bundled programs** in `basic-src/` transpile and run
 - **Data**: DIM, REDIM, ERASE, DIM SHARED, COMMON SHARED, DATA/READ/RESTORE, CONST, user-defined TYPE (nested, fixed-length strings, array fields), 1-D/2-D/3-D arrays incl. arrays of TYPE
 - **Graphics**: SCREEN (0,1,2,7,8,9,10,12,13), LINE, CIRCLE, PAINT (solid and `CHR$(n)` pattern tiling), PSET, PRESET, DRAW, GET, PUT (all action verbs), VIEW, WINDOW (+ WINDOW SCREEN), PMAP, POINT, PALETTE, STEP coordinates
 - **Sound**: PLAY (full MML parser, foreground + background mode, `PLAY(n)` notes-remaining query), SOUND, BEEP — wired to `rodio`
-- **I/O**: PRINT, PRINT USING, INPUT, LOCATE, COLOR, CLS, INKEY$, `MID$(s,p,l) = v` in-place assignment, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization
+- **I/O**: PRINT, PRINT USING (sequential and `PRINT #n, USING` file output), INPUT, LOCATE, COLOR, CLS, INKEY$, `MID$(s,p,l) = v` in-place assignment, sequential files with real `EOF(n)` detection, random-access files (OPEN/GET/PUT/CLOSE) with TYPE-record serialization, SYSTEM (exit to DOS, no wait-for-key)
 - **Memory**: DEF SEG segment register with segment-aware POKE/PEEK — `&HA000` + SCREEN 13 pokes/peeks framebuffer pixels directly (the demoscene draw-via-POKE idiom), `&HF000:FA6E` PEEKs serve the ROM BIOS 8×8 font (scaled-bigtext trick), other segments use a simulated byte map. BLOAD/BSAVE load/save framebuffer images with the 7-byte BSAVE header. `WAIT &H3DA, 8` really syncs to a modeled vertical retrace (~60 Hz, presents at the flip)
 
 ### GOTO → state machine

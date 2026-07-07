@@ -221,6 +221,8 @@ pub enum Stmt {
     RSet { var: LValue, expr: Expr },
     /// PRINT #n, ...
     PrintFile { file_num: Expr, args: Vec<PrintArg>, newline: bool },
+    /// `PRINT #n, USING fmt$; args…` — USING-formatted file output.
+    PrintFileUsing { file_num: Expr, fmt: Expr, args: Vec<Expr>, newline: bool },
     /// INPUT #n, var [, var ...]
     InputFile { file_num: Expr, vars: Vec<LValue> },
     /// LINE INPUT #n, var$
@@ -1641,39 +1643,51 @@ impl Parser {
     fn parse_print(&mut self) -> Result<Stmt> {
         self.expect(&Token::Print)?;
 
-        // PRINT #n, ... — file output
+        // PRINT #n, ... — file output (plain or USING-formatted)
         if self.peek() == &Token::Hash {
             self.advance();
             let file_num = self.parse_expr()?;
             if self.peek() == &Token::Comma { self.advance(); }
+            // PRINT #n, USING fmt$; arg1; arg2 ...
+            if matches!(self.peek(), Token::Ident(s) if s.eq_ignore_ascii_case("USING")) {
+                let (fmt, args, newline) = self.parse_using_tail()?;
+                return Ok(Stmt::PrintFileUsing { file_num, fmt, args, newline });
+            }
             let (args, newline) = self.parse_print_args()?;
             return Ok(Stmt::PrintFile { file_num, args, newline });
         }
 
         // PRINT USING fmt$; arg1; arg2 ...
         if matches!(self.peek(), Token::Ident(s) if s.eq_ignore_ascii_case("USING")) {
-            self.advance(); // consume USING
-            let fmt = self.parse_expr()?;
-            // expect ; separator
-            if self.peek() == &Token::Semicolon { self.advance(); }
-            let mut args = Vec::new();
-            let mut newline = true;
-            while !self.at_eol() {
-                match self.peek() {
-                    Token::Semicolon => {
-                        self.advance();
-                        newline = false;
-                        if !self.at_eol() { newline = true; }
-                    }
-                    Token::Comma => { self.advance(); if self.at_eol() { newline = false; } }
-                    _ => { args.push(self.parse_expr()?); newline = true; }
-                }
-            }
+            let (fmt, args, newline) = self.parse_using_tail()?;
             return Ok(Stmt::PrintUsing { fmt, args, newline });
         }
 
         let (args, newline) = self.parse_print_args()?;
         Ok(Stmt::Print { args, newline })
+    }
+
+    /// Parse the `USING fmt$; arg1; arg2 ...` tail shared by `PRINT USING`
+    /// and `PRINT #n, USING`. The caller has peeked (not consumed) `USING`.
+    fn parse_using_tail(&mut self) -> Result<(Expr, Vec<Expr>, bool)> {
+        self.advance(); // consume USING
+        let fmt = self.parse_expr()?;
+        // expect ; separator
+        if self.peek() == &Token::Semicolon { self.advance(); }
+        let mut args = Vec::new();
+        let mut newline = true;
+        while !self.at_eol() {
+            match self.peek() {
+                Token::Semicolon => {
+                    self.advance();
+                    newline = false;
+                    if !self.at_eol() { newline = true; }
+                }
+                Token::Comma => { self.advance(); if self.at_eol() { newline = false; } }
+                _ => { args.push(self.parse_expr()?); newline = true; }
+            }
+        }
+        Ok((fmt, args, newline))
     }
 
     /// Parse the argument list for PRINT / PRINT #n — shared helper.

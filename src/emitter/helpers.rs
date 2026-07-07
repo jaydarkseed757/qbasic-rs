@@ -185,7 +185,9 @@ pub(super) fn rust_fn_name(name: &str) -> String {
         "CVI"     => "CVI".into(),
         "CVL"     => "CVL".into(),
         // File I/O built-ins
-        "EOF"     => "qb_eof_fn".into(),
+        // (EOF routes to __rt.qb_eof in lift_expr — the free-fn stub always
+        //  returned "never EOF" and is intentionally NOT mapped here so any
+        //  uncovered path fails loudly at rustc instead of looping forever.)
         "LOF"     => "qb_lof_fn".into(),
         // Error handling
         "ERR"     => "__rt.err_code".into(),  // emitted as a field access, not a fn call

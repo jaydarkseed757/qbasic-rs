@@ -127,7 +127,7 @@ without manual `-L` flags when run via `cargo run`.
 
 The authoritative lists live in the lexer keyword table (`src/lexer.rs`), the
 statement parser (`src/parser.rs`), and the emitter's built-in dispatch
-(`src/emitter/mod.rs`). This set covers all 52 bundled programs.
+(`src/emitter/mod.rs`). This set covers all 53 bundled programs.
 
 ### Statements & keywords
 
@@ -141,7 +141,7 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
 | **Graphics** | `SCREEN` (0,1,2,7,8,9,10,12,13), `LINE` (+ `B`/`BF`), `CIRCLE`, `PSET`, `PRESET`, `PAINT`, `DRAW`, `GET`/`PUT` (sprites, all verbs), `VIEW`, `WINDOW` (+ `WINDOW SCREEN`), `PALETTE` / `PALETTE USING`, `STEP` coords |
 | **Sound** | `PLAY`, `SOUND`, `BEEP` |
 | **Errors** | `ON ERROR` / `GOTO`, `RESUME` (+ `RESUME NEXT`), `ERR` |
-| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE`/`PEEK` (segment-aware: framebuffer pixels under `DEF SEG = &HA000`+SCREEN 13, ROM 8×8 font at `&HF000:FA6E`, simulated byte map otherwise), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `WAIT port, mask[, xormask]` (real vsync — wall-clock retrace bit, presents at retrace), `DEF SEG [= n]` (segment register for POKE/PEEK/BSAVE), `VARSEG`/`VARPTR` (stub → 0) |
+| **Misc** | `RANDOMIZE` (TIMER), `SLEEP`, `POKE`/`PEEK` (segment-aware: framebuffer pixels under `DEF SEG = &HA000`+SCREEN 13, ROM 8×8 font at `&HF000:FA6E`, simulated byte map otherwise), `OUT` (VGA DAC port write), `INP` (VGA DAC port read), `WAIT port, mask[, xormask]` (real vsync — wall-clock retrace bit, presents at retrace), `DEF SEG [= n]` (segment register for POKE/PEEK/BSAVE), `VARSEG`/`VARPTR` (stub → 0), `SYSTEM` (exit to DOS immediately, no wait-for-key) |
 | **Operators** | `AND`, `OR`, `XOR`, `NOT`, `EQV`, `IMP`, `MOD`, `\` (integer divide), `^`, `+ - * /`, comparisons |
 
 ### Built-in functions
@@ -1001,6 +1001,51 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M21 — vsync-paced frame composition, SYSTEM, PRINT #n USING, real EOF, bench.bas (build-all 53/53) ✅
+
+Testing `demo.bas` on real hardware found the wavy sine-scroller scene clipping
+letters incorrectly against the pillar graphics — a painter's-algorithm bug: QB
+composes a frame between vertical retraces so intermediate draw states are
+never visible, but our runtime was presenting mid-composition.
+
+- **`vsync_paced: bool` on `Runtime`** — set once a program completes a
+  `WAIT &H3DA, 8` retrace wait; cleared on the next `SCREEN` call. While set,
+  `put_sprite`'s unconditional `present()` and `auto_present`'s timer-driven
+  blit are both suppressed, making the WAIT's own `present()` the sole flip
+  point — mirroring real VGA's draw-during-blank/flip-at-retrace behavior.
+  gorilla/donkey never call WAIT, so their golden checksums are unaffected
+  (verified).
+- **`SYSTEM`** — new `Runtime::qb_system()`: exits immediately, unlike
+  `END`/`quit()` it never calls `wait_for_key()` (programs using SYSTEM do
+  their own exit prompt first). Was previously unmodeled → undefined
+  `system()` call.
+- **`PRINT #n, USING fmt$; args`** — new `Stmt::PrintFileUsing`; was silently
+  parsed as a plain (unformatted) file print because the file-print path never
+  checked for `USING`. Shares `parse_using_tail()` with `PRINT USING`;
+  threaded through all four scan passes for cross-boundary scalar promotion.
+- **Real `EOF(n)`** — `Runtime::qb_eof` peeks the sequential-file `BufReader`
+  via `fill_buf` (no bytes consumed) instead of the old hardcoded stubs
+  (`eof_check` → always `true`; free `qb_eof_fn` → always `0.0`, i.e. "never
+  EOF"). Also fixed: `EOF`/`PEEK`/`INP` had no `__rt` routing in
+  `emit_expr_inner` (only in `lift_expr`), so a bare `WHILE NOT EOF(1)`
+  condition emitted an undefined free-function call — closed for all three
+  built-ins. No bundled program had exercised `EOF` before this.
+- **`bench.bas`** — interpreter-vs-native benchmark (empty loops, integer math,
+  array access, POKE/PEEK, PSET, LINE, GET/PUT, empty SUB call) as ops/sec +
+  ops-per-60fps-frame budget. Measured once under real QBasic 1.1 in DOSBox-X
+  (Pentium 66 MHz) and once transpiled: speedups range ~30× (LINE, bandwidth-
+  bound) to ~275× (integer mul/idiv, dispatch-bound). Full table in
+  `README.md`'s Performance section.
+
+New integration test `tests/programs/print_file_using.bas` covers the USING
+file-output fix and an `EOF`-driven read loop. 133 unit, 34/34 integration,
+53/53 build-all. Graphics goldens: 8/10 stable + gorilla/donkey load-sensitive
+(pre-existing, bisected to reproduce identically on the clean pre-M21
+baseline — see Known Issues). Also fixed a latent `set -o pipefail` bug in
+`tests/run-graphics-tests.sh` that silently truncated the whole script (no
+"Results:" summary, remaining tests skipped) whenever a run produced no
+checksum — found while investigating the donkey flake.
+
 ### M20 — Demoscene batch: DEF SEG, segment-aware POKE/PEEK, BSAVE, WAIT vsync ✅
 
 `demo.bas` became a multi-scene megademo drawing the classic way: POKE pixels into
@@ -1357,14 +1402,14 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **52/52** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **53/53** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
-kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, pokemix,
+kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **33/33**, with 130 runtime unit tests and 10 graphics golden tests.
+The integration suite is **34/34**, with 133 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;
@@ -1438,10 +1483,12 @@ see **What's Left** above.
   across `runtime/src/lib.rs::print_using_tests` (20) and
   `print_using_prefix_tests` (16).
 - **File I/O** — fully supported: sequential (`FOR INPUT/OUTPUT/APPEND`:
-  `OPEN/CLOSE/INPUT#/LINE INPUT#/PRINT#/WRITE#`), random-access (`FOR RANDOM`:
-  `FIELD/GET#/PUT#/LSET/RSET`), and binary TYPE-record serialization. `MKD$`/
-  `CVD` etc. use IEEE 754 LE; INTEGER/LONG/fixed-STRING fields are byte-exact
-  with DOS QBasic 1.1.
+  `OPEN/CLOSE/INPUT#/LINE INPUT#/PRINT#/WRITE#`, including `PRINT #n, USING`
+  formatted output), random-access (`FOR RANDOM`: `FIELD/GET#/PUT#/LSET/RSET`),
+  and binary TYPE-record serialization. `MKD$`/`CVD` etc. use IEEE 754 LE;
+  INTEGER/LONG/fixed-STRING fields are byte-exact with DOS QBasic 1.1.
+  `EOF(n)` reflects real sequential-file exhaustion (peeks the reader without
+  consuming bytes) rather than a hardcoded stub.
 - **Error handling** — `ON ERROR GOTO` + `RESUME`/`RESUME NEXT` fully emitted.
   Named (non-numeric) handlers are extracted as GOSUB-style Rust functions and
   dispatched after fallible statements (`OPEN`, `SCREEN`). `ERR` variable maps

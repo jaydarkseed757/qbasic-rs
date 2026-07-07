@@ -7,10 +7,13 @@ CALL Scene2
 CALL Scene3
 CALL Scene4
 ' CALL Scene5   ' shadebobs -- too slow in interpreter; revisit with CALL ABSOLUTE
+CALL Scene11   ' dot sphere (fills the shadebobs slot)
 CALL Scene6
 CALL Scene7
 CALL Scene9    ' vector morph (numbered 9: Scene8 is reserved for the finale)
 CALL Scene10   ' starship flight
+CALL Scene13   ' death star trench run
+CALL Scene12   ' wavy sine scroller
 CALL Scene8    ' credits crawl -- ALWAYS the final scene; add new scenes above
 END
 
@@ -1012,7 +1015,7 @@ END SUB
 ' ======================================================
 SUB Scene8
     DEFINT A-Z
-    DIM t$(30)                 ' credit lines
+    DIM t$(33)                 ' credit lines
     DIM gb(127)                ' glyph bytes for the incoming line (16 chars x 8 rows)
     DIM mask(7)
     DIM rowA AS LONG           ' framebuffer offset of the window's bottom scanline
@@ -1048,10 +1051,13 @@ SUB Scene8
     t$(n) = "TITLE CARD": n = n + 1
     t$(n) = "WIREFRAME CUBE": n = n + 1
     t$(n) = "PLASMA": n = n + 1
+    t$(n) = "DOT SPHERE": n = n + 1
     t$(n) = "COPPER BARS": n = n + 1
     t$(n) = "TUNNEL": n = n + 1
     t$(n) = "VECTOR MORPH": n = n + 1
     t$(n) = "STARSHIP": n = n + 1
+    t$(n) = "TRENCH RUN": n = n + 1
+    t$(n) = "WAVY SCROLLER": n = n + 1
     t$(n) = "": n = n + 1
     t$(n) = "* GREETZ *": n = n + 1
     t$(n) = "THE DEMOSCENE": n = n + 1
@@ -1531,6 +1537,498 @@ SUB Scene10
         OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, pv
         OUT &H3C8, 4: OUT &H3C9, 40 * v \ 63: OUT &H3C9, 52 * v \ 63: OUT &H3C9, v
         OUT &H3C8, 6: OUT &H3C9, v: OUT &H3C9, 30 * v \ 63: OUT &H3C9, 0
+    NEXT v
+
+    SCREEN 0
+END SUB
+
+' ======================================================
+' SCENE 11 -- Dot sphere
+' Globe of 82 dots (8 latitude rings + 2 poles) spinning
+' about a slowly wobbling tilted axis.  The spin is
+' nearly free: each dot just advances around its own
+' ring, so it costs two sine lookups instead of a
+' rotation matrix.  Orthographic projection with depth
+' shown as brightness (3 greens) -- no divides anywhere,
+' all INTEGER math, POKE erase/draw like the starfields.
+' ======================================================
+SUB Scene11
+    DEFINT A-Z
+    DIM sinT(255)                  ' signed sine LUT * 128
+    DIM rrA(81), py0(81), ph(81)   ' per dot: ring radius, height, ring phase
+    DIM oadr(81) AS LONG           ' last drawn address per dot (for erase)
+    DIM rowAddr(199) AS LONG
+
+    SCREEN 13
+
+    ' Depth greens 1-3 (far/dim -> near/bright), black until fade-in
+    OUT &H3C8, 1
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+
+    FOR i = 0 TO 255
+        sinT(i) = INT(SIN(i * 6.28318 / 256) * 128 + .5)
+    NEXT i
+
+    FOR y = 0 TO 199
+        rowAddr(y) = CLng(y) * 320
+    NEXT y
+
+    ' 8 latitude rings x 10 dots + 2 poles, radius 70; rings staggered so
+    ' dots do not line up in vertical columns
+    n = 0
+    FOR j = 1 TO 8
+        FOR k = 0 TO 9
+            rrA(n) = INT(SIN(j * 3.14159 / 9) * 70)
+            py0(n) = INT(COS(j * 3.14159 / 9) * 70)
+            ph(n) = (k * 26 + j * 13) AND 255
+            n = n + 1
+        NEXT k
+    NEXT j
+    py0(n) = 70: rrA(n) = 0: ph(n) = 0: n = n + 1
+    py0(n) = -70: rrA(n) = 0: ph(n) = 0
+    ' oadr() defaults to 0: the first-frame erase hits one corner pixel of
+    ' an all-black screen -- harmless
+
+    ang = 0: wob = 0: fadeV = 0
+
+    DEF SEG = &HA000
+
+    DO
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
+            OUT &H3C8, 1
+            OUT &H3C9, 0: OUT &H3C9, 16 * fadeV \ 63: OUT &H3C9, 6 * fadeV \ 63
+            OUT &H3C9, 0: OUT &H3C9, 36 * fadeV \ 63: OUT &H3C9, 14 * fadeV \ 63
+            OUT &H3C9, 16 * fadeV \ 63: OUT &H3C9, fadeV: OUT &H3C9, 28 * fadeV \ 63
+        END IF
+
+        ' Axis wobble: tilt oscillates +-10 steps around 36 (~50 degrees);
+        ' sin/cos of the tilt are constant across the dot loop
+        tiltA = 36 + (sinT(wob) * 10) \ 128
+        wob = (wob + 1) AND 255
+        sinTl = sinT(tiltA)
+        cosTl = sinT((tiltA + 64) AND 255)
+        ang = (ang + 2) AND 255
+
+        FOR i = 0 TO 81
+            POKE oadr(i), 0
+            ' Spin: the dot advances around its own latitude ring
+            xs = (rrA(i) * sinT((ang + ph(i)) AND 255)) \ 128
+            zs = (rrA(i) * sinT((ang + ph(i) + 64) AND 255)) \ 128
+            ' Tilt the whole globe about X
+            yr = (py0(i) * cosTl - zs * sinTl) \ 128
+            zr = (py0(i) * sinTl + zs * cosTl) \ 128
+            ' Depth cue: nearer dots brighter
+            IF zr > 25 THEN
+                c = 1
+            ELSEIF zr > -25 THEN
+                c = 2
+            ELSE
+                c = 3
+            END IF
+            oadr(i) = rowAddr(100 + yr) + 160 + xs
+            POKE oadr(i), c
+        NEXT i
+
+    LOOP WHILE INKEY$ = ""
+
+    DEF SEG
+
+    ' Fade out
+    FOR v = 63 TO 0 STEP -1
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+        OUT &H3C8, 1
+        OUT &H3C9, 0: OUT &H3C9, 16 * v \ 63: OUT &H3C9, 6 * v \ 63
+        OUT &H3C9, 0: OUT &H3C9, 36 * v \ 63: OUT &H3C9, 14 * v \ 63
+        OUT &H3C9, 16 * v \ 63: OUT &H3C9, v: OUT &H3C9, 28 * v \ 63
+    NEXT v
+
+    SCREEN 0
+END SUB
+
+' ======================================================
+' SCENE 12 -- Wavy sine scroller
+' Giant gold text glides right-to-left, each character
+' bobbing on a travelling sine wave.  Every unique glyph
+' is pre-rendered ONCE into a GET sprite at init (BIOS
+' font via DrawText, scale 3 = 24x24); per frame each
+' visible char is one LINE-BF box erase + one PUT --
+' both single fast statements.  QBasic PUT cannot clip,
+' so two decorative pillars frame the band and chars
+' slide out from / vanish behind them.
+' ======================================================
+SUB Scene12
+    DEFINT A-Z
+    DIM sinT(255)                  ' signed sine LUT * 128
+    DIM cmap(95)                   ' ASCII-32 -> sprite slot + 1 (0 = space/none)
+    DIM cx(15), cy(15), ci(15)     ' active chars: x, last drawn y, sprite slot
+    sprN = 290 * 45                ' 45 slots x (4 + 24*24)/2 ints; variable
+    DIM spr(sprN)                  ' bound -> dynamic array, off the 64 KB DGROUP
+
+    SCREEN 13
+
+    ' Palette (all faded in from black):
+    ' 1-3 stars, 5 text gold, 8 pillar body, 9 pillar edge
+    OUT &H3C8, 1
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 5: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 8
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+
+    FOR i = 0 TO 255
+        sinT(i) = INT(SIN(i * 6.28318 / 256) * 128 + .5)
+    NEXT i
+
+    msg$ = "JAY'S QBASIC MEGA DEMO ... GREETZ TO THE DEMOSCENE ... "
+    msg$ = msg$ + "QBASIC 1.1 FOREVER ... KEEP THE PIXELS FLYING ...      "
+    msgLen = LEN(msg$)
+
+    ' Pre-render each unique glyph once: draw at top-left (palette is
+    ' black, so invisible), GET into its sprite slot, wipe the corner
+    nSlots = 0
+    FOR i = 1 TO msgLen
+        a = ASC(MID$(msg$, i, 1)) - 32
+        IF a > 0 THEN
+            IF cmap(a) = 0 THEN
+                CALL DrawText(MID$(msg$, i, 1), 0, 0, 3, 5)
+                GET (0, 0)-(23, 23), spr(nSlots * 290)
+                LINE (0, 0)-(23, 23), 0, BF
+                nSlots = nSlots + 1
+                cmap(a) = nSlots
+            END IF
+        END IF
+    NEXT i
+
+    ' Static stars above and below the scroll band (rows 55-144)
+    RANDOMIZE TIMER
+    FOR i = 1 TO 50
+        DO
+            x = INT(RND * 320)
+            y = INT(RND * 200)
+        LOOP WHILE y >= 55 AND y <= 144
+        PSET (x, y), INT(RND * 3) + 1
+    NEXT i
+
+    cnt = 0: mi = 0: spawnCtr = 0: waveT = 0: fadeV = 0
+
+    DO
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
+            v = 20 * fadeV \ 63
+            OUT &H3C8, 1: OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, v
+            v = 35 * fadeV \ 63
+            OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, v
+            v = 55 * fadeV \ 63
+            OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, v
+            OUT &H3C8, 5
+            OUT &H3C9, fadeV
+            OUT &H3C9, 50 * fadeV \ 63
+            OUT &H3C9, 10 * fadeV \ 63
+            OUT &H3C8, 8
+            OUT &H3C9, 8 * fadeV \ 63
+            OUT &H3C9, 12 * fadeV \ 63
+            OUT &H3C9, 34 * fadeV \ 63
+            OUT &H3C9, 22 * fadeV \ 63
+            OUT &H3C9, 32 * fadeV \ 63
+            OUT &H3C9, 60 * fadeV \ 63
+        END IF
+
+        ' -- Erase old boxes, glide everyone 2px left --
+        FOR s = 0 TO cnt - 1
+            IF ci(s) THEN
+                LINE (cx(s), cy(s))-(cx(s) + 23, cy(s) + 23), 0, BF
+            END IF
+            cx(s) = cx(s) - 2
+        NEXT s
+
+        ' -- Retire the leftmost char once fully behind the left pillar --
+        IF cnt > 0 THEN
+            IF cx(0) <= 8 THEN
+                FOR s = 0 TO cnt - 2
+                    cx(s) = cx(s + 1): cy(s) = cy(s + 1): ci(s) = ci(s + 1)
+                NEXT s
+                cnt = cnt - 1
+            END IF
+        END IF
+
+        ' -- Spawn the next message char behind the right pillar --
+        spawnCtr = spawnCtr - 2
+        IF spawnCtr <= 0 THEN
+            a = ASC(MID$(msg$, mi + 1, 1)) - 32
+            IF a > 0 THEN ci(cnt) = cmap(a) ELSE ci(cnt) = 0
+            cx(cnt) = 296
+            cy(cnt) = 88
+            cnt = cnt + 1
+            mi = mi + 1: IF mi = msgLen THEN mi = 0
+            spawnCtr = spawnCtr + 26
+        END IF
+
+        ' -- Travelling wave: y from each char's x plus a time phase --
+        waveT = (waveT + 5) AND 255
+        FOR s = 0 TO cnt - 1
+            y = 88 + (sinT((cx(s) * 2 + waveT) AND 255) * 28) \ 128
+            cy(s) = y
+            IF ci(s) THEN
+                PUT (cx(s), y), spr((ci(s) - 1) * 290), PSET
+            END IF
+        NEXT s
+
+        ' -- Pillars redrawn over the spawn/retire zones --
+        LINE (0, 55)-(31, 144), 8, BF
+        LINE (288, 55)-(319, 144), 8, BF
+        LINE (31, 55)-(31, 144), 9
+        LINE (288, 55)-(288, 144), 9
+
+    LOOP WHILE INKEY$ = ""
+
+    ' Fade out
+    FOR v = 63 TO 0 STEP -1
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+        pv = 20 * v \ 63
+        OUT &H3C8, 1: OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, pv
+        pv = 35 * v \ 63
+        OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, pv
+        pv = 55 * v \ 63
+        OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, pv
+        OUT &H3C8, 5: OUT &H3C9, v: OUT &H3C9, 50 * v \ 63: OUT &H3C9, 10 * v \ 63
+        OUT &H3C8, 8
+        OUT &H3C9, 8 * v \ 63: OUT &H3C9, 12 * v \ 63: OUT &H3C9, 34 * v \ 63
+        OUT &H3C9, 22 * v \ 63: OUT &H3C9, 32 * v \ 63: OUT &H3C9, 60 * v \ 63
+    NEXT v
+
+    SCREEN 0
+END SUB
+
+' ======================================================
+' SCENE 13 -- Death Star trench run
+' One-point-perspective wireframe trench rushing toward
+' the viewer: static wall/floor seams converge on the
+' vanishing point, cross-seam "rungs" sweep forward (3
+' clipped LINEs each) and respawn at the far end.  An
+' X-wing polygon banks low over the floor, firing red
+' laser bolts that converge on the glowing exhaust port
+' at the vanishing point.  All erase-then-redraw LINEs
+' plus two divides per rung -- Scene3-class budget.
+' ======================================================
+SUB Scene13
+    DEFINT A-Z
+    DIM sinT(255)                       ' signed sine LUT * 128
+    DIM rz(9)                           ' rung depths
+    DIM olx(9), orx(9), ofy(9), oty(9)  ' last drawn rung coords (erase)
+    DIM spx(11), spy(11)                ' X-wing shape, local coords
+    DIM dpx(11), dpy(11)                ' transformed, this frame
+    DIM opx(11), opy(11)                ' transformed, last frame (erase)
+    DIM we1(7), we2(7)                  ' edge list: fuselage + 4 wings
+    DIM oex(3), oey(3)                  ' engine glow dots, last frame
+    DIM fx(3), fyA(3)                   ' bolt origins (wingtips at fire time)
+    DIM obx1(3), oby1(3), obx2(3), oby2(3)   ' bolt lines, last frame
+
+    SCREEN 13
+
+    FOR i = 0 TO 255
+        sinT(i) = INT(SIN(i * 6.28318 / 256) * 128 + .5)
+    NEXT i
+
+    ' X-wing seen from behind: diamond fuselage + 4 wings in an X
+    spx(0) =   0: spy(0) =  -5          ' fuselage diamond
+    spx(1) =   4: spy(1) =   0
+    spx(2) =   0: spy(2) =   5
+    spx(3) =  -4: spy(3) =   0
+    spx(4) =  -3: spy(4) =  -3          ' wing roots (UL, UR, LL, LR)
+    spx(5) =   3: spy(5) =  -3
+    spx(6) =  -3: spy(6) =   3
+    spx(7) =   3: spy(7) =   3
+    spx(8) = -24: spy(8) = -13          ' wingtips (UL, UR, LL, LR)
+    spx(9) =  24: spy(9) = -13
+    spx(10) = -24: spy(10) = 13
+    spx(11) =  24: spy(11) = 13
+
+    we1(0) = 0: we2(0) = 1              ' fuselage diamond
+    we1(1) = 1: we2(1) = 2
+    we1(2) = 2: we2(2) = 3
+    we1(3) = 3: we2(3) = 0
+    we1(4) = 4: we2(4) = 8              ' wings root -> tip
+    we1(5) = 5: we2(5) = 9
+    we1(6) = 6: we2(6) = 10
+    we1(7) = 7: we2(7) = 11
+
+    ' Palette (faded in from black): 1 static seams, 2 rungs, 3 exhaust
+    ' port glow, 4 X-wing hull, 6 engine glow, 7 laser red
+    OUT &H3C8, 1
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 4: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 6: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 7: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+
+    ' Rungs evenly spaced in depth; retire at z<72 (off-screen), respawn far
+    FOR i = 0 TO 9
+        rz(i) = 76 + i * 44
+        olx(i) = 0: orx(i) = 0: ofy(i) = 0: oty(i) = 0
+    NEXT i
+
+    ' Ship starts centred; init previous points so first erase is harmless
+    FOR i = 0 TO 11
+        opx(i) = 160: opy(i) = 150
+    NEXT i
+    FOR k = 0 TO 3
+        oex(k) = 160: oey(k) = 150
+    NEXT k
+
+    RANDOMIZE TIMER
+    p1 = 0: p2 = 96
+    boltU = -1: boltW = 90: boltDrawn = 0
+    fadeV = 0
+
+    DO
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
+            v = 26 * fadeV \ 63
+            OUT &H3C8, 1: OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, v + 2 * fadeV \ 63
+            v = 46 * fadeV \ 63
+            OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, 50 * fadeV \ 63
+            OUT &H3C9, fadeV: OUT &H3C9, fadeV: OUT &H3C9, 56 * fadeV \ 63
+            OUT &H3C8, 4
+            OUT &H3C9, 40 * fadeV \ 63
+            OUT &H3C9, 52 * fadeV \ 63
+            OUT &H3C9, fadeV
+            OUT &H3C8, 6
+            OUT &H3C9, fadeV: OUT &H3C9, 30 * fadeV \ 63: OUT &H3C9, 0
+            OUT &H3C8, 7
+            OUT &H3C9, fadeV: OUT &H3C9, 8 * fadeV \ 63: OUT &H3C9, 8 * fadeV \ 63
+        ELSE
+            ' Engine glow flicker, palette-only (zero pixel cost)
+            OUT &H3C8, 6
+            OUT &H3C9, 40 + INT(RND * 24): OUT &H3C9, 20 + INT(RND * 16): OUT &H3C9, 0
+        END IF
+
+        ' -- Erase everything from last frame --
+        IF boltDrawn THEN
+            FOR k = 0 TO 3
+                LINE (obx1(k), oby1(k))-(obx2(k), oby2(k)), 0
+            NEXT k
+            boltDrawn = 0
+        END IF
+        FOR e = 0 TO 7
+            LINE (opx(we1(e)), opy(we1(e)))-(opx(we2(e)), opy(we2(e))), 0
+        NEXT e
+        FOR k = 0 TO 3
+            PSET (oex(k), oey(k)), 0
+        NEXT k
+        FOR i = 0 TO 9
+            LINE (olx(i), oty(i))-(olx(i), ofy(i)), 0
+            LINE (orx(i), oty(i))-(orx(i), ofy(i)), 0
+            LINE (olx(i), ofy(i))-(orx(i), ofy(i)), 0
+        NEXT i
+
+        ' -- Static trench seams (redrawn: erases nick them) + exhaust port --
+        ' Endpoints are the z=60 projection; LINE clips off-screen parts
+        LINE (160, 90)-(-53, 218), 1
+        LINE (160, 90)-(373, 218), 1
+        LINE (160, 90)-(-53, -59), 1
+        LINE (160, 90)-(373, -59), 1
+        PSET (160, 90), 3
+
+        ' -- Rungs: advance depth, project, draw (3 clipped LINEs each) --
+        FOR i = 0 TO 9
+            rz(i) = rz(i) - 5
+            IF rz(i) < 72 THEN rz(i) = rz(i) + 440
+            xo = 12800 \ rz(i)              ' wall half-width 100, focal 128
+            lx = 160 - xo: rx = 160 + xo
+            fy = 90 + 7680 \ rz(i)          ' floor 60 below eye
+            ty = 90 - 8960 \ rz(i)          ' wall tops 70 above eye
+            LINE (lx, ty)-(lx, fy), 2
+            LINE (rx, ty)-(rx, fy), 2
+            LINE (lx, fy)-(rx, fy), 2
+            olx(i) = lx: orx(i) = rx: ofy(i) = fy: oty(i) = ty
+        NEXT i
+
+        ' -- X-wing: weave low over the floor, bank into the turn --
+        p1 = (p1 + 2) AND 255
+        p2 = (p2 + 3) AND 255
+        shipX = 160 + (sinT(p1) * 22) \ 128
+        shipY = 150 + (sinT(p2) * 8) \ 128
+        bk = (sinT((p1 + 64) AND 255) * 14) \ 128
+        sinB = sinT(bk AND 255)
+        cosB = sinT((bk + 64) AND 255)
+
+        FOR i = 0 TO 11
+            dpx(i) = shipX + (spx(i) * cosB - spy(i) * sinB) \ 128
+            dpy(i) = shipY + (spx(i) * sinB + spy(i) * cosB) \ 128
+        NEXT i
+
+        FOR e = 0 TO 7
+            LINE (dpx(we1(e)), dpy(we1(e)))-(dpx(we2(e)), dpy(we2(e))), 4
+        NEXT e
+
+        ' Engine glow dots, a third of the way out each wing
+        FOR k = 0 TO 3
+            ex = dpx(4 + k) + (dpx(8 + k) - dpx(4 + k)) \ 3
+            ey = dpy(4 + k) + (dpy(8 + k) - dpy(4 + k)) \ 3
+            PSET (ex, ey), 6
+            oex(k) = ex: oey(k) = ey
+        NEXT k
+
+        FOR i = 0 TO 11
+            opx(i) = dpx(i): opy(i) = dpy(i)
+        NEXT i
+
+        ' -- Laser bolts: 4 shots from the wingtips converge on the port --
+        IF boltU < 0 THEN
+            boltW = boltW - 1
+            IF boltW <= 0 THEN
+                boltU = 0
+                FOR k = 0 TO 3
+                    fx(k) = dpx(8 + k): fyA(k) = dpy(8 + k)
+                NEXT k
+            END IF
+        ELSE
+            FOR k = 0 TO 3
+                obx1(k) = fx(k) + (160 - fx(k)) * boltU \ 18
+                oby1(k) = fyA(k) + (90 - fyA(k)) * boltU \ 18
+                obx2(k) = fx(k) + (160 - fx(k)) * (boltU + 3) \ 18
+                oby2(k) = fyA(k) + (90 - fyA(k)) * (boltU + 3) \ 18
+                LINE (obx1(k), oby1(k))-(obx2(k), oby2(k)), 7
+            NEXT k
+            boltDrawn = 1
+            boltU = boltU + 1
+            IF boltU > 15 THEN
+                boltU = -1
+                boltW = 70 + INT(RND * 80)
+            END IF
+        END IF
+
+    LOOP WHILE INKEY$ = ""
+
+    ' Fade out
+    FOR v = 63 TO 0 STEP -1
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+        pv = 26 * v \ 63
+        OUT &H3C8, 1: OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, pv
+        pv = 46 * v \ 63
+        OUT &H3C9, pv: OUT &H3C9, pv: OUT &H3C9, 50 * v \ 63
+        OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, 56 * v \ 63
+        OUT &H3C8, 4: OUT &H3C9, 40 * v \ 63: OUT &H3C9, 52 * v \ 63: OUT &H3C9, v
+        OUT &H3C8, 6: OUT &H3C9, v: OUT &H3C9, 30 * v \ 63: OUT &H3C9, 0
+        OUT &H3C8, 7: OUT &H3C9, v: OUT &H3C9, 8 * v \ 63: OUT &H3C9, 8 * v \ 63
     NEXT v
 
     SCREEN 0

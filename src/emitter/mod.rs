@@ -1344,30 +1344,37 @@ impl Emitter {
                 // Use lift_expr so user-function calls with &mut String params
                 // get proper temporary bindings hoisted before the call.
                 let rhs = self.lift_expr(expr);
+                // Shared String-typed RHS form: `x$ = ""` gets the idiomatic
+                // `String::new()` instead of `("").to_string()`.
+                let srhs = if matches!(expr, Expr::StrLit(s) if s.is_empty()) {
+                    "String::new()".to_string()
+                } else {
+                    format!("({rhs}).to_string()")
+                };
                 match var {
-                    // &mut String param (with $ sigil or AS STRING) → deref-assign with to_string()
+                    // &mut String param (with $ sigil or AS STRING) → deref-assign
                     LValue::Scalar { name, .. }
                         if self.str_params.contains(&rust_ident_typed(name, &QbType::String)) =>
                     {
-                        self.line(&format!("*{lhs} = ({rhs}).to_string();"));
+                        self.line(&format!("*{lhs} = {srhs};"));
                     }
-                    // String local → assign with to_string() (rhs may be &str literal)
+                    // String local (rhs may be &str literal)
                     LValue::Scalar { ty: QbType::String, .. } => {
-                        self.line(&format!("{lhs} = ({rhs}).to_string();"));
+                        self.line(&format!("{lhs} = {srhs};"));
                     }
-                    // String array element → assign with to_string()
+                    // String array element
                     LValue::Index { ty: QbType::String, .. } => {
-                        self.line(&format!("{lhs} = ({rhs}).to_string();"));
+                        self.line(&format!("{lhs} = {srhs};"));
                     }
                     // Local string array accessed without $ sigil (DIM name(...) AS STRING)
                     LValue::Index { name, .. }
                         if self.local_string_arrays.contains(&name.to_lowercase()) =>
                     {
-                        self.line(&format!("{lhs} = ({rhs}).to_string();"));
+                        self.line(&format!("{lhs} = {srhs};"));
                     }
                     // TYPE field or other LValue: check if string type via context
                     _ if self.is_str_expr_ctx(&Expr::Var(var.clone())) => {
-                        self.line(&format!("{lhs} = ({rhs}).to_string();"));
+                        self.line(&format!("{lhs} = {srhs};"));
                     }
                     // Numeric or other — plain assignment
                     _ => {
@@ -2332,12 +2339,21 @@ impl Emitter {
             Stmt::LSet { var, expr } => {
                 let lhs = self.emit_lvalue(var);
                 let rhs = self.emit_expr(expr).unwrap_or_else(|_| "String::new()".into());
-                self.line(&format!("{lhs} = qb_lset(&{lhs}, &({rhs}).to_string());"));
+                // qb_lset takes &str; a string literal already IS one.
+                if matches!(expr, Expr::StrLit(_)) {
+                    self.line(&format!("{lhs} = qb_lset(&{lhs}, {rhs});"));
+                } else {
+                    self.line(&format!("{lhs} = qb_lset(&{lhs}, &({rhs}).to_string());"));
+                }
             }
             Stmt::RSet { var, expr } => {
                 let lhs = self.emit_lvalue(var);
                 let rhs = self.emit_expr(expr).unwrap_or_else(|_| "String::new()".into());
-                self.line(&format!("{lhs} = qb_rset(&{lhs}, &({rhs}).to_string());"));
+                if matches!(expr, Expr::StrLit(_)) {
+                    self.line(&format!("{lhs} = qb_rset(&{lhs}, {rhs});"));
+                } else {
+                    self.line(&format!("{lhs} = qb_rset(&{lhs}, &({rhs}).to_string());"));
+                }
             }
             Stmt::PrintFile { file_num, args, newline } => {
                 let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
@@ -3868,9 +3884,13 @@ impl Emitter {
             if is_str_expr(expr) || self.is_str_expr_ctx(expr) {
                 let tmp = format!("__tmp_str{}", self.lift_counter);
                 self.lift_counter += 1;
-                let val = self.emit_expr_inner(expr)
-                    .unwrap_or_else(|_| "String::new()".into());
-                self.line(&format!("let mut {tmp} = ({val}).to_string();"));
+                if matches!(expr, Expr::StrLit(s) if s.is_empty()) {
+                    self.line(&format!("let mut {tmp} = String::new();"));
+                } else {
+                    let val = self.emit_expr_inner(expr)
+                        .unwrap_or_else(|_| "String::new()".into());
+                    self.line(&format!("let mut {tmp} = ({val}).to_string();"));
+                }
                 result.push(format!("&mut {tmp}"));
                 continue;
             }
@@ -4928,6 +4948,20 @@ mod deref_paren_tests {
     fn idx_sub_wraps_bare_and_operator_exprs() {
         assert_eq!(idx_sub("i"), "[(i) as usize]");
         assert_eq!(idx_sub("a + b"), "[(a + b) as usize]");
+    }
+
+    #[test]
+    fn idx_sub_collapses_const_literal_indexes() {
+        // emit_f64_lit form and bare-integer form both collapse.
+        assert_eq!(idx_sub("1.0f64"), "[1]");
+        assert_eq!(idx_sub("0.0f64"), "[0]");
+        assert_eq!(idx_sub("100.0f64"), "[100]");
+        assert_eq!(idx_sub("7"), "[7]");
+        // Fractions, negatives, idents, and exprs keep the cast form.
+        assert_eq!(idx_sub("1.5f64"), "[(1.5f64) as usize]");
+        assert_eq!(idx_sub("(-1.0f64)"), "[(-1.0f64) as usize]");
+        assert_eq!(idx_sub("i2"), "[(i2) as usize]");
+        assert_eq!(idx_sub("(i + 1.0f64)"), "[(i + 1.0f64) as usize]");
     }
 
     // ── simplify_parens (T4) ──────────────────────────────────────────────────

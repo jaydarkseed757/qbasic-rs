@@ -81,7 +81,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
 - **34/34** integration (`tests/run-tests.sh`, stdout-based)
-- **133** runtime unit tests (`cargo test --workspace`)
+- **134** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -1235,6 +1235,29 @@ and only the plain-numeric / string-concat paths are affected.
   self-referential-term cases). **Deferred:** `.is_empty()` for `(s).as_str() ==
   ""` (touches the regression-prone string-comparison emitter).
 
+### Idiomatic-output audit round 2 — A1 constant indexes, A3 String::new() (behavior-preserving)
+
+A full audit of 12 representative emitted programs (~10,900 lines) found ~1,250
+remaining non-idiomatic sites. The two zero-risk fixes landed first (the rest
+are in Known Issues / TODO):
+
+- **A1 — constant array indexes** (901 sites): `arr[(1.0f64) as usize]` →
+  `arr[1]`. One central change: `idx_sub()` (`emitter/helpers.rs`) collapses an
+  integral non-negative numeric-literal index (`const_usize_lit`, digits-only
+  parse) to a plain integer subscript. Negatives/fractions/expressions keep the
+  cast form. Value-identical by construction (`as usize` on integral f64);
+  goldens unchanged. Unit test `idx_sub_collapses_const_literal_indexes`.
+- **A3 — `String::new()` for empty-string values** (31 sites): `x$ = ""` emitted
+  `("").to_string()`. Lives on THREE emit paths, all fixed: the `Stmt::Let`
+  string arms (shared `srhs` computation), the byref string-temp materializer
+  (`let mut __tmp_strN = …` in `emit_call_args`), and `LSET`/`RSET` — which as a
+  bonus were wrapping *every* string literal in `&("…").to_string()` when
+  `qb_lset`/`qb_rset` take `&str`; literals now pass straight through.
+
+Verified: 134 unit, 34/34 integration byte-identical, 53/53 build-all, 10/10
+goldens (incl. gorilla+donkey — checksums unchanged proves the 901 index
+rewrites are value-identical).
+
 ### DEF SEG + segment-aware POKE/PEEK + BSAVE + WAIT vsync (demoscene batch, demo.bas)
 
 `demo.bas` grew into a multi-scene megademo (starfield, ROM-font titles, wireframe
@@ -1361,6 +1384,30 @@ budget that broke shadebobs on period hardware is a non-issue now.
 
 ## Known Issues / TODO
 
+- **Idiomatic-output audit backlog (from the round-2 audit; A1/A3 are done).**
+  Counts are from the 12-program audit set (~10,900 emitted lines), ranked by
+  planned order:
+  - **A2 — redundant `.to_string()` on already-owned Strings** (~70 sites, also
+    a real perf win — each is a needless heap clone): `(format!(…)).to_string()`
+    and `(qb_mid(…)).to_string()` etc. Fix: an `expr_returns_owned_string()`
+    AST check (string-concat BinOp → `format!`; Call to a `$`-returning
+    builtin) in the `Stmt::Let` string arms → skip the wrap. Low risk.
+  - **A4 — inline constant FOR bounds** (119 sites):
+    `let __for_to_i: f64 = 10.0f64; while i <= __for_to_i` → `while i <=
+    10.0f64`. QB evaluates TO once; a literal is trivially once. Same shape as
+    the T3 constant-step fix. Low risk.
+  - **T6 — `(s).as_str() == ""` → `s.is_empty()`** (39 sites: 23 `==`, 16 `!=`).
+    Deferred twice already: touches the three regression-prone string-comparison
+    emitters (`emit_cond_expr`, and the BinOp arms of `lift_expr` and
+    `emit_expr_inner` — the farkle.bas history) plus the bare-condition path.
+    Do LAST, with its own full-suite run. Medium risk.
+  - **A5 — `qb_str(&(call(…)))` → `qb_str(&call(…))`** (87 sites, cosmetic
+    only): the parens after `&` around a call expression are redundant. Lowest
+    priority.
+  - Audit non-findings (checked, already clean): `.clone()` uses are all
+    required byref-writeback temps; remaining `((` nestings are
+    precedence-required (f64 non-associativity); zero
+    `qb_bool(qb_from_bool(…))` round-trips.
 - **`gorilla`/`donkey` golden tests are load-sensitive (intermittent flakes,
   pre-existing).** Bisected during the M21 session by stashing all M21 changes
   and re-testing the clean, already-pushed baseline commit: both flakes

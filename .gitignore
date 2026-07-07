@@ -9,6 +9,10 @@ tests/tmp-gfx/
 *.dat
 HALLFAME.*
 
+# Text files written by test/benchmark programs at runtime
+PFUTEST.TXT
+BENCH.TXT
+
 # Rust build artifacts
 /target
 

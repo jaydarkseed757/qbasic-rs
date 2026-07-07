@@ -87,12 +87,34 @@ pub(super) fn arith_operand(child: &Expr, child_str: String, parent_prec: u8, is
 /// Avoids the `[((*x)) as usize]` double-paren that arises when `idx` is a
 /// deref like `(*x)` (the deref already carries its own parens). The single
 /// inner `(*x)` is later reduced to `*x` by `strip_deref_parens`.
+///
+/// A compile-time constant index (`1.0f64`, from `emit_f64_lit`, or a bare
+/// integer) collapses to the plain integer subscript — `arr[(1.0f64) as usize]`
+/// → `arr[1]`. `as usize` on an integral non-negative f64 is exactly that
+/// integer, so this is value-identical; negatives/fractions/non-literals keep
+/// the cast form.
 pub(super) fn idx_sub(idx: &str) -> String {
+    if let Some(n) = const_usize_lit(idx) {
+        return format!("[{n}]");
+    }
     if starts_with_balanced_paren(idx) {
         format!("[{idx} as usize]")
     } else {
         format!("[({idx}) as usize]")
     }
+}
+
+/// Parse an emitted index string that is a constant, integral, non-negative
+/// numeric literal (`"1.0f64"`, `"7"`) into its usize value. Anything else —
+/// expressions, negatives, fractions — returns `None`.
+fn const_usize_lit(idx: &str) -> Option<u64> {
+    let core = idx.strip_suffix("f64").unwrap_or(idx);
+    // Must be purely [0-9.] so idents/exprs ("i", "a + b", "(x)") never match.
+    if core.is_empty() || !core.bytes().all(|b| b.is_ascii_digit() || b == b'.') {
+        return None;
+    }
+    let v: f64 = core.parse().ok()?;
+    (v.fract() == 0.0 && v >= 0.0 && v <= u64::MAX as f64).then(|| v as u64)
 }
 
 pub(super) fn rust_ident(name: &str) -> String {

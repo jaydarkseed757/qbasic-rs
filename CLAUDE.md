@@ -80,7 +80,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
-- **34/34** integration (`tests/run-tests.sh`, stdout-based)
+- **35/35** integration (`tests/run-tests.sh`, stdout-based)
 - **137** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -1235,11 +1235,11 @@ and only the plain-numeric / string-concat paths are affected.
   self-referential-term cases). **Deferred:** `.is_empty()` for `(s).as_str() ==
   ""` (touches the regression-prone string-comparison emitter).
 
-### Idiomatic-output audit round 2 — A1/A2/A3/A4 (behavior-preserving)
+### Idiomatic-output audit round 2 — A1–A5 + T6, COMPLETE (behavior-preserving)
 
 A full audit of 12 representative emitted programs (~10,900 lines) found ~1,250
-remaining non-idiomatic sites. Four fixes landed across three commits (T6 and
-A5 remain — see Known Issues / TODO):
+remaining non-idiomatic sites. All six fixes landed across four commits; the
+audit backlog is now empty:
 
 - **A1 — constant array indexes** (901 sites): `arr[(1.0f64) as usize]` →
   `arr[1]`. One central change: `idx_sub()` (`emitter/helpers.rs`) collapses an
@@ -1282,9 +1282,29 @@ A5 remain — see Known Issues / TODO):
   non-literal TO (could change during the loop) is untouched. Unit test
   `is_const_numeric_lit_classifies_literals`.
 
-Verified after each commit: 137 unit, 34/34 integration byte-identical, 53/53
-build-all, 10/10 goldens (incl. gorilla+donkey — checksums unchanged proves
-every rewrite above is value-identical, not just plausible).
+- **T6 — `(s).as_str() == ""` → `s.is_empty()`** (39 sites: 23 `==`, 16 `!=`;
+  `<> ""` → `!s.is_empty()`). The twice-deferred one. New shared helper
+  `empty_string_cmp_subject()` fires only for `Eq`/`Ne` where one side is an
+  *empty* string literal and the other is a string-typed non-literal (both
+  operand orders; `"" = ""` stays on the normal path; ordering ops untouched).
+  Wired into all three string-comparison emitters: `emit_cond_expr` emits the
+  bare `subj.is_empty()` form for `if`/`while`, and the BinOp arms of
+  `lift_expr`/`emit_expr_inner` wrap in `qb_from_bool(…)` to keep QB's
+  −1.0/0.0 boolean. No parens around the subject: every string-typed emission
+  is self-delimited and method postfix binds tighter than `!`. Locked by
+  `tests/programs/is_empty.bas` (value/cond paths, reversed operands, DO
+  guard, builtin-call subject, both-literal case, and the farkle-style
+  sigil-less `DIM SHARED … AS STRING` ctx path — farkle.bas was the canary:
+  its `__gs.k.is_empty()` line is exactly the historically regression-prone
+  path).
+- **A5 — `qb_str(&(v))` → `qb_str(&v)`** (87 sites, cosmetic): one line in
+  `print_scalar_part` (the single site producing every such wrap).
+
+Verified after each commit: 137 unit, 35/35 integration byte-identical (incl.
+the new `is_empty` test), 53/53 build-all, 10/10 goldens (incl. gorilla+donkey
+— checksums unchanged proves every rewrite above is value-identical, not just
+plausible; gorilla needed the usual idle-system retry per its documented
+wall-clock flake).
 
 ### DEF SEG + segment-aware POKE/PEEK + BSAVE + WAIT vsync (demoscene batch, demo.bas)
 
@@ -1412,21 +1432,23 @@ budget that broke shadebobs on period hardware is a non-issue now.
 
 ## Known Issues / TODO
 
-- **Idiomatic-output audit backlog (from the round-2 audit; A1/A2/A3/A4 are
-  done — see the changelog section above).** Counts are from the 12-program
-  audit set (~10,900 emitted lines). Two items remain, in planned order:
-  - **T6 — `(s).as_str() == ""` → `s.is_empty()`** (39 sites: 23 `==`, 16 `!=`).
-    Deferred multiple times already: touches the three regression-prone
-    string-comparison emitters (`emit_cond_expr`, and the BinOp arms of
-    `lift_expr` and `emit_expr_inner` — the farkle.bas history) plus the
-    bare-condition path. Do with its own full-suite run. Medium risk.
-  - **A5 — `qb_str(&(call(…)))` → `qb_str(&call(…))`** (87 sites, cosmetic
-    only): the parens after `&` around a call expression are redundant. Lowest
-    priority.
-  - Audit non-findings (checked, already clean): `.clone()` uses are all
-    required byref-writeback temps; remaining `((` nestings are
-    precedence-required (f64 non-associativity); zero
-    `qb_bool(qb_from_bool(…))` round-trips.
+- **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
+  the changelog section above). Audit non-findings, recorded so nobody
+  re-chases them: `.clone()` uses are all required byref-writeback temps;
+  remaining `((` nestings are precedence-required (f64 non-associativity);
+  zero `qb_bool(qb_from_bool(…))` round-trips.
+- **Latent gap: assignment to a purely-LOCAL sigil-less string scalar.**
+  Found while writing `is_empty.bas`: `DIM k AS STRING` (no `$`, main-module
+  local, never promoted to GameState) declares `let mut k: String`, but
+  `k = "…"` emits `k = "…";` with no `.to_string()` → rustc E0308. The
+  `Stmt::Let` string-arm dispatch relies on `is_str_expr_ctx`, which knows
+  str_params / shared_types / local string ARRAYS but not local string
+  SCALARS (there is no `local_string_scalars` set). farkle.bas never hit it
+  because its `k` is cross-GOSUB-promoted into `shared_types`. Pre-existing —
+  no bundled program triggers it (build-all 53/53). Fix sketch: track sigil-
+  less `DIM … AS STRING` scalars per scope (mirroring `local_string_arrays`)
+  and consult the set in `is_str_expr_ctx`; then drop the `DIM SHARED`
+  workaround comment in `tests/programs/is_empty.bas`.
 - **`gorilla`/`donkey` golden tests are load-sensitive (intermittent flakes,
   pre-existing).** Bisected during the M21 session by stashing all M21 changes
   and re-testing the clean, already-pushed baseline commit: both flakes

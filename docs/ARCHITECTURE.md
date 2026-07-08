@@ -1001,11 +1001,11 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
-### M22 — Idiomatic-output audit round 2: A1/A2/A3/A4 (behavior-preserving)
+### M22 — Idiomatic-output audit round 2: A1–A5 + T6, COMPLETE ✅
 
 A full audit of 12 representative emitted programs (~10,900 lines) found
-~1,250 remaining non-idiomatic sites in the emitter's output. Four
-zero/low-risk fixes landed across three commits:
+~1,250 remaining non-idiomatic sites in the emitter's output. All six fixes
+landed across four commits:
 
 - **A1 — constant array indexes** (901 sites): `arr[(1.0f64) as usize]` →
   `arr[1]`. `idx_sub()` collapses an integral non-negative numeric-literal
@@ -1028,11 +1028,24 @@ zero/low-risk fixes landed across three commits:
   is dropped and the literal is read directly in the loop condition. Works
   independently of whether STEP is itself constant.
 
-Remaining backlog (T6 `is_empty()`, A5 cosmetic parens) tracked in CLAUDE.md's
-Known Issues / TODO — T6 touches the regression-prone string-comparison
-emitters and is deferred for its own careful pass.
+- **T6 — emptiness comparisons** (39 sites): `(s).as_str() == ""` →
+  `s.is_empty()`, `<> ""` → `!s.is_empty()`. A shared
+  `empty_string_cmp_subject()` helper fires only for `Eq`/`Ne` against an
+  empty string literal (both operand orders), wired into all three
+  string-comparison emitters (`emit_cond_expr` bare form; `lift_expr` and
+  `emit_expr_inner` BinOp arms wrapped in `qb_from_bool` to keep QB's
+  −1.0/0.0 boolean). Locked by the new `tests/programs/is_empty.bas`
+  integration test; farkle.bas (the historically regression-prone sigil-less
+  string path) was the canary and now emits `__gs.k.is_empty()`.
+- **A5 — `qb_str(&(v))` → `qb_str(&v)`** (87 sites, cosmetic): one line in
+  `print_scalar_part`.
 
-Verified after each commit: 137 unit, 34/34 integration byte-identical, 53/53
+Writing the T6 test surfaced a pre-existing latent gap (assignment to a
+purely-local sigil-less `DIM k AS STRING` scalar misses `.to_string()`) —
+documented with a fix sketch in CLAUDE.md's Known Issues / TODO; no bundled
+program triggers it.
+
+Verified after each commit: 137 unit, 35/35 integration byte-identical, 53/53
 build-all, 10/10 graphics goldens including gorilla+donkey (checksums
 unchanged proves every rewrite is value-identical).
 
@@ -1444,7 +1457,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **34/34**, with 137 runtime unit tests and 10 graphics golden tests.
+The integration suite is **35/35**, with 137 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;

@@ -1422,7 +1422,20 @@ impl Emitter {
                             .unwrap_or_else(|| "1.0".into());
                 // FOR var is pre-declared by collect_locals (or promoted to GameState) — just assign.
                 self.line(&format!("{vref} = {f};"));
-                self.line(&format!("let __for_to_{v}: f64 = {t};"));
+
+                // A4 — QB evaluates TO once; when it's a compile-time literal that
+                // "once" is free (no side effects, no cost), so skip the
+                // __for_to_{v} temp and use the literal text directly in the
+                // condition below — a `let` bound only to be read from one `while`
+                // guard is pure noise. A non-literal TO (a variable/expression that
+                // could change during the loop) still needs the temp to freeze its
+                // value at loop entry, per QB semantics.
+                let to_ref = if is_const_numeric_lit(to) {
+                    t.clone()
+                } else {
+                    self.line(&format!("let __for_to_{v}: f64 = {t};"));
+                    format!("__for_to_{v}")
+                };
 
                 // T3 — when STEP is a compile-time numeric literal (or the default
                 // +1), the dual-direction guard has a dead half: emit a single
@@ -1436,11 +1449,11 @@ impl Emitter {
                 };
                 let (cond, incr) = if let Some(positive) = const_sign {
                     let cmp = if positive { "<=" } else { ">=" };
-                    (format!("{vref} {cmp} __for_to_{v}"), format!("{vref} += {s};"))
+                    (format!("{vref} {cmp} {to_ref}"), format!("{vref} += {s};"))
                 } else {
                     self.line(&format!("let __for_step_{v}: f64 = {s};"));
-                    (format!("(__for_step_{v} > 0.0 && {vref} <= __for_to_{v}) || \
-                              (__for_step_{v} < 0.0 && {vref} >= __for_to_{v})"),
+                    (format!("(__for_step_{v} > 0.0 && {vref} <= {to_ref}) || \
+                              (__for_step_{v} < 0.0 && {vref} >= {to_ref})"),
                      format!("{vref} += __for_step_{v};"))
                 };
                 self.line(&format!("while {cond} {{"));
@@ -5115,6 +5128,26 @@ mod deref_paren_tests {
         // Non-literal (a variable) → None → keeps the runtime-checked FOR form.
         assert_eq!(lit_sign(&Expr::Var(crate::parser::LValue::Scalar {
             name: "x".into(), ty: crate::parser::QbType::Single })), None);
+    }
+
+    #[test]
+    fn is_const_numeric_lit_classifies_literals() {
+        use super::is_const_numeric_lit;
+        use crate::parser::{Expr, UnOp, LValue, QbType};
+        assert!(is_const_numeric_lit(&Expr::IntLit(10)));
+        assert!(is_const_numeric_lit(&Expr::IntLit(0)));   // A4 differs from lit_sign: 0 IS a literal
+        assert!(is_const_numeric_lit(&Expr::FloatLit(3.5)));
+        let neg = Expr::UnOp { op: UnOp::Neg, operand: Box::new(Expr::IntLit(5)) };
+        assert!(is_const_numeric_lit(&neg));
+        // Non-literal (variable / expression) → false → keeps the __for_to_ temp.
+        assert!(!is_const_numeric_lit(&Expr::Var(LValue::Scalar {
+            name: "n".into(), ty: QbType::Single })));
+        let add = Expr::BinOp {
+            op: crate::parser::BinOp::Add,
+            lhs: Box::new(Expr::IntLit(1)),
+            rhs: Box::new(Expr::IntLit(2)),
+        };
+        assert!(!is_const_numeric_lit(&add));
     }
 
     #[test]

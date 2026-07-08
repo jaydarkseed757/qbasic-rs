@@ -47,6 +47,22 @@ pub(super) fn lit_sign(e: &Expr) -> Option<bool> {
     }
 }
 
+/// True when `e` is a compile-time numeric literal (`IntLit`/`FloatLit`, or a
+/// unary `-` over one) — i.e. its emitted Rust text is pure and side-effect-
+/// free, so it's safe to duplicate inline (in a loop condition evaluated every
+/// iteration) instead of binding it to a `let` temp evaluated once. Unlike
+/// `lit_sign`, zero counts as a literal here — a `FOR i = 1 TO 0` bound is
+/// unremarkable and should still inline; only `lit_sign`'s STEP-direction
+/// check needs a *nonzero* sign. Used by the A4 constant-FOR-bound
+/// optimization (`__for_to_{v}` binds nothing when TO is a literal).
+pub(super) fn is_const_numeric_lit(e: &Expr) -> bool {
+    match e {
+        Expr::IntLit(_) | Expr::FloatLit(_) => true,
+        Expr::UnOp { op: UnOp::Neg, operand } => is_const_numeric_lit(operand),
+        _ => false,
+    }
+}
+
 /// Precedence of the QB arithmetic operators that emit as *infix* Rust operators
 /// — the only operators where operand parenthesization can change parsing. Every
 /// other QB operator emits as a call (`qb_mod`, `qb_idiv`, `qb_and`, …) or a

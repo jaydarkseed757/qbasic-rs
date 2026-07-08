@@ -81,7 +81,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
 - **34/34** integration (`tests/run-tests.sh`, stdout-based)
-- **134** runtime unit tests (`cargo test --workspace`)
+- **137** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -1235,11 +1235,11 @@ and only the plain-numeric / string-concat paths are affected.
   self-referential-term cases). **Deferred:** `.is_empty()` for `(s).as_str() ==
   ""` (touches the regression-prone string-comparison emitter).
 
-### Idiomatic-output audit round 2 — A1 constant indexes, A3 String::new() (behavior-preserving)
+### Idiomatic-output audit round 2 — A1/A2/A3/A4 (behavior-preserving)
 
 A full audit of 12 representative emitted programs (~10,900 lines) found ~1,250
-remaining non-idiomatic sites. The two zero-risk fixes landed first (the rest
-are in Known Issues / TODO):
+remaining non-idiomatic sites. Four fixes landed across three commits (T6 and
+A5 remain — see Known Issues / TODO):
 
 - **A1 — constant array indexes** (901 sites): `arr[(1.0f64) as usize]` →
   `arr[1]`. One central change: `idx_sub()` (`emitter/helpers.rs`) collapses an
@@ -1253,10 +1253,38 @@ are in Known Issues / TODO):
   (`let mut __tmp_strN = …` in `emit_call_args`), and `LSET`/`RSET` — which as a
   bonus were wrapping *every* string literal in `&("…").to_string()` when
   `qb_lset`/`qb_rset` take `&str`; literals now pass straight through.
+- **A2 — redundant `.to_string()` on already-owned Strings** (~67 sites, also a
+  real perf win — each was a needless heap clone): `(format!("{}{}",a,b)).to_string()`
+  and `(qb_left(&s,5.0)).to_string()` etc. New `expr_returns_owned_string()`
+  (`emitter/helpers.rs`) is true for string-concat (routes to `format!`) and
+  calls to known owned-String-returning QB builtins (`LEFT$`/`RIGHT$`/`MID$`/
+  `UCASE$`/`CHR$`/`MKD`/`INPUT$`/…, cross-checked against runtime signatures).
+  Deliberately excludes bare variable reads (emitting one directly would MOVE
+  it, breaking later reads) and array-element access (QB sometimes parses
+  `help$(i)` as `Expr::Call`, and unlike a builtin call it reads a
+  `Vec<String>` element that genuinely needs cloning). Applied at 9 emit
+  sites: `Stmt::Let`, `LSET`/`RSET`, both `PrintUsing`/`PrintFileUsing`
+  arg-lift blocks, `PrintFile` arg building, `emit_case_cond`, and two
+  call-argument string-temp materializers (one required threading a 5th tuple
+  field through `arg_info`). Unit tests `owned_string_string_concat_and_builtins`,
+  `owned_string_excludes_vars_and_array_element_calls`.
+- **A4 — inline constant FOR bounds** (148 sites): QB evaluates TO once, so the
+  `__for_to_{v}` temp exists to freeze a non-literal bound before the loop
+  starts. When TO is a compile-time numeric literal, that "once" is free — no
+  temp needed, the condition reads the literal text directly:
+  `let __for_to_i: f64 = 10.0f64; while i <= __for_to_i` → `while i <= 10.0f64`.
+  New `is_const_numeric_lit()` (`emitter/helpers.rs`) recognizes `IntLit`/
+  `FloatLit`/unary-`-`-of-one; deliberately broader than T3's `lit_sign()` at
+  zero (a `FOR i = 1 TO 0` bound is unremarkable — `lit_sign`'s `None`-at-zero
+  is specifically about STEP direction, which *is* undefined there). Applies
+  independently of whether STEP is itself constant — a non-literal STEP with a
+  literal TO still inlines the TO side of T3's dual-direction guard. A
+  non-literal TO (could change during the loop) is untouched. Unit test
+  `is_const_numeric_lit_classifies_literals`.
 
-Verified: 134 unit, 34/34 integration byte-identical, 53/53 build-all, 10/10
-goldens (incl. gorilla+donkey — checksums unchanged proves the 901 index
-rewrites are value-identical).
+Verified after each commit: 137 unit, 34/34 integration byte-identical, 53/53
+build-all, 10/10 goldens (incl. gorilla+donkey — checksums unchanged proves
+every rewrite above is value-identical, not just plausible).
 
 ### DEF SEG + segment-aware POKE/PEEK + BSAVE + WAIT vsync (demoscene batch, demo.bas)
 
@@ -1384,23 +1412,14 @@ budget that broke shadebobs on period hardware is a non-issue now.
 
 ## Known Issues / TODO
 
-- **Idiomatic-output audit backlog (from the round-2 audit; A1/A3 are done).**
-  Counts are from the 12-program audit set (~10,900 emitted lines), ranked by
-  planned order:
-  - **A2 — redundant `.to_string()` on already-owned Strings** (~70 sites, also
-    a real perf win — each is a needless heap clone): `(format!(…)).to_string()`
-    and `(qb_mid(…)).to_string()` etc. Fix: an `expr_returns_owned_string()`
-    AST check (string-concat BinOp → `format!`; Call to a `$`-returning
-    builtin) in the `Stmt::Let` string arms → skip the wrap. Low risk.
-  - **A4 — inline constant FOR bounds** (119 sites):
-    `let __for_to_i: f64 = 10.0f64; while i <= __for_to_i` → `while i <=
-    10.0f64`. QB evaluates TO once; a literal is trivially once. Same shape as
-    the T3 constant-step fix. Low risk.
+- **Idiomatic-output audit backlog (from the round-2 audit; A1/A2/A3/A4 are
+  done — see the changelog section above).** Counts are from the 12-program
+  audit set (~10,900 emitted lines). Two items remain, in planned order:
   - **T6 — `(s).as_str() == ""` → `s.is_empty()`** (39 sites: 23 `==`, 16 `!=`).
-    Deferred twice already: touches the three regression-prone string-comparison
-    emitters (`emit_cond_expr`, and the BinOp arms of `lift_expr` and
-    `emit_expr_inner` — the farkle.bas history) plus the bare-condition path.
-    Do LAST, with its own full-suite run. Medium risk.
+    Deferred multiple times already: touches the three regression-prone
+    string-comparison emitters (`emit_cond_expr`, and the BinOp arms of
+    `lift_expr` and `emit_expr_inner` — the farkle.bas history) plus the
+    bare-condition path. Do with its own full-suite run. Medium risk.
   - **A5 — `qb_str(&(call(…)))` → `qb_str(&call(…))`** (87 sites, cosmetic
     only): the parens after `&` around a call expression are redundant. Lowest
     priority.

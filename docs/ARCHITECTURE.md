@@ -1001,6 +1001,41 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M22 — Idiomatic-output audit round 2: A1/A2/A3/A4 (behavior-preserving)
+
+A full audit of 12 representative emitted programs (~10,900 lines) found
+~1,250 remaining non-idiomatic sites in the emitter's output. Four
+zero/low-risk fixes landed across three commits:
+
+- **A1 — constant array indexes** (901 sites): `arr[(1.0f64) as usize]` →
+  `arr[1]`. `idx_sub()` collapses an integral non-negative numeric-literal
+  index to a plain subscript; expressions/fractions/negatives keep the cast
+  form. Value-identical by construction.
+- **A3 — `String::new()` for empty strings** (31 sites): `x$ = ""` no longer
+  emits `("").to_string()`. Fixed on three emit paths (`Stmt::Let`, the byref
+  string-temp materializer, `LSET`/`RSET`); the `LSET`/`RSET` fix was a bonus
+  find — every string literal there was wrapped even though `qb_lset`/
+  `qb_rset` take `&str` directly.
+- **A2 — redundant `.to_string()` on already-owned Strings** (~67 sites, also
+  a real perf win — each was a needless heap clone): a new
+  `expr_returns_owned_string()` recognizes string-concat (`format!`) and QB
+  builtins with owned-`String` runtime signatures (`LEFT$`, `MID$`, `CHR$`,
+  `MKD`, `INPUT$`, …), applied at 9 emit sites. Deliberately excludes bare
+  variable reads (would MOVE the variable) and array-element `Expr::Call`
+  forms (genuinely need a clone).
+- **A4 — inline constant FOR bounds** (148 sites): when TO is a compile-time
+  literal, `__for_to_{v}`'s job (freeze the value once) is free, so the temp
+  is dropped and the literal is read directly in the loop condition. Works
+  independently of whether STEP is itself constant.
+
+Remaining backlog (T6 `is_empty()`, A5 cosmetic parens) tracked in CLAUDE.md's
+Known Issues / TODO — T6 touches the regression-prone string-comparison
+emitters and is deferred for its own careful pass.
+
+Verified after each commit: 137 unit, 34/34 integration byte-identical, 53/53
+build-all, 10/10 graphics goldens including gorilla+donkey (checksums
+unchanged proves every rewrite is value-identical).
+
 ### M21 — vsync-paced frame composition, SYSTEM, PRINT #n USING, real EOF, bench.bas (build-all 53/53) ✅
 
 Testing `demo.bas` on real hardware found the wavy sine-scroller scene clipping
@@ -1409,7 +1444,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **34/34**, with 134 runtime unit tests and 10 graphics golden tests.
+The integration suite is **34/34**, with 137 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;

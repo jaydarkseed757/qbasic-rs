@@ -1345,9 +1345,13 @@ impl Emitter {
                 // get proper temporary bindings hoisted before the call.
                 let rhs = self.lift_expr(expr);
                 // Shared String-typed RHS form: `x$ = ""` gets the idiomatic
-                // `String::new()` instead of `("").to_string()`.
+                // `String::new()`, and an already-owned-String expr (string
+                // concat / a qb_* builtin call) skips the redundant clone that
+                // `.to_string()` would otherwise perform on a fresh temporary.
                 let srhs = if matches!(expr, Expr::StrLit(s) if s.is_empty()) {
                     "String::new()".to_string()
+                } else if expr_returns_owned_string(expr) {
+                    rhs.clone()
                 } else {
                     format!("({rhs}).to_string()")
                 };
@@ -2052,10 +2056,16 @@ impl Emitter {
                 for e in args {
                     let v = self.emit_expr(e).unwrap_or_else(|_| "0.0".into());
                     if self.is_str_expr_ctx(e) {
-                        // Lift to a named String temp so we can take a &str of it
+                        // Lift to a named String temp so we can take a &str of it.
+                        // An already-owned-String expr (concat/builtin call) binds
+                        // directly — no redundant `.to_string()` clone.
                         let sn = format!("__pu_s{}", self.lift_counter);
                         self.lift_counter += 1;
-                        self.line(&format!("let {sn} = ({v}).to_string();"));
+                        if expr_returns_owned_string(e) {
+                            self.line(&format!("let {sn} = {v};"));
+                        } else {
+                            self.line(&format!("let {sn} = ({v}).to_string();"));
+                        }
                         qb_vals.push(format!("QbVal::Str(&{sn})"));
                     } else {
                         qb_vals.push(format!("QbVal::Num({v})"));
@@ -2082,7 +2092,11 @@ impl Emitter {
                     if self.is_str_expr_ctx(e) {
                         let sn = format!("__pu_s{}", self.lift_counter);
                         self.lift_counter += 1;
-                        self.line(&format!("let {sn} = ({v}).to_string();"));
+                        if expr_returns_owned_string(e) {
+                            self.line(&format!("let {sn} = {v};"));
+                        } else {
+                            self.line(&format!("let {sn} = ({v}).to_string();"));
+                        }
                         qb_vals.push(format!("QbVal::Str(&{sn})"));
                     } else {
                         qb_vals.push(format!("QbVal::Num({v})"));
@@ -2339,9 +2353,13 @@ impl Emitter {
             Stmt::LSet { var, expr } => {
                 let lhs = self.emit_lvalue(var);
                 let rhs = self.emit_expr(expr).unwrap_or_else(|_| "String::new()".into());
-                // qb_lset takes &str; a string literal already IS one.
+                // qb_lset takes &str. A string literal already IS one; an
+                // already-owned-String expr (concat/builtin call) just needs a
+                // reference, not a second `.to_string()` clone.
                 if matches!(expr, Expr::StrLit(_)) {
                     self.line(&format!("{lhs} = qb_lset(&{lhs}, {rhs});"));
+                } else if expr_returns_owned_string(expr) {
+                    self.line(&format!("{lhs} = qb_lset(&{lhs}, &{rhs});"));
                 } else {
                     self.line(&format!("{lhs} = qb_lset(&{lhs}, &({rhs}).to_string());"));
                 }
@@ -2351,6 +2369,8 @@ impl Emitter {
                 let rhs = self.emit_expr(expr).unwrap_or_else(|_| "String::new()".into());
                 if matches!(expr, Expr::StrLit(_)) {
                     self.line(&format!("{lhs} = qb_rset(&{lhs}, {rhs});"));
+                } else if expr_returns_owned_string(expr) {
+                    self.line(&format!("{lhs} = qb_rset(&{lhs}, &{rhs});"));
                 } else {
                     self.line(&format!("{lhs} = qb_rset(&{lhs}, &({rhs}).to_string());"));
                 }
@@ -2364,7 +2384,11 @@ impl Emitter {
                         PrintArg::Expr(e) => {
                             let s = self.emit_expr_inline(e);
                             if self.is_str_expr_ctx(e) {
-                                parts.push(format!("({s}).to_string()"));
+                                if expr_returns_owned_string(e) {
+                                    parts.push(s);
+                                } else {
+                                    parts.push(format!("({s}).to_string()"));
+                                }
                             } else {
                                 parts.push(format!("qb_print_num({s})"));
                             }
@@ -3017,7 +3041,9 @@ impl Emitter {
         // Rust's String == String comparison works (String != &str directly).
         let wrap = |e: &Expr| -> String {
             let v = self.emit_expr_inline(e);
-            if is_str_expr(e) { format!("{v}.to_string()") } else { v }
+            if expr_returns_owned_string(e) { v }
+            else if is_str_expr(e) { format!("{v}.to_string()") }
+            else { v }
         };
         let parts: Vec<String> = case.conditions.iter().map(|c| match c {
             CaseCond::Value(e)    => format!("__sel == {}", wrap(e)),
@@ -3889,7 +3915,11 @@ impl Emitter {
                 } else {
                     let val = self.emit_expr_inner(expr)
                         .unwrap_or_else(|_| "String::new()".into());
-                    self.line(&format!("let mut {tmp} = ({val}).to_string();"));
+                    if expr_returns_owned_string(expr) {
+                        self.line(&format!("let mut {tmp} = {val};"));
+                    } else {
+                        self.line(&format!("let mut {tmp} = ({val}).to_string();"));
+                    }
                 }
                 result.push(format!("&mut {tmp}"));
                 continue;
@@ -4106,7 +4136,11 @@ impl Emitter {
                                 let v = self.emit_expr_inner(e).unwrap_or_default();
                                 let tmp_s = format!("__tmp_s{}", self.lift_counter);
                                 self.lift_counter += 1;
-                                self.line(&format!("let mut {tmp_s}: String = ({v}).to_string();"));
+                                if expr_returns_owned_string(e) {
+                                    self.line(&format!("let mut {tmp_s}: String = {v};"));
+                                } else {
+                                    self.line(&format!("let mut {tmp_s}: String = ({v}).to_string();"));
+                                }
                                 call_args.push(format!("&mut {tmp_s}"));
                             }
                         } else {
@@ -4736,10 +4770,10 @@ impl Emitter {
                         vec![(e.clone(), None)]
                     }).collect();
 
-                    // Collect arg info: (value_str, is_str_scalar, is_whole_arr, byref_acc)
-                    let arg_info: Vec<(String, bool, bool, Option<String>)> = expanded.iter().map(|(e, byref)| {
+                    // Collect arg info: (value_str, is_str_scalar, is_whole_arr, byref_acc, is_owned_string)
+                    let arg_info: Vec<(String, bool, bool, Option<String>, bool)> = expanded.iter().map(|(e, byref)| {
                         if byref.is_some() {
-                            return (String::new(), false, false, byref.clone());
+                            return (String::new(), false, false, byref.clone(), false);
                         }
                         let v = self.emit_expr_inner(e).unwrap_or_default();
                         let is_str = is_str_expr(e) || self.is_str_expr_ctx(e);
@@ -4755,14 +4789,14 @@ impl Emitter {
                             }
                             _ => false,
                         };
-                        (v, is_str && !is_whole_arr, is_whole_arr, None)
+                        (v, is_str && !is_whole_arr, is_whole_arr, None, expr_returns_owned_string(e))
                     }).collect();
 
-                    let has_str_scalar = arg_info.iter().any(|(_, is_str, _, _)| *is_str);
+                    let has_str_scalar = arg_info.iter().any(|(_, is_str, _, _, _)| *is_str);
                     // A plain numeric arg that reads a shared field (`__gs.x`) conflicts
                     // with passing `&mut __gs` to the same call (E0503) — hoist it to a
                     // temp inside a block expression first.
-                    let needs_hoist = arg_info.iter().any(|(v, is_str, whole, byref)| {
+                    let needs_hoist = arg_info.iter().any(|(v, is_str, whole, byref, _)| {
                         byref.is_none() && !*is_str && !*whole && v.contains("__gs")
                     });
                     let sep = if arg_info.is_empty() { "" } else { ", " };
@@ -4774,7 +4808,7 @@ impl Emitter {
                         let mut block_lets: Vec<String> = Vec::new();
                         let mut call_args: Vec<String> = Vec::new();
                         let mut tmp_idx = 0usize;
-                        for (v, is_str_scalar, is_whole_arr, byref) in &arg_info {
+                        for (v, is_str_scalar, is_whole_arr, byref, is_owned) in &arg_info {
                             if let Some(acc) = byref {
                                 call_args.push(acc.clone());
                             } else if *is_whole_arr {
@@ -4782,7 +4816,11 @@ impl Emitter {
                             } else if *is_str_scalar {
                                 let tmp = format!("__fn_s{tmp_idx}");
                                 tmp_idx += 1;
-                                block_lets.push(format!("let mut {tmp}: String = ({v}).to_string()"));
+                                if *is_owned {
+                                    block_lets.push(format!("let mut {tmp}: String = {v}"));
+                                } else {
+                                    block_lets.push(format!("let mut {tmp}: String = ({v}).to_string()"));
+                                }
                                 call_args.push(format!("&mut {tmp}"));
                             } else if v.contains("__gs") {
                                 // Hoist shared-field read to a temp f64 (copy) before the call.
@@ -4801,7 +4839,7 @@ impl Emitter {
                             call_args.join(", ")
                         ));
                     } else {
-                        let a: Vec<_> = arg_info.iter().map(|(v, _, is_whole_arr, byref)| {
+                        let a: Vec<_> = arg_info.iter().map(|(v, _, is_whole_arr, byref, _)| {
                             if let Some(acc) = byref { acc.clone() }
                             else if *is_whole_arr { format!("&mut {v}") }
                             else { v.clone() }
@@ -4889,7 +4927,8 @@ pub fn emit(prog: &AnalyzedProgram) -> Result<String> {
 
 #[cfg(test)]
 mod deref_paren_tests {
-    use super::{strip_deref_parens, starts_with_balanced_paren, idx_sub, simplify_parens};
+    use super::{strip_deref_parens, starts_with_balanced_paren, idx_sub, simplify_parens,
+                expr_returns_owned_string};
 
     #[test]
     fn strips_simple_arg_and_operand() {
@@ -4962,6 +5001,47 @@ mod deref_paren_tests {
         assert_eq!(idx_sub("(-1.0f64)"), "[(-1.0f64) as usize]");
         assert_eq!(idx_sub("i2"), "[(i2) as usize]");
         assert_eq!(idx_sub("(i + 1.0f64)"), "[(i + 1.0f64) as usize]");
+    }
+
+    // ── expr_returns_owned_string (A2) ──────────────────────────────────────
+
+    #[test]
+    fn owned_string_string_concat_and_builtins() {
+        use crate::parser::{Expr, LValue, QbType, BinOp};
+        let lit = |s: &str| Expr::StrLit(s.to_string());
+        let var_s = |n: &str| Expr::Var(LValue::Scalar { name: n.to_string(), ty: QbType::String });
+
+        // BinOp::Add with a string operand → format!() → owned.
+        let concat = Expr::BinOp {
+            op: BinOp::Add,
+            lhs: Box::new(var_s("a")),
+            rhs: Box::new(lit("b")),
+        };
+        assert!(expr_returns_owned_string(&concat));
+
+        // Known qb_* string builtins → owned.
+        for name in ["LEFT$", "RIGHT$", "MID$", "UCASE$", "CHR$", "MKD", "INPUT$"] {
+            let call = Expr::Call { name: name.to_string(), args: vec![] };
+            assert!(expr_returns_owned_string(&call), "{name} should be owned");
+        }
+    }
+
+    #[test]
+    fn owned_string_excludes_vars_and_array_element_calls() {
+        use crate::parser::{Expr, LValue, QbType};
+        // A bare variable read is NOT owned here — emitting it directly would
+        // MOVE the variable, breaking any later read of it.
+        let var_s = Expr::Var(LValue::Scalar { name: "x".into(), ty: QbType::String });
+        assert!(!expr_returns_owned_string(&var_s));
+
+        // A string-array-element access can be parsed as Expr::Call (e.g.
+        // help$(i)) — must NOT be treated as owned (it's a Vec<String> read
+        // needing a real clone, unlike a builtin call).
+        let arr_elem = Expr::Call { name: "Help$".into(), args: vec![Expr::IntLit(1)] };
+        assert!(!expr_returns_owned_string(&arr_elem));
+
+        // A plain numeric literal/arithmetic expr is never owned-string.
+        assert!(!expr_returns_owned_string(&Expr::IntLit(5)));
     }
 
     // ── simplify_parens (T4) ──────────────────────────────────────────────────

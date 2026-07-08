@@ -276,6 +276,35 @@ pub(super) fn is_str_expr(expr: &Expr) -> bool {
     }
 }
 
+/// True when `expr` emits as a Rust expression that is ALREADY an owned,
+/// freshly-allocated `String` — so a caller wrapping it in `(…).to_string()`
+/// (to materialize a temp, satisfy a `String ==` comparison, etc.) is cloning
+/// a value that's about to be dropped anyway. Two cases:
+/// - string concatenation (`BinOp::Add` on string operands) → emits `format!(…)`
+/// - a call to a QB built-in whose runtime fn returns `String` by value
+///   (`qb_left`, `qb_mid`, `qb_chr`, `MKD`, …)
+///
+/// Deliberately narrower than `is_str_expr`: a *bare* `name$` ending in `$`
+/// there also covers array-element access (`help$(i)`, parsed as `Expr::Call`
+/// when the array/function form is ambiguous) — that reads a `Vec<String>`
+/// element and is NOT already an owned temporary, so it's excluded here. A
+/// plain `Expr::Var` (scalar or array-index string read) is excluded for a
+/// different reason: emitting it bare would MOVE the variable, which breaks
+/// any later read of it — the `.to_string()` clone is load-bearing there.
+pub(super) fn expr_returns_owned_string(expr: &Expr) -> bool {
+    match expr {
+        Expr::BinOp { op: BinOp::Add, lhs, rhs } => is_str_expr(lhs) || is_str_expr(rhs),
+        Expr::Call { name, .. } => matches!(
+            name.to_uppercase().as_str(),
+            "LEFT$" | "RIGHT$" | "MID$" | "UCASE$" | "LCASE$" |
+            "LTRIM$" | "RTRIM$" | "STR$" | "CHR$" | "HEX$" |
+            "OCT$" | "STRING$" | "SPACE$" | "ENVIRON$" | "INKEY$" | "INPUT$" |
+            "MKD" | "MKS" | "MKI" | "MKL"
+        ),
+        _ => false,
+    }
+}
+
 
 // ── &str argument positions for built-in functions ────────────────────────────
 

@@ -2912,7 +2912,9 @@ impl Emitter {
             if matches!(e, Expr::StrLit(_)) {
                 format!("qb_str({v})")
             } else {
-                format!("qb_str(&({v}))")
+                // A5 — no parens needed after `&`: every string-typed emission
+                // is self-delimited (ident, field path, `(*x)`, call, index).
+                format!("qb_str(&{v})")
             }
         } else {
             format!("qb_print_num({v})")
@@ -4033,6 +4035,29 @@ impl Emitter {
     fn emit_expr(&self, expr: &Expr) -> Result<String> { self.emit_expr_inner(expr) }
 
     /// Emit a condition expression for use directly in `if`/`while`.
+    /// T6 — emptiness-test detector shared by the three string-comparison
+    /// emitters. When an `Eq`/`Ne` comparison has an empty string literal on
+    /// one side and a string-typed NON-literal on the other (either operand
+    /// order), returns the already-emitted subject side so the caller can emit
+    /// `subj.is_empty()` / `!subj.is_empty()` instead of `(subj).as_str() == ""`.
+    /// No parens around `subj` are needed: every string-typed emission is
+    /// self-delimited (bare ident, `__gs.field`, `(*x)` with its own parens,
+    /// a call, `format!(…)`, or an index expr), and method postfix binds
+    /// tighter than `!`. `"" = ""` (both literals) stays on the normal path.
+    fn empty_string_cmp_subject(&self, op: &BinOp, lhs: &Expr, rhs: &Expr,
+                                l: &str, r: &str) -> Option<String> {
+        if !matches!(op, BinOp::Eq | BinOp::Ne) { return None; }
+        let empty  = |e: &Expr| matches!(e, Expr::StrLit(s) if s.is_empty());
+        let strlit = |e: &Expr| matches!(e, Expr::StrLit(_));
+        if empty(rhs) && !strlit(lhs) && (is_str_expr(lhs) || self.is_str_expr_ctx(lhs)) {
+            return Some(l.to_string());
+        }
+        if empty(lhs) && !strlit(rhs) && (is_str_expr(rhs) || self.is_str_expr_ctx(rhs)) {
+            return Some(r.to_string());
+        }
+        None
+    }
+
     /// When the top-level expression is a comparison BinOp, emits the Rust comparison
     /// directly (e.g. `x == 9.0`) instead of the double-wrap `qb_bool(qb_from_bool(x == 9.0))`.
     /// AND/OR and all other QB expressions still go through `qb_bool(...)`.
@@ -4050,6 +4075,11 @@ impl Emitter {
             if let Some(op_str) = rust_op {
                 let l = self.emit_expr_inner(lhs)?;
                 let r = self.emit_expr_inner(rhs)?;
+                // T6 — emptiness test: `s$ = ""` → `s.is_empty()`, `<>` → `!…`.
+                if let Some(subj) = self.empty_string_cmp_subject(op, lhs, rhs, &l, &r) {
+                    let neg = if *op == BinOp::Ne { "!" } else { "" };
+                    return Ok(format!("{neg}{subj}.is_empty()"));
+                }
                 // String comparison: normalize both sides to &str (see emit_expr_inner
                 // for why is_str_expr_ctx is consulted alongside is_str_expr).
                 let l_is_str = is_str_expr(lhs) || self.is_str_expr_ctx(lhs);
@@ -4347,6 +4377,12 @@ impl Emitter {
                 if *op == BinOp::Add && (is_str_expr(lhs) || is_str_expr(rhs)) {
                     return format!("format!(\"{{}}{{}}\" ,{l},{r})");
                 }
+                // T6 — emptiness test: `s$ = ""` / `s$ <> ""` → is_empty(),
+                // wrapped in qb_from_bool to keep QB's -1.0/0.0 boolean.
+                if let Some(subj) = self.empty_string_cmp_subject(op, lhs, rhs, &l, &r) {
+                    let neg = if *op == BinOp::Ne { "!" } else { "" };
+                    return format!("qb_from_bool({neg}{subj}.is_empty())");
+                }
                 // String comparison: normalize both sides to &str. A side is a
                 // string if it's a literal/sigil string (is_str_expr) OR a
                 // context-declared string (sigil-less `DIM … AS STRING`, AS STRING
@@ -4552,6 +4588,12 @@ impl Emitter {
                 }
                 let l = self.emit_expr_inner(lhs)?;
                 let r = self.emit_expr_inner(rhs)?;
+                // T6 — emptiness test: `s$ = ""` / `s$ <> ""` → is_empty(),
+                // wrapped in qb_from_bool to keep QB's -1.0/0.0 boolean.
+                if let Some(subj) = self.empty_string_cmp_subject(op, lhs, rhs, &l, &r) {
+                    let neg = if *op == BinOp::Ne { "!" } else { "" };
+                    return Ok(format!("qb_from_bool({neg}{subj}.is_empty())"));
+                }
                 // String comparison: normalize both sides to &str to avoid
                 // String vs &str ambiguity (Rust can't pick PartialOrd impl). A side
                 // counts as a string if it's a literal/sigil string OR a context-

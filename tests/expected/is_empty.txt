@@ -1,0 +1,15 @@
+-1 
+ 0 
+ 0 
+-1 
+ 0 
+-1 
+not empty
+abc
+bc
+c
+k empty
+-1 
+-1 
+-1 
+done

@@ -116,7 +116,7 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `evil.bas` | GW-BASIC "self-modifying POKE matrix" — physical line continuations, POKE/PEEK memory | ✅ |
 | `pokeit.bas` | Minimal POKE→PEEK→PRINT regression test | ✅ |
 | `demo1.bas` | SCREEN 13 demoscene-style intro — star field, sine-wave scroller | ✅ |
-| `demo.bas` | Multi-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, copper bars, tunnel, wavy sine scroller (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync) | ✅ |
+| `demo.bas` | 15-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, shadebobs, dot sphere, copper bars, tunnel, rotozoomer, vector morph, starship flight, trench run, platformer vignette, wavy sine scroller, credits crawl (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync, PLAY intro jingle) | ✅ |
 | `bench.bas` | Interpreter-vs-native benchmark — hot-loop ops/sec + ops-per-frame budget for the demo's operations — see [Performance](#performance) | ✅ |
 | `blackjak.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |

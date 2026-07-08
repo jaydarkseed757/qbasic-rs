@@ -1430,6 +1430,38 @@ bytecode-fetch overhead disappears in native code). Full comparison table in
 on real hardware vs. 8M ops/sec natively means the per-pixel read-modify-write
 budget that broke shadebobs on period hardware is a non-issue now.
 
+### demo.bas grows to 15 scenes: shadebobs revived, rotozoomer, platformer vignette
+
+`bench.bas`'s numbers (above) directly unblocked **Scene5 — shadebobs**, which
+had been commented out since the demo's first cut ("too slow in interpreter;
+revisit with CALL ABSOLUTE"). True additive blending with zero per-pixel
+BASIC work: each of 4 bobs owns 2 bits of a pixel byte; draw = `PUT … OR`
+(sets only its own bits), erase = `PUT … AND` with a constant mask (clears
+only its own bits, even under overlaps), and the palette does the actual
+adding — entry *b* renders the sum of the four 2-bit levels through a fire
+ramp, so crossings glow genuinely hotter. 8 machine-speed `PUT`s per frame;
+native Rust has no trouble at all with the per-pixel work that killed it on
+period hardware.
+
+Two new scenes, both reusing existing transpiler/runtime features (no new
+`qbc`/runtime work required):
+- **Scene14 — rotozoomer**: a source-texture buffer rotated and scaled per
+  frame via `SIN`/`COS` and read back with `POINT`, the classic demoscene
+  effect.
+- **Scene15 — platformer vignette** ("MEGA WORLD 1-1", a Mario homage): sprite
+  `DATA` for a 3-frame runner + a goomba, `GET`/`PUT` animation, brick-block
+  platform tiles, and a scrolling ground row.
+
+Also added: a 3-tone ascending `PLAY "O4 L4 C E G"` intro jingle before
+Scene1. Scene ordering updated to interleave the new scenes among the
+existing ones (`basic-src/demo.bas`'s header comment documents the current
+order — Scene8, the credits crawl, remains hard-pinned last).
+
+Verified: full `demo.bas` and an isolated `CALL Scene5: CALL Scene14: CALL
+Scene15` harness both transpile and compile clean; headless captures confirm
+shadebobs animate (glowing, moving) and the platformer scene renders its
+title/platforms/character with no crashes. build-all 53/53.
+
 ## Known Issues / TODO
 
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see

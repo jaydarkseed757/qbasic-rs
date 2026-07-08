@@ -2,20 +2,98 @@ REM  Mega Demo -- QBasic 1.1 / SCREEN 13 (320x200x256)
 
 DEFINT A-Z
 
+' Intro jingle: ascending 3-tone chime (PC speaker via PLAY, blocks briefly)
+PLAY "O4 L4 C E G"
+
 CALL Scene1
 CALL Scene2
 CALL Scene3
 CALL Scene4
-' CALL Scene5   ' shadebobs -- too slow in interpreter; revisit with CALL ABSOLUTE
-CALL Scene11   ' dot sphere (fills the shadebobs slot)
+CALL Scene5    ' shadebobs (bit-field PUT additive blend)
+CALL Scene11   ' dot sphere
 CALL Scene6
 CALL Scene7
+CALL Scene14   ' rotozoomer
 CALL Scene9    ' vector morph (numbered 9: Scene8 is reserved for the finale)
 CALL Scene10   ' starship flight
 CALL Scene13   ' death star trench run
+CALL Scene15   ' platformer vignette (mario homage)
 CALL Scene12   ' wavy sine scroller
 CALL Scene8    ' credits crawl -- ALWAYS the final scene; add new scenes above
 END
+
+' ---- Scene15 sprite art: 4 sprites x 16 rows, 16 chars per row ----
+' legend: . transparent  R red  S skin  B brown  O overalls
+'         G goomba body  W white  D goomba feet
+SpriteData:
+' runner, frame 1 (legs spread)
+DATA "......RRRRR....."
+DATA ".....RRRRRRRRR.."
+DATA ".....BBBSSBS...."
+DATA "....BSBSSSBSS..."
+DATA "....BSBBSSSBSSS."
+DATA "....BBSSSSBBBB.."
+DATA "......SSSSSS...."
+DATA "....RRRRRRR....."
+DATA "...RRRRRRRRRR..."
+DATA "..SSRROROORRSS.."
+DATA "..SSROOOOOORSS.."
+DATA "....OOOOOOOO...."
+DATA "....OOO..OOO...."
+DATA "...OOO....OOO..."
+DATA "..BBB......BBB.."
+DATA ".BBBB......BBBB."
+' runner, frame 2 (legs together)
+DATA "......RRRRR....."
+DATA ".....RRRRRRRRR.."
+DATA ".....BBBSSBS...."
+DATA "....BSBSSSBSS..."
+DATA "....BSBBSSSBSSS."
+DATA "....BBSSSSBBBB.."
+DATA "......SSSSSS...."
+DATA ".....RRRRRR....."
+DATA "....RRRRRRRR...."
+DATA "....RROOOORR...."
+DATA "....SROOOORS...."
+DATA ".....OOOOOO....."
+DATA ".....OOOOO......"
+DATA "......OOOO......"
+DATA ".....BBBB......."
+DATA "....BBBBB......."
+' runner, jump (arm up, legs tucked)
+DATA "......RRRRR..SS."
+DATA ".....RRRRRRRR.SS"
+DATA ".....BBBSSBS..S."
+DATA "....BSBSSSBSS..."
+DATA "....BSBBSSSBSS.."
+DATA "....BBSSSSBBB..."
+DATA "..SS..SSSSSS...."
+DATA "..SSRRRRRRR....."
+DATA "...RRRRRRRRRR..."
+DATA "...RRROOOORR...."
+DATA "....ROOOOOOR...."
+DATA ".....OOOOOO....."
+DATA "....OOO.OOO....."
+DATA "....OOB.BOO....."
+DATA "....BBB.BBB....."
+DATA "................"
+' mushroom man (goomba)
+DATA "................"
+DATA "....GGGGGGGG...."
+DATA "...GGGGGGGGGG..."
+DATA "..GGGGGGGGGGGG.."
+DATA ".GGWWGGGGGGWWGG."
+DATA ".GWBBWGGGGWBBWG."
+DATA "GGGWWGGGGGGWWGGG"
+DATA "GGGGGGGGGGGGGGGG"
+DATA "GGGGGGGGGGGGGGGG"
+DATA ".GGGGGGGGGGGGGG."
+DATA "..GGGGGGGGGGGG.."
+DATA "...GGGGGGGGGG..."
+DATA "..DDDD....DDDD.."
+DATA ".DDDDD....DDDDD."
+DATA ".DDDDDD..DDDDDD."
+DATA "................"
 
 ' ======================================================
 ' SCENE 1 -- Scrolling starfield
@@ -59,7 +137,8 @@ SUB Scene1
             END IF
             POKE oadr(i), sc(i)
         NEXT i
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade to black before next scene
     FOR v = 63 TO 0 STEP -1
@@ -159,7 +238,8 @@ SUB Scene2
             OUT &H3C8, 13 + k: OUT &H3C9, v: OUT &H3C9, v: OUT &H3C9, v
             twPh(k) = (twPh(k) + twSp(k)) AND 255
         NEXT k
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     SCREEN 0
 END SUB
@@ -270,7 +350,8 @@ SUB Scene3
         angY = (angY + 2) AND 255
         angX = (angX + 1) AND 255
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out
     FOR v = 63 TO 0 STEP -1
@@ -435,7 +516,8 @@ SUB Scene4
             OUT &H3C9, pr(i): OUT &H3C9, pg(i): OUT &H3C9, pb(i)
         NEXT i
         shift = (shift + 2) AND 255
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out: ramp brightness 63->0
     FOR bright = 63 TO 0 STEP -1
@@ -494,25 +576,29 @@ SUB DrawText (txt$, startX, startY, scale, col)
 END SUB
 
 ' ======================================================
-' SCENE 5 -- Shadebobs
-' Additive-blend radial gradient blobs in a 160x100
-' centre region; fire palette (black->red->yellow->white).
-' 5 bobs with varied Lissajous paths.  Max 5 overlapping
-' blobs = 250 < 255 so output loop needs no clamp.
+' SCENE 5 -- Shadebobs (bit-field PUT edition)
+' True additive blending with zero per-pixel BASIC work:
+' each of 4 bobs owns 2 bits of the pixel byte.  Draw =
+' PUT sprite with OR (sets only its own bits); erase =
+' PUT constant mask with AND (clears only its own bits,
+' even under overlaps).  The palette does the adding:
+' entry b renders the SUM of the four 2-bit levels
+' through a fire ramp, so crossings glow genuinely
+' hotter.  8 machine-speed PUTs per frame.
 ' ======================================================
 SUB Scene5
     DEFINT A-Z
-    DIM sinT(255)
-    DIM bobD(575)                        ' 24x24 radial gradient blob (max 50)
-    DIM spanL(23), spanR(23)            ' first/last lit dx per blob row (skip corners)
-    DIM rowAddr(99) AS LONG              ' screen row offsets for effect region
-    DIM bAngX(4), bAngY(4)
-    DIM bSpdX(4), bSpdY(4)
-    DIM bAmpX(4), bAmpY(4)
-    DIM obx(4), oby(4), obxOff(4)       ' previous-frame positions for erase
-    DIM odx0(4), odx1(4), ody0(4), ody1(4)
+    DIM sinT(255)                      ' signed sine LUT * 127
+    DIM lvl(575)                       ' 24x24 radial gradient, levels 0-3
     DIM palR(255), palG(255), palB(255)
-    DIM addrBase AS LONG, addrPix AS LONG
+    DIM fr(12), fg(12), fb(12)         ' fire ramp for bit-sums 0..12
+    DIM bAngX(3), bAngY(3)
+    DIM bSpdX(3), bSpdY(3)
+    DIM bAmpX(3), bAmpY(3)
+    DIM ox(3), oy(3)                   ' previous top-left per bob (erase)
+    DIM addr AS LONG
+    sprN = 290 * 8                     ' 4 draw sprites + 4 erase masks;
+    DIM spr(sprN)                      ' variable bound -> dynamic array
 
     SCREEN 13
 
@@ -520,148 +606,103 @@ SUB Scene5
         sinT(i) = INT(SIN(i * 6.28318 / 256) * 127)
     NEXT i
 
-    ' Radial blob: max 50 at centre, 0 at radius 11; 5 bobs max = 250 <= 255
+    ' Radial gradient quantized to 4 levels: 3 at the core, 0 outside r=11
     FOR dy = 0 TO 23
         FOR dx = 0 TO 23
-            dist = SQR(CLng(dx - 11) * (dx - 11) + CLng(dy - 11) * (dy - 11))
-            v = INT(50 - dist * 50 / 11 + .5)
+            v = INT((11 - SQR(CLng(dx - 11) * (dx - 11) + CLng(dy - 11) * (dy - 11))) * 4 / 11 + .5)
             IF v < 0 THEN v = 0
-            bobD(dy * 24 + dx) = v
+            IF v > 3 THEN v = 3
+            lvl(dy * 24 + dx) = v
         NEXT dx
     NEXT dy
 
-    ' Per-row lit spans: skip the zero corners of the circular blob.
-    ' (drawing/erasing a 0 is a no-op, so this is purely a speed win)
-    FOR dy = 0 TO 23
-        spanL(dy) = 99: spanR(dy) = -1
-        FOR dx = 0 TO 23
-            IF bobD(dy * 24 + dx) > 0 THEN
-                IF dx < spanL(dy) THEN spanL(dy) = dx
-                spanR(dy) = dx
-            END IF
-        NEXT dx
-    NEXT dy
+    ' Fire ramp over summed brightness 0..12: a single bob's core (3) is
+    ' full red; overlaps push through orange/yellow (6-8) to white (9+)
+    FOR s = 0 TO 12
+        v = s * 21: IF v > 63 THEN v = 63
+        fr(s) = v
+        v = (s - 3) * 13: IF v < 0 THEN v = 0
+        IF v > 63 THEN v = 63
+        fg(s) = v
+        v = (s - 8) * 16: IF v < 0 THEN v = 0
+        IF v > 63 THEN v = 63
+        fb(s) = v
+    NEXT s
 
-    FOR y = 0 TO 99
-        rowAddr(y) = CLng(y + 50) * 320 + 80
-    NEXT y
-
-    bAngX(0) =   0: bAngY(0) =   0: bSpdX(0) = 3: bSpdY(0) = 2: bAmpX(0) = 60: bAmpY(0) = 32
-    bAngX(1) =  51: bAngY(1) =  77: bSpdX(1) = 2: bSpdY(1) = 3: bAmpX(1) = 50: bAmpY(1) = 28
-    bAngX(2) = 102: bAngY(2) = 154: bSpdX(2) = 5: bSpdY(2) = 4: bAmpX(2) = 65: bAmpY(2) = 36
-    bAngX(3) = 153: bAngY(3) = 230: bSpdX(3) = 4: bSpdY(3) = 7: bAmpX(3) = 45: bAmpY(3) = 25
-    bAngX(4) = 204: bAngY(4) =  25: bSpdX(4) = 7: bSpdY(4) = 3: bAmpX(4) = 55: bAmpY(4) = 30
-
-    FOR i = 0 TO 63
-        palR(i) = i: palG(i) = 0: palB(i) = 0
-    NEXT i
-    FOR i = 64 TO 127
-        palR(i) = 63: palG(i) = i - 64: palB(i) = 0
-    NEXT i
-    FOR i = 128 TO 191
-        palR(i) = 63: palG(i) = 63: palB(i) = i - 128
-    NEXT i
-    FOR i = 192 TO 255
-        palR(i) = 63: palG(i) = 63: palB(i) = 63
+    ' Expand: palette entry i = fire colour of the sum of its 4 bit-fields
+    FOR i = 0 TO 255
+        s = (i AND 3) + (i \ 4 AND 3) + (i \ 16 AND 3) + (i \ 64 AND 3)
+        palR(i) = fr(s): palG(i) = fg(s): palB(i) = fb(s)
     NEXT i
 
+    ' Black out the palette: sprite prep below stays invisible
     OUT &H3C8, 0
     FOR i = 0 TO 255
         OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
     NEXT i
 
-    ' Precompute initial old-positions so first erase is a harmless no-op
-    FOR b = 0 TO 4
-        obx(b) = 80 + (sinT(bAngX(b)) * bAmpX(b)) \ 127
-        oby(b) = 50 + (sinT(bAngY(b)) * bAmpY(b)) \ 127
-        odx0(b) = 11 - obx(b): IF odx0(b) < 0 THEN odx0(b) = 0
-        odx1(b) = 170 - obx(b): IF odx1(b) > 23 THEN odx1(b) = 23
-        ody0(b) = 11 - oby(b): IF ody0(b) < 0 THEN ody0(b) = 0
-        ody1(b) = 110 - oby(b): IF ody1(b) > 23 THEN ody1(b) = 23
-        obxOff(b) = obx(b) - 11
+    ' Build each bob's sprites via screen-corner GETs: the draw sprite is
+    ' the gradient shifted into the bob's own 2-bit field (shl = 1, 4, 16,
+    ' 64), the erase mask a constant block of 255 - 3*shl
+    DEF SEG = &HA000
+    shl = 1
+    FOR k = 0 TO 3
+        FOR dy = 0 TO 23
+            addr = CLng(dy) * 320
+            FOR dx = 0 TO 23
+                POKE addr + dx, lvl(dy * 24 + dx) * shl
+            NEXT dx
+        NEXT dy
+        GET (0, 0)-(23, 23), spr(k * 580)
+        LINE (0, 0)-(23, 23), 255 - 3 * shl, BF
+        GET (0, 0)-(23, 23), spr(k * 580 + 290)
+        LINE (0, 0)-(23, 23), 0, BF
+        shl = shl * 4
+    NEXT k
+    DEF SEG
+
+    ' Lissajous paths.  PUT cannot clip, so top-left coords must stay in
+    ' x 0..296 / y 0..176: base (136, 76) = centre (148, 88) minus 12
+    bAngX(0) =   0: bAngY(0) =   0: bSpdX(0) = 3: bSpdY(0) = 2: bAmpX(0) = 120: bAmpY(0) = 70
+    bAngX(1) =  64: bAngY(1) =  96: bSpdX(1) = 2: bSpdY(1) = 3: bAmpX(1) = 100: bAmpY(1) = 62
+    bAngX(2) = 128: bAngY(2) = 160: bSpdX(2) = 5: bSpdY(2) = 4: bAmpX(2) = 130: bAmpY(2) = 75
+    bAngX(3) = 192: bAngY(3) =  48: bSpdX(3) = 4: bSpdY(3) = 7: bAmpX(3) =  85: bAmpY(3) = 55
+
+    ' Valid initial old-positions: first AND-erase on black is a no-op
+    FOR b = 0 TO 3
+        ox(b) = 136 + (sinT(bAngX(b)) * bAmpX(b)) \ 127
+        oy(b) = 76 + (sinT(bAngY(b)) * bAmpY(b)) \ 127
     NEXT b
 
     fadeV = 0
 
     DO
-        DEF SEG = &HA000
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
 
-        ' -- Erase all old bob footprints (zero their screen pixels) --
-        ' All old positions zeroed before any new positions are drawn;
-        ' this guarantees PEEK reads 0 when the first bob adds to a pixel.
-        FOR b = 0 TO 4
-            IF odx0(b) <= odx1(b) AND ody0(b) <= ody1(b) THEN
-                addrBase = rowAddr(oby(b) + ody0(b) - 11) + obxOff(b)
-                FOR dy = ody0(b) TO ody1(b)
-                    sl = spanL(dy): IF sl < odx0(b) THEN sl = odx0(b)
-                    sr = spanR(dy): IF sr > odx1(b) THEN sr = odx1(b)
-                    IF sl <= sr THEN
-                        addrPix = addrBase + sl
-                        FOR dx = sl TO sr
-                            POKE addrPix, 0
-                            addrPix = addrPix + 1
-                        NEXT dx
-                    END IF
-                    addrBase = addrBase + 320
-                NEXT dy
-            END IF
-        NEXT b
-
-        ' -- Advance bob angles --
-        FOR b = 0 TO 4
-            bAngX(b) = (bAngX(b) + bSpdX(b)) AND 255
-            bAngY(b) = (bAngY(b) + bSpdY(b)) AND 255
-        NEXT b
-
-        ' -- Draw bobs additively: PEEK current value, add blob, POKE back --
-        FOR b = 0 TO 4
-            bx = 80 + (sinT(bAngX(b)) * bAmpX(b)) \ 127
-            by = 50 + (sinT(bAngY(b)) * bAmpY(b)) \ 127
-
-            dx0 = 11 - bx: IF dx0 < 0 THEN dx0 = 0
-            dx1 = 170 - bx: IF dx1 > 23 THEN dx1 = 23
-            dy0 = 11 - by: IF dy0 < 0 THEN dy0 = 0
-            dy1 = 110 - by: IF dy1 > 23 THEN dy1 = 23
-
-            IF dx0 <= dx1 AND dy0 <= dy1 THEN
-                bxOff = bx - 11
-                addrBase = rowAddr(by + dy0 - 11) + bxOff
-                FOR dy = dy0 TO dy1
-                    sl = spanL(dy): IF sl < dx0 THEN sl = dx0
-                    sr = spanR(dy): IF sr > dx1 THEN sr = dx1
-                    IF sl <= sr THEN
-                        addrPix = addrBase + sl
-                        bdRow = dy * 24 + sl
-                        FOR dx = sl TO sr
-                            POKE addrPix, PEEK(addrPix) + bobD(bdRow)
-                            addrPix = addrPix + 1
-                            bdRow = bdRow + 1
-                        NEXT dx
-                    END IF
-                    addrBase = addrBase + 320
-                NEXT dy
-                obxOff(b) = bxOff
-            END IF
-
-            obx(b) = bx: oby(b) = by
-            odx0(b) = dx0: odx1(b) = dx1: ody0(b) = dy0: ody1(b) = dy1
-        NEXT b
-
-        DEF SEG
-
-        IF fadeV <= 63 THEN
-            WAIT &H3DA, 8, 8
-            WAIT &H3DA, 8
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
             OUT &H3C8, 0
             FOR i = 0 TO 255
                 OUT &H3C9, palR(i) * fadeV \ 63
                 OUT &H3C9, palG(i) * fadeV \ 63
                 OUT &H3C9, palB(i) * fadeV \ 63
             NEXT i
-            fadeV = fadeV + 1
         END IF
 
-    LOOP WHILE INKEY$ = ""
+        ' Bit-fields are independent, so erase/draw can interleave per bob
+        FOR b = 0 TO 3
+            PUT (ox(b), oy(b)), spr(b * 580 + 290), AND    ' clear own bits
+            bAngX(b) = (bAngX(b) + bSpdX(b)) AND 255
+            bAngY(b) = (bAngY(b) + bSpdY(b)) AND 255
+            tx = 136 + (sinT(bAngX(b)) * bAmpX(b)) \ 127
+            ty = 76 + (sinT(bAngY(b)) * bAmpY(b)) \ 127
+            PUT (tx, ty), spr(b * 580), OR                 ' add own bits
+            ox(b) = tx: oy(b) = ty
+        NEXT b
+
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     FOR v = 63 TO 0 STEP -1
         WAIT &H3DA, 8, 8
@@ -800,7 +841,8 @@ SUB Scene6
                 OUT &H3C9, gradR(s): OUT &H3C9, gradG(s): OUT &H3C9, gradB(s)
             NEXT i
         END IF
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out (bars hold still) then leave
     FOR v = 63 TO 0 STEP -1
@@ -978,7 +1020,8 @@ SUB Scene7
             OUT &H3C9, palR(i): OUT &H3C9, palG(i): OUT &H3C9, palB(i)
         NEXT i
         shift = shift + 3: IF shift >= 240 THEN shift = 0
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out, still flying
     FOR v = 63 TO 0 STEP -1
@@ -1015,7 +1058,7 @@ END SUB
 ' ======================================================
 SUB Scene8
     DEFINT A-Z
-    DIM t$(33)                 ' credit lines
+    DIM t$(36)                 ' credit lines
     DIM gb(127)                ' glyph bytes for the incoming line (16 chars x 8 rows)
     DIM mask(7)
     DIM rowA AS LONG           ' framebuffer offset of the window's bottom scanline
@@ -1051,12 +1094,15 @@ SUB Scene8
     t$(n) = "TITLE CARD": n = n + 1
     t$(n) = "WIREFRAME CUBE": n = n + 1
     t$(n) = "PLASMA": n = n + 1
+    t$(n) = "SHADEBOBS": n = n + 1
     t$(n) = "DOT SPHERE": n = n + 1
     t$(n) = "COPPER BARS": n = n + 1
     t$(n) = "TUNNEL": n = n + 1
+    t$(n) = "ROTOZOOMER": n = n + 1
     t$(n) = "VECTOR MORPH": n = n + 1
     t$(n) = "STARSHIP": n = n + 1
     t$(n) = "TRENCH RUN": n = n + 1
+    t$(n) = "PLATFORMER": n = n + 1
     t$(n) = "WAVY SCROLLER": n = n + 1
     t$(n) = "": n = n + 1
     t$(n) = "* GREETZ *": n = n + 1
@@ -1352,7 +1398,8 @@ SUB Scene9
         angY = (angY + 2) AND 255
         angX = (angX + 1) AND 255
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out
     FOR v = 63 TO 0 STEP -1
@@ -1521,7 +1568,8 @@ SUB Scene10
             opx(i) = dpx(i): opy(i) = dpy(i)
         NEXT i
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     DEF SEG
 
@@ -1635,7 +1683,8 @@ SUB Scene11
             POKE oadr(i), c
         NEXT i
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     DEF SEG
 
@@ -1791,7 +1840,8 @@ SUB Scene12
         LINE (31, 55)-(31, 144), 9
         LINE (288, 55)-(288, 144), 9
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out
     FOR v = 63 TO 0 STEP -1
@@ -2015,7 +2065,8 @@ SUB Scene13
             END IF
         END IF
 
-    LOOP WHILE INKEY$ = ""
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
 
     ' Fade out
     FOR v = 63 TO 0 STEP -1
@@ -2029,6 +2080,346 @@ SUB Scene13
         OUT &H3C8, 4: OUT &H3C9, 40 * v \ 63: OUT &H3C9, 52 * v \ 63: OUT &H3C9, v
         OUT &H3C8, 6: OUT &H3C9, v: OUT &H3C9, 30 * v \ 63: OUT &H3C9, 0
         OUT &H3C8, 7: OUT &H3C9, v: OUT &H3C9, 8 * v \ 63: OUT &H3C9, 8 * v \ 63
+    NEXT v
+
+    SCREEN 0
+END SUB
+
+' ======================================================
+' SCENE 14 -- Rotozoomer
+' A 64x64 checkerboard bitmap continuously rotates and
+' zooms (breathes in/out).  True inverse-mapped texture
+' sampling at a coarse 16x20 block grid (200 samples).
+' Optimized for the P66 budget two ways:
+'  1. Incremental stepping -- the map is affine, so the 4
+'     source deltas are computed once per frame and each
+'     block is just two adds + AND 8191 wrap (fixed point,
+'     texture = 8192 units); \128 becomes a LUT read.
+'     No multiplies, divides, or LONGs in the hot loop.
+'  2. Dirty blocks -- prev() caches each block's colour;
+'     LINE BF runs only when it changed (checkerboard is
+'     mostly flat, so most blocks skip most frames).
+' ======================================================
+SUB Scene14
+    DEFINT A-Z
+    DIM sinT(255)              ' signed sine LUT * 127
+    DIM texA(4095)             ' 64x64 checkerboard texture, palette indices
+    DIM prev(199)              ' last drawn colour per block (0 = never drawn)
+    DIM rxL AS LONG, ryL AS LONG
+    lutN = 8191                ' fixed point: 64 texels x 128 subunits = 8192
+    DIM txL(lutN)              ' u -> texel column (replaces \128 divide)
+    DIM tyOff(lutN)            ' v -> texel row offset (replaces \128 + *64)
+
+    SCREEN 13
+
+    FOR i = 0 TO 255
+        sinT(i) = INT(SIN(i * 6.28318 / 256) * 127)
+    NEXT i
+
+    ' Fixed-point -> texel lookup tables: one array read instead of an
+    ' integer divide (and a multiply) per block in the hot loop
+    FOR i = 0 TO 8191
+        txL(i) = i \ 128
+        tyOff(i) = txL(i) * 64
+    NEXT i
+
+    ' 4-colour checkerboard in 8x8 texel cells, tiled 8x8 times to fill 64x64
+    FOR ty = 0 TO 63
+        FOR tx = 0 TO 63
+            texA(ty * 64 + tx) = (((tx \ 8) + (ty \ 8)) AND 3) + 1
+        NEXT tx
+    NEXT ty
+
+    ' Palette: 4 checker colours, black until fade-in
+    OUT &H3C8, 1: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 2: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 3: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    OUT &H3C8, 4: OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+
+    ang = 0: zoomPh = 64
+    fadeV = 0
+
+    DO
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
+            OUT &H3C8, 1: OUT &H3C9, 63 * fadeV \ 63: OUT &H3C9, 0: OUT &H3C9, 0
+            OUT &H3C8, 2: OUT &H3C9, 63 * fadeV \ 63: OUT &H3C9, 30 * fadeV \ 63: OUT &H3C9, 0
+            OUT &H3C8, 3: OUT &H3C9, 0: OUT &H3C9, 50 * fadeV \ 63: OUT &H3C9, 50 * fadeV \ 63
+            OUT &H3C8, 4: OUT &H3C9, 35 * fadeV \ 63: OUT &H3C9, 0: OUT &H3C9, 63 * fadeV \ 63
+        END IF
+
+        ang = (ang + 2) AND 255
+        zoomPh = (zoomPh + 1) AND 255
+        zoomVal = 128 + (sinT(zoomPh) * 64) \ 127     ' breathing zoom: ~64..192
+
+        cosA = sinT((ang + 64) AND 255)
+        sinA = sinT(ang)
+        cosA2 = (cosA * zoomVal) \ 128
+        sinA2 = (sinA * zoomVal) \ 128
+
+        ' The map is affine, so all multiplies happen ONCE per frame here:
+        ' stepping a block right/down always adds the same source deltas.
+        ' Coordinates live in wrap-free fixed point (texture = 8192 units),
+        ' so AND 8191 replaces bounds handling, negatives included.
+        dux = 16 * cosA2: duy = 16 * sinA2            ' block-right step
+        dvx = -20 * sinA2: dvy = 20 * cosA2           ' block-down step
+
+        ' Source coords of the top-left block's centre (dx=-152, dy=-90)
+        rxL = CLng(-152) * cosA2 - CLng(-90) * sinA2
+        ryL = CLng(-152) * sinA2 + CLng(-90) * cosA2
+        rowU = (rxL + 4096) AND 8191
+        rowV = (ryL + 4096) AND 8191
+
+        blk = 0
+        py = 0
+        FOR by = 0 TO 9
+            u = rowU: v = rowV
+            px = 0
+            FOR bx = 0 TO 19
+                col = texA(tyOff(v) + txL(u))
+                ' Dirty-block check: the checkerboard is mostly flat, so
+                ' most blocks keep their colour -- skip the LINE BF fill
+                IF col <> prev(blk) THEN
+                    prev(blk) = col
+                    LINE (px, py)-(px + 15, py + 19), col, BF
+                END IF
+                u = (u + dux) AND 8191
+                v = (v + duy) AND 8191
+                px = px + 16
+                blk = blk + 1
+            NEXT bx
+            rowU = (rowU + dvx) AND 8191
+            rowV = (rowV + dvy) AND 8191
+            py = py + 20
+        NEXT by
+
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
+
+    ' Fade out
+    FOR v = 63 TO 0 STEP -1
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+        OUT &H3C8, 1: OUT &H3C9, v: OUT &H3C9, 0: OUT &H3C9, 0
+        OUT &H3C8, 2: OUT &H3C9, v: OUT &H3C9, 30 * v \ 63: OUT &H3C9, 0
+        OUT &H3C8, 3: OUT &H3C9, 0: OUT &H3C9, 50 * v \ 63: OUT &H3C9, 50 * v \ 63
+        OUT &H3C8, 4: OUT &H3C9, 35 * v \ 63: OUT &H3C9, 0: OUT &H3C9, 63 * v \ 63
+    NEXT v
+
+    SCREEN 0
+END SUB
+
+' ======================================================
+' SCENE 15 -- Platformer vignette (mario homage)
+' A 16x16 pixel-art runner (red cap, overalls) does a
+' scripted lap: runs right, jumps onto two floating
+' platforms, then a big leap over a patrolling mushroom
+' man before wrapping around.  Sprite art lives in module
+' DATA strings, rendered once at init into GET sprites
+' with AND-masks for true transparency over the sky
+' (same masking trick as the shadebobs).  Gravity in
+' quarter-pixel fixed point.  Per frame: 2 LINE BF
+' erases + 4 masked PUTs + a handful of physics ops.
+' ======================================================
+SUB Scene15
+    DEFINT A-Z
+    DIM rw$(15)                    ' one sprite's 16 rows while parsing
+    DIM pR(11), pG(11), pB(11)     ' palette targets for fade
+    sprN = 1040                    ' 4 sprites x (draw 130 + mask 130) ints
+    DIM spr(sprN)                  ' variable bound -> dynamic array
+
+    SCREEN 13
+
+    ' Black out the palette so sprite prep + world draw stay invisible
+    OUT &H3C8, 0
+    FOR i = 0 TO 255
+        OUT &H3C9, 0: OUT &H3C9, 0: OUT &H3C9, 0
+    NEXT i
+
+    ' Palette targets: 1 sky, 2 brick, 3 dark lines, 4 highlight, 5 white,
+    ' 6 red, 7 skin, 8 brown, 9 overalls, 10 goomba body, 11 goomba feet
+    pR(1) = 23: pG(1) = 37: pB(1) = 63
+    pR(2) = 50: pG(2) = 19: pB(2) = 3
+    pR(3) = 12: pG(3) = 5: pB(3) = 0
+    pR(4) = 63: pG(4) = 42: pB(4) = 20
+    pR(5) = 63: pG(5) = 63: pB(5) = 63
+    pR(6) = 58: pG(6) = 0: pB(6) = 0
+    pR(7) = 63: pG(7) = 40: pB(7) = 26
+    pR(8) = 26: pG(8) = 11: pB(8) = 0
+    pR(9) = 8: pG(9) = 16: pB(9) = 55
+    pR(10) = 42: pG(10) = 22: pB(10) = 8
+    pR(11) = 15: pG(11) = 6: pB(11) = 0
+
+    ' Build the 4 sprites (+matching AND-masks) from module DATA via
+    ' screen-corner GETs: frames 0/1 = run, 2 = jump, 3 = mushroom man
+    RESTORE SpriteData
+    FOR f = 0 TO 3
+        FOR ry = 0 TO 15
+            READ rw$(ry)
+        NEXT ry
+        ' draw sprite: opaque pixels on a black (0) box
+        LINE (0, 0)-(15, 15), 0, BF
+        FOR ry = 0 TO 15
+            FOR rx = 1 TO 16
+                c = -1
+                SELECT CASE MID$(rw$(ry), rx, 1)
+                    CASE "R": c = 6
+                    CASE "S": c = 7
+                    CASE "B": c = 8
+                    CASE "O": c = 9
+                    CASE "G": c = 10
+                    CASE "D": c = 11
+                    CASE "W": c = 5
+                END SELECT
+                IF c >= 0 THEN PSET (rx - 1, ry), c
+            NEXT rx
+        NEXT ry
+        GET (0, 0)-(15, 15), spr(f * 260)
+        ' mask: 255 where transparent (keeps background), 0 where opaque
+        LINE (0, 0)-(15, 15), 255, BF
+        FOR ry = 0 TO 15
+            FOR rx = 1 TO 16
+                IF MID$(rw$(ry), rx, 1) <> "." THEN PSET (rx - 1, ry), 0
+            NEXT rx
+        NEXT ry
+        GET (0, 0)-(15, 15), spr(f * 260 + 130)
+    NEXT f
+
+    ' -- Draw the world (still invisible; also wipes the sprite corner) --
+    LINE (0, 0)-(319, 199), 1, BF                 ' sky
+
+    ' Two puffy clouds
+    FOR k = 0 TO 1
+        IF k = 0 THEN cx = 44: cy = 28 ELSE cx = 180: cy = 44
+        LINE (cx + 6, cy)-(cx + 21, cy + 3), 5, BF
+        LINE (cx + 2, cy + 4)-(cx + 27, cy + 9), 5, BF
+        LINE (cx, cy + 6)-(cx + 29, cy + 11), 5, BF
+    NEXT k
+
+    ' Ground: brick fill with staggered joint lines (rows 176-199)
+    LINE (0, 176)-(319, 199), 2, BF
+    LINE (0, 176)-(319, 176), 4                   ' lit top edge
+    FOR y = 183 TO 199 STEP 8
+        LINE (0, y)-(319, y), 3
+    NEXT y
+    FOR x = 0 TO 319 STEP 16
+        LINE (x, 177)-(x, 182), 3
+        LINE (x, 192)-(x, 198), 3
+        IF x + 8 <= 319 THEN LINE (x + 8, 184)-(x + 8, 191), 3
+    NEXT x
+
+    ' Floating platforms: A at y=146 (x 76-155), B at y=120 (x 160-239);
+    ' 16x12 blocks with lit top and shaded right/bottom edges
+    FOR k = 0 TO 8
+        IF k < 5 THEN
+            bx = 76 + k * 16: by = 146            ' platform A: 5 blocks
+        ELSE
+            bx = 160 + (k - 5) * 16: by = 120     ' platform B: 4 blocks
+        END IF
+        LINE (bx, by)-(bx + 15, by + 11), 2, BF
+        LINE (bx, by)-(bx + 15, by), 4
+        LINE (bx + 15, by)-(bx + 15, by + 11), 3
+        LINE (bx, by + 11)-(bx + 15, by + 11), 3
+    NEXT k
+
+    CALL DrawText("MEGA WORLD 1-1", 104, 6, 1, 5)
+
+    ' -- Actors --
+    x = 0: feetQ = 176 * 4                        ' runner: quarter-px feet y
+    grounded = 1: vyQ = 0
+    runF = 0: animT = 0
+    omx = 0: omy = 160
+    gx = 236: gdir = 1: ogx = 236                 ' mushroom man patrol
+    fadeV = 0
+
+    DO
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+
+        IF fadeV < 63 THEN
+            fadeV = fadeV + 1
+            OUT &H3C8, 1
+            FOR i = 1 TO 11
+                OUT &H3C9, pR(i) * fadeV \ 63
+                OUT &H3C9, pG(i) * fadeV \ 63
+                OUT &H3C9, pB(i) * fadeV \ 63
+            NEXT i
+        END IF
+
+        ' -- Erase both actors (their boxes only ever cover sky) --
+        LINE (omx, omy)-(omx + 15, omy + 15), 1, BF
+        LINE (ogx, 160)-(ogx + 15, 175), 1, BF
+
+        ' -- Mushroom man patrols the ground on the right --
+        gx = gx + gdir
+        IF gx >= 272 THEN gdir = -1
+        IF gx <= 236 THEN gdir = 1
+
+        ' -- Runner: constant speed right, wrap at the edge --
+        x = x + 2
+        IF x > 302 THEN x = 0
+        cx = x + 8
+
+        ' Surface height under the runner's centre
+        s = 176
+        IF cx >= 84 AND cx <= 148 THEN s = 146
+        IF cx >= 168 AND cx <= 232 THEN s = 120
+
+        IF grounded THEN
+            IF s > feetQ \ 4 THEN
+                grounded = 0: vyQ = 0             ' ran off an edge
+            ELSE
+                ' scripted jump windows: onto A, onto B, big leap over
+                ' the mushroom man to the wrap point
+                fy = feetQ \ 4
+                IF fy = 176 AND cx >= 60 AND cx <= 72 THEN grounded = 0: vyQ = -18
+                IF fy = 146 AND cx >= 140 AND cx <= 152 THEN grounded = 0: vyQ = -18
+                IF fy = 120 AND cx >= 204 AND cx <= 216 THEN grounded = 0: vyQ = -22
+            END IF
+        END IF
+
+        IF grounded = 0 THEN
+            vyQ = vyQ + 1                         ' gravity, quarter px
+            feetQ = feetQ + vyQ
+            IF vyQ > 0 AND feetQ >= s * 4 THEN
+                feetQ = s * 4: grounded = 1       ' touchdown
+            END IF
+        END IF
+
+        ' Animation: alternate run frames on the ground, jump pose in air
+        IF grounded = 0 THEN
+            f = 2
+        ELSE
+            animT = animT + 1
+            IF animT >= 6 THEN animT = 0: runF = 1 - runF
+            f = runF
+        END IF
+        my = feetQ \ 4 - 16
+
+        ' -- Draw: AND-mask carves the hole, OR stamps the colours --
+        PUT (gx, 160), spr(3 * 260 + 130), AND
+        PUT (gx, 160), spr(3 * 260), OR
+        PUT (x, my), spr(f * 260 + 130), AND
+        PUT (x, my), spr(f * 260), OR
+
+        omx = x: omy = my: ogx = gx
+
+        ft = ft + 1
+    LOOP WHILE INKEY$ = "" AND ft < 600
+
+    ' Fade out
+    FOR v = 63 TO 0 STEP -1
+        WAIT &H3DA, 8, 8
+        WAIT &H3DA, 8
+        OUT &H3C8, 1
+        FOR i = 1 TO 11
+            OUT &H3C9, pR(i) * v \ 63
+            OUT &H3C9, pG(i) * v \ 63
+            OUT &H3C9, pB(i) * v \ 63
+        NEXT i
     NEXT v
 
     SCREEN 0

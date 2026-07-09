@@ -1457,7 +1457,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **35/35**, with 137 runtime unit tests and 10 graphics golden tests.
+The integration suite is **36/36**, with 137 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;

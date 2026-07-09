@@ -80,7 +80,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
-- **35/35** integration (`tests/run-tests.sh`, stdout-based)
+- **36/36** integration (`tests/run-tests.sh`, stdout-based)
 - **137** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -1462,25 +1462,85 @@ Scene15` harness both transpile and compile clean; headless captures confirm
 shadebobs animate (glowing, moving) and the platformer scene renders its
 title/platforms/character with no crashes. build-all 53/53.
 
+### Fixed: local sigil-less `DIM x AS STRING` scalar assignment gap
+
+Closed the previously-latent TODO item: a purely-local, sigil-less
+`DIM k AS STRING` scalar (no `$`, never promoted to shared state) declared
+correctly (`let mut k: String`) but its assignment emitted the bare
+`k = "…";` instead of `k = ("…").to_string();` — a rustc E0308.
+`is_str_expr_ctx()` — the single oracle every string-typing decision funnels
+through — knew about `str_params`/`shared_types`/local string ARRAYS
+(`local_string_arrays`) but had no equivalent for local string SCALARS.
+
+- New `local_string_scalars: HashSet<String>` field + `collect_local_string_scalars()`
+  (`emitter/scan.rs`, mirrors `collect_local_string_arrays` exactly — same
+  recursive walk, differing only in `d.dims.is_empty()` vs `!d.dims.is_empty()`),
+  consulted in `is_str_expr_ctx` right after the `str_params` check. Reset at
+  all three scope boundaries: `emit_subs`, `emit_functions`, and — previously
+  missing entirely — `emit_main`. `Stmt::Let`'s assignment dispatch already
+  fell through to `is_str_expr_ctx` as its last non-numeric arm, so fixing
+  the oracle alone fixed emission; no direct dispatch-arm edit was needed.
+- **A regression was caught and reverted during verification, not shipped**:
+  `emit_main` was *also* going to reset `local_dim_names`/`local_string_arrays`
+  (same "was never reset for main" gap, same fix shape) — this broke
+  `farkle.bas` and `torus.bas` (both E0425, "cannot find value"). Root cause:
+  `is_str_expr_ctx`'s `shared_types` lookup is guarded by
+  `!self.local_dim_names.contains(&lc)`, meant to let a genuine local shadow
+  an unrelated `DIM SHARED` of the same base name — but a cross-GOSUB-
+  *promoted* scalar (farkle's `k`, torus's `Available$`) still has its
+  original pre-promotion `DIM` statement sitting in the body text, so
+  correctly resetting `local_dim_names` for main made that guard fire for the
+  *promoted* variable too, skipping the `shared_types` lookup that identifies
+  it as the shared/GameState field it actually is. `local_string_scalars` has
+  no such guard anywhere (it's purely additive — only ever a positive "treat
+  as string" signal), so it doesn't share this hazard; only its own reset
+  landed. The `local_dim_names`/`local_string_arrays` main-body non-reset
+  remains a real, separate, still-latent gap — see Known Issues / TODO.
+- New regression test `tests/programs/local_string_scalar.bas`: a numeric
+  local `n` in main reusing a bare name that's STRING-typed inside an
+  earlier-processed SUB (proves the per-scope reset doesn't leak), plus a
+  main-body string scalar exercising the assignment fix and T6's
+  `is_empty()` path together. `tests/programs/is_empty.bas`'s `DIM SHARED`
+  workaround was removed now that plain `DIM k AS STRING` works.
+
+Verified: 137 unit, 36/36 integration byte-identical (incl. the new test),
+53/53 build-all (incl. the farkle/torus regression catch-and-revert), 10/10
+graphics goldens (torus's checksum confirms the revert restored correct
+*behavior*, not just compilation; gorilla needed its documented idle-system
+retry).
+
 ## Known Issues / TODO
 
+- **`local_dim_names`/`local_string_arrays` are never reset in `emit_main`**
+  (discovered — and deliberately left unfixed — while landing the local
+  string-scalar fix above). `emit_subs`/`emit_functions` correctly reset both
+  per-scope; `emit_main` resets neither, so they silently hold whatever the
+  last-processed SUB/FUNCTION left them as while the main body emits.
+  Currently latent (build-all 53/53) because nothing has yet collided on the
+  leftover state, but a naive "just add the reset" fix is NOT safe as-is:
+  tried it, and it broke `farkle.bas`/`torus.bas` (E0425) because
+  `is_str_expr_ctx`'s `shared_types` lookup is guarded by
+  `!self.local_dim_names.contains(&lc)` — a cross-GOSUB-*promoted* scalar
+  still has its original pre-promotion `DIM` statement in the body text, so a
+  correct per-scope reset makes that guard wrongly fire for the *promoted*
+  variable, skipping the lookup that identifies it as a shared/GameState
+  field. A real fix needs promoted names excluded from
+  `collect_local_dim_names`/`collect_local_string_arrays`'s result for main
+  (or the guard reworked to distinguish "a different local shadows this" from
+  "this local name IS the promoted variable").
+- **`emit_gosub_fn` has the identical unset-scope-bookkeeping gap** (same
+  class as the item above, different call site): it never touches
+  `local_dim_names`/`local_string_arrays`/`local_string_scalars` at all, for
+  GOSUB-target functions extracted out of a SUB or the main body. Not
+  reproduced/exercised — noted for whoever eventually tackles the
+  `emit_main` case, since the right fix likely covers both at once (GOSUB
+  targets share the caller's QB scope, so arguably they should *inherit* the
+  caller's sets rather than get their own fresh collection).
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
   the changelog section above). Audit non-findings, recorded so nobody
   re-chases them: `.clone()` uses are all required byref-writeback temps;
   remaining `((` nestings are precedence-required (f64 non-associativity);
   zero `qb_bool(qb_from_bool(…))` round-trips.
-- **Latent gap: assignment to a purely-LOCAL sigil-less string scalar.**
-  Found while writing `is_empty.bas`: `DIM k AS STRING` (no `$`, main-module
-  local, never promoted to GameState) declares `let mut k: String`, but
-  `k = "…"` emits `k = "…";` with no `.to_string()` → rustc E0308. The
-  `Stmt::Let` string-arm dispatch relies on `is_str_expr_ctx`, which knows
-  str_params / shared_types / local string ARRAYS but not local string
-  SCALARS (there is no `local_string_scalars` set). farkle.bas never hit it
-  because its `k` is cross-GOSUB-promoted into `shared_types`. Pre-existing —
-  no bundled program triggers it (build-all 53/53). Fix sketch: track sigil-
-  less `DIM … AS STRING` scalars per scope (mirroring `local_string_arrays`)
-  and consult the set in `is_str_expr_ctx`; then drop the `DIM SHARED`
-  workaround comment in `tests/programs/is_empty.bas`.
 - **`gorilla`/`donkey` golden tests are load-sensitive (intermittent flakes,
   pre-existing).** Bisected during the M21 session by stashing all M21 changes
   and re-testing the clean, already-pushed baseline commit: both flakes

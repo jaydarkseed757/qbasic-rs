@@ -1,7 +1,5 @@
 ' Test: T6 emptiness comparisons (s$ = "" / s$ <> "" -> is_empty())
-' (DIM SHARED, not plain DIM: a purely-local sigil-less string scalar hits a
-'  pre-existing assignment-typing gap unrelated to T6 — see CLAUDE.md TODO.)
-DIM SHARED k AS STRING
+DIM k AS STRING
 
 ' Value path (qb_from_bool): empty and non-empty, both ops
 s$ = ""

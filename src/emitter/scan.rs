@@ -520,6 +520,43 @@ pub(super) fn collect_local_string_arrays(stmts: &[Stmt]) -> HashSet<String> {
     names
 }
 
+/// Collect bare-lowercase names of non-shared local DIM'd string SCALARS
+/// (`DIM name AS STRING`, no `$` sigil, no array dims). Twin of
+/// collect_local_string_arrays above — same recursive-walk shape, differing
+/// only in `d.dims.is_empty()` (scalar) vs `!d.dims.is_empty()` (array).
+/// Used by is_str_expr_ctx so an assignment to one of these scalars gets the
+/// `.to_string()` treatment: the parser records a sigil-less string DIM's
+/// type as Single at use sites, so without this the emitter has no other way
+/// to recover "this local is actually a String".
+pub(super) fn collect_local_string_scalars(stmts: &[Stmt]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Dim(d) if d.dims.is_empty() && !d.shared && d.ty == QbType::String => {
+                    names.insert(d.name.to_lowercase());
+                }
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, names);
+                    for (_, b) in elseif_branches { visit(b, names); }
+                    if let Some(b) = else_body { visit(b, names); }
+                }
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } => {
+                    visit(body, names);
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, names); }
+                    if let Some(b) = default { visit(b, names); }
+                }
+                Stmt::Block(inner) => visit(inner, names),
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut names);
+    names
+}
+
 
 // ── TYPE variable name collector ─────────────────────────────────────────────
 

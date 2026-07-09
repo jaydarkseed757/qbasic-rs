@@ -142,6 +142,13 @@ pub struct Emitter {
     /// Used by emit_lvalue to emit the correct `_s`-suffixed name for string array accesses
     /// that were parsed without the `$` sigil.
     local_string_arrays: HashSet<String>,
+    /// Bare-lowercase names of local (non-shared) sigil-less scalar string
+    /// declarations (`DIM name AS STRING`), scoped to the current SUB/FUNCTION
+    /// or the main body. Consulted by is_str_expr_ctx so an assignment to one
+    /// of these gets the `.to_string()` treatment — without this, the parser's
+    /// generic Single type on a sigil-less `LValue::Scalar` read/write site
+    /// left the emitter with no way to recover "this is actually a String".
+    local_string_scalars: HashSet<String>,
     /// Bare-lowercase names of scalars that have an explicit local `DIM name`
     /// inside the current SUB/FUNCTION body.  Cleared on entry to each sub/fn.
     /// Used by emit_lvalue to detect the case where a local integer `B` and a
@@ -202,6 +209,7 @@ impl Emitter {
             on_error_label: String::new(),
             gamestate_emitted: true,
             local_string_arrays: HashSet::new(),
+            local_string_scalars: HashSet::new(),
             local_dim_names: HashSet::new(),
             locals_declared: HashSet::new(),
             on_key_gosubs: Vec::new(),
@@ -262,6 +270,13 @@ impl Emitter {
             // String param declared with `AS STRING` (no sigil): name_s is in str_params.
             let rn_s = rust_ident_typed(name, &QbType::String);
             if self.str_params.contains(&rn_s) { return true; }
+            // Purely-local sigil-less `DIM name AS STRING` scalar: the parser
+            // has no way to record this as String at use sites (it defaults to
+            // Single), so this explicit local-declaration lookup is the only
+            // way the emitter can recover the true type. Checked before the
+            // shared_types fallback below since an explicit local declaration
+            // is a more direct signal than a promoted-shared lookup.
+            if self.local_string_scalars.contains(&lc) { return true; }
             // Shared scalar variable parsed with wrong type (e.g. `Available AS STRING` parsed
             // as Integer under DEFINT A-Z) — look up authoritative type from shared_types.
             // Exception: if the current scope has an explicit local DIM for this name with
@@ -795,6 +810,7 @@ impl Emitter {
             // e.g. local integer `B` from DIM SHARED string `B$` (same base name).
             self.local_dim_names = collect_local_dim_names(&sub.body);
             self.local_string_arrays = collect_local_string_arrays(&sub.body);
+            self.local_string_scalars = collect_local_string_scalars(&sub.body);
 
             let mut exclude = globals.clone();
             for p in &sub.params {
@@ -919,6 +935,7 @@ impl Emitter {
             // Track explicit local DIM declarations (same reason as emit_subs).
             self.local_dim_names = collect_local_dim_names(&inline_body);
             self.local_string_arrays = collect_local_string_arrays(&inline_body);
+            self.local_string_scalars = collect_local_string_scalars(&inline_body);
 
             let mut exclude = globals.clone();
             for p in &f.params {
@@ -1072,6 +1089,32 @@ impl Emitter {
         }
 
         self.local_arrays = collect_local_array_names(body);
+        // Reset local_string_scalars for the main body — previously unset
+        // here, so it silently held whatever the last-processed SUB or
+        // FUNCTION left it as. Unlike local_dim_names/local_string_arrays
+        // (deliberately NOT reset here — see below), local_string_scalars
+        // has no other reader that treats membership as "this name is
+        // shadowed/excluded"; it's only ever a positive "treat as string"
+        // signal, so resetting it can only fix false negatives, never
+        // introduce a false positive by name-collision.
+        self.local_string_scalars = collect_local_string_scalars(body);
+        //
+        // local_dim_names/local_string_arrays are DELIBERATELY left unreset
+        // here (a real, separate pre-existing gap — noted but not fixed by
+        // this change): is_str_expr_ctx's shared_types lookup is guarded by
+        // `!self.local_dim_names.contains(&lc)`, intended to let a genuine
+        // local shadow an unrelated DIM SHARED of the same base name. But a
+        // cross-GOSUB-*promoted* scalar (farkle.bas's `k`, torus.bas's
+        // `Available$`) still has its ORIGINAL (pre-promotion) `DIM name AS
+        // STRING` statement sitting in the body text, so a correct reset
+        // here makes that guard fire for the *promoted* variable too,
+        // incorrectly skipping the shared_types lookup that identifies it as
+        // the shared/GameState field it actually is — the emitted code then
+        // references a bare, never-hoisted `name` instead of `__gs.name`
+        // (E0425). Confirmed by reproducing against farkle.bas and
+        // torus.bas. Fixing this properly needs promoted names excluded from
+        // collect_local_dim_names/collect_local_string_arrays's result (or
+        // the guard reworked to distinguish "shadows" from "is this").
 
         let mut exclude = globals.clone();
         exclude.extend(self.shared_names.clone());

@@ -1,0 +1,7 @@
+sub-local
+sub done
+ 42 
+hello world
+not empty
+now empty
+done

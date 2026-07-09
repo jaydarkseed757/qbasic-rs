@@ -1,26 +1,35 @@
-' ETTO.BAS
+' ETTO.BAS -- optimized
 ' VGA photo in SCREEN 13 (320x200, 256 colors)
 ' Image: 97x190 centered at (111,5)
 
-REM QBC PACE 8
-
+DEFINT A-Z
 SCREEN 13
 CLS
 
-' Set custom palette (256 colors)
-FOR I% = 0 TO 255
-    READ R%, G%, B%
-    PALETTE I%, (R% \ 4) + 256 * (G% \ 4) + 65536 * (B% \ 4)
-NEXT I%
+' Nibble lookup table: ASCII -> hex value
+DIM NIB(90)
+FOR I = 48 TO 57: NIB(I) = I - 48: NEXT    ' '0'-'9'
+FOR I = 65 TO 70: NIB(I) = I - 55: NEXT    ' 'A'-'F'
 
-' Draw 97x190 image at (111,5)
-FOR Row% = 0 TO 189
+' Palette: write DAC directly, 768 sequential values
+OUT &H3C8, 0
+FOR I = 1 TO 768
+    READ V
+    OUT &H3C9, V \ 4
+NEXT I
+
+' Decode + blit straight into video memory
+DEF SEG = &HA000
+FOR Row = 0 TO 189
     READ HexRow$
-    FOR Col% = 0 TO 96
-        C% = VAL("&H" + MID$(HexRow$, Col% * 2 + 1, 2))
-        PSET (111 + Col%, 5 + Row%), C%
-    NEXT Col%
-NEXT Row%
+    Ofs& = (5 + Row) * 320& + 111
+    P = 1
+    FOR Col = 0 TO 96
+        POKE Ofs& + Col, NIB(ASC(MID$(HexRow$, P, 1))) * 16 + NIB(ASC(MID$(HexRow$, P + 1, 1)))
+        P = P + 2
+    NEXT Col
+NEXT Row
+DEF SEG
 
 WHILE INKEY$ = "": WEND
 SCREEN 0

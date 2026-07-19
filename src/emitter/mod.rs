@@ -626,7 +626,7 @@ impl Emitter {
         self.emit_main(&main_stmts, &globals)?;
         // simplify_parens runs FIRST (on raw output) so it never fights the
         // (*x) handling that strip_deref_parens owns at the end of the chain.
-        Ok(strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&simplify_parens(&self.out)))))
+        Ok(strip_dead_gamestate_fields(&strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&simplify_parens(&self.out))))))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {

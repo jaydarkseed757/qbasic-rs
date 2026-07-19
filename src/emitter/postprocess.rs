@@ -381,3 +381,111 @@ fn matching_paren(b: &[u8], open: usize) -> Option<usize> {
     }
     None
 }
+
+// ── Post-processing: strip dead GameState fields ─────────────────────────────
+//
+// GameState collects DIM SHARED variables plus every cross-GOSUB-boundary
+// promotion. Promotion heuristics (and plain refactoring leftovers in the
+// BASIC source) can leave fields that no emitted statement ever touches.
+// This pass removes any `struct GameState` field whose `__gs.<name>` never
+// appears anywhere in the emitted program — a zero-reference field is
+// provably dead (reads AND writes both go through `__gs.`, and the struct
+// derives Default so no other code names its fields).
+//
+// Deliberately NOT removed: write-only fields (e.g. a shared array whose only
+// reference is its `__gs.arr = vec![…]` initialization) — they have one
+// textual reference, and eliminating them would require deleting statements.
+// Idempotent; independent of the other passes.
+
+/// True if `__gs.<field>` occurs in `hay` followed by a non-identifier char
+/// (so field `x` doesn't match `__gs.x2`).
+fn has_gs_ref(hay: &str, field: &str) -> bool {
+    let pat = format!("__gs.{field}");
+    let hb = hay.as_bytes();
+    let mut from = 0;
+    while let Some(p) = hay[from..].find(&pat) {
+        let after = from + p + pat.len();
+        let ok = hb.get(after)
+            .map_or(true, |b| !b.is_ascii_alphanumeric() && *b != b'_');
+        if ok { return true; }
+        from = after;
+    }
+    false
+}
+
+pub(super) fn strip_dead_gamestate_fields(src: &str) -> String {
+    let lines: Vec<&str> = src.lines().collect();
+    let Some(open) = lines.iter().position(|l| l.trim() == "struct GameState {") else {
+        return src.to_string();
+    };
+    let Some(close_rel) = lines[open..].iter().position(|l| *l == "}") else {
+        return src.to_string();
+    };
+    let close = open + close_rel;
+
+    let mut out = String::with_capacity(src.len());
+    for (i, line) in lines.iter().enumerate() {
+        if i > open && i < close {
+            let t = line.trim();
+            // A field line is `name: Type,` with a plain identifier name.
+            if let Some((name, _)) = t.split_once(':') {
+                let name = name.trim();
+                if !name.is_empty()
+                    && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                    && !has_gs_ref(src, name)
+                {
+                    continue; // dead field — drop the line
+                }
+            }
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+#[cfg(test)]
+mod dead_gamestate_tests {
+    use super::*;
+
+    #[test]
+    fn drops_unreferenced_fields_keeps_used_ones() {
+        let src = "\
+#[derive(Default)]
+struct GameState {
+    alive: f64,
+    dead: f64,
+    dead2: Vec<String>,
+}
+
+fn main() {
+    __gs.alive = 1.0;
+}
+";
+        let out = strip_dead_gamestate_fields(src);
+        assert!(out.contains("alive: f64"));
+        assert!(!out.contains("dead: f64"));
+        assert!(!out.contains("dead2"));
+    }
+
+    #[test]
+    fn prefix_field_names_do_not_alias() {
+        // `x` referenced only as `__gs.x2` must still be dropped.
+        let src = "\
+struct GameState {
+    x: f64,
+    x2: f64,
+}
+fn f() { __gs.x2 += 1.0; }
+";
+        let out = strip_dead_gamestate_fields(src);
+        assert!(!out.contains("    x: f64"));
+        assert!(out.contains("x2: f64"));
+    }
+
+    #[test]
+    fn no_gamestate_struct_is_a_no_op() {
+        let src = "fn main() { let a = 1; }\n";
+        assert_eq!(strip_dead_gamestate_fields(src), src);
+    }
+}

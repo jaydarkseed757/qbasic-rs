@@ -83,7 +83,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
 - **44/44** integration (`tests/run-tests.sh`, stdout-based)
-- **142** runtime unit tests (`cargo test --workspace`)
+- **145** runtime+transpiler unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -1353,6 +1353,29 @@ has been fully implemented for some time (emitter dispatches string fills to
 leftmost / fg on set bits, locked by `tests/programs/paint_pattern.bas`).
 The simplification vs real QB: EGA planar modes' multi-byte-per-row plane
 grouping is read as single-plane; no bundled program uses tiling at all.
+
+### Dead-`GameState`-field elimination (postprocess pass 5)
+
+`strip_dead_gamestate_fields` (`emitter/postprocess.rs`, appended as the
+OUTERMOST pass in `emit()`'s chain) removes any `struct GameState` field
+whose `__gs.<name>` never appears anywhere in the emitted program. A
+zero-reference field is provably dead: every read AND write goes through
+`__gs.`, and the struct derives `Default`, so nothing else can name a
+field. Matching is word-boundary-safe (`x` doesn't match `__gs.x2`), the
+struct block is located by its exact `struct GameState {` / column-0 `}`
+lines, and a program with no GameState is a no-op. Deliberately NOT
+removed: write-only fields (e.g. a shared array whose only reference is
+its `__gs.arr = vec![…]` init) — those have a textual reference, and
+eliminating them would mean deleting statements. Idempotent.
+
+Real dead code found in the bundled set: gorilla.bas's `DIM SHARED
+SunColor` (a genuine leftover in Microsoft's 1990 source — the sun is
+drawn with the hardcoded `SUNATTR` instead) and three unused TYPE members
+in qbricks (`ball__size`/`ball__score`/`ball__numbrickshit`); 24→23 and
+46→43 GameState fields respectively. Covered by `dead_gamestate_tests`
+(3 unit tests: keep/drop, prefix-aliasing, no-struct no-op). Verified: 145
+unit, 44/44 integration byte-identical, 54/54 build-all, 10/10 goldens
+(checksums unchanged — gorilla still golden despite the removed field).
 
 ### farkle.bas (SCREEN 13 dice game — sigil-less `DIM … AS STRING` in comparisons)
 

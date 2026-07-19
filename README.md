@@ -24,6 +24,10 @@ Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
 <td align="center"><img src="docs/screenshots/donkey.png" width="420"><br><b>donkey.bas</b> — IBM PC Donkey (CGA SCREEN 1, DRAW sprites, GOTO state machine)</td>
 <td align="center"><img src="docs/screenshots/gorilla.png" width="420"><br><b>gorilla.bas</b> — Gorillas mid-throw (SCREEN 9 EGA, CIRCLE/PAINT/GET/PUT, PLAY audio)</td>
 </tr>
+<tr>
+<td align="center"><img src="docs/screenshots/mario-title.png" width="420"><br><b>mario.bas</b> — MEGA WORLD title screen (SCREEN 13, masked GET/PUT sprites)</td>
+<td align="center"><img src="docs/screenshots/mario.png" width="420"><br><b>mario.bas</b> — World 1-1 in-game (raw <code>INP(&amp;H60)</code> scancode input, quarter-pixel physics)</td>
+</tr>
 </table>
 
 ---
@@ -119,11 +123,12 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `demo.bas` | 15-scene SCREEN 13 megademo — POKE starfield, ROM-font bigtext, wireframe cube, plasma, shadebobs, dot sphere, copper bars, tunnel, rotozoomer, vector morph, starship flight, trench run, platformer vignette, wavy sine scroller, credits crawl (DEF SEG framebuffer POKEs, BSAVE texture cache, WAIT vsync, PLAY intro jingle) | ✅ |
 | `bench.bas` | Interpreter-vs-native benchmark — hot-loop ops/sec + ops-per-frame budget for the demo's operations — see [Performance](#performance) | ✅ |
 | `blackjak.bas` | Casino Blackjack (SCREEN 12 VGA, vector card rendering, TIMER deal animation, background PLAY music) — [walkthrough](docs/BLACKJACK.md) | ✅ |
+| `mario.bas` | MEGA WORLD platformer (SCREEN 13, 3 worlds from `WORLD<n>.TXT`, masked GET/PUT sprites, raw `INP(&H60)` scancode input, quarter-pixel physics, boss fight, persistent high score) — [walkthrough](docs/mario.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 
-All **53 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 53/53). The full set also includes `nibbles`,
+All **54 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 54/54). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
 `towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.

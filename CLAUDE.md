@@ -21,6 +21,8 @@ qbasic-rust/
 │   ├── torus.md                # Walkthrough of torus.bas
 │   ├── reversi.md              # Walkthrough of reversi.bas
 │   ├── donkey.md               # Walkthrough of donkey.bas
+│   ├── demo.md                 # Walkthrough of demo.bas (15-scene megademo)
+│   ├── mario.md                # Walkthrough of mario.bas (MEGA WORLD platformer)
 │   ├── qb11-rules.md           # Drop-in prompt: writing QBasic 1.1-compatible .bas
 │   └── screenshots/            # PNG screenshots of rendered programs
 │

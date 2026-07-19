@@ -1001,6 +1001,43 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M23 — mario.bas (MEGA WORLD), INP(&H60) input, numeric ON ERROR, expanded traps, deferred wrap (build-all 54/54) ✅
+
+A new 2,139-line SCREEN 13 platformer (`basic-src/mario.bas` + `WORLD<n>.TXT`
+room data) drove four fidelity fixes, and two long-standing error-handling
+gaps were closed in the same batch. Full details in CLAUDE.md's changelog;
+summary:
+
+- **Per-scope DIM bookkeeping reset** in `emit_main`/`emit_gosub_fn` via
+  `retain_unpromoted()` — closed both Known Issues TODO items (the naive
+  reset that broke farkle/torus is now safe because promoted names are
+  excluded from the per-scope collections).
+- **`ON ERROR GOTO <numeric line>` inside `__pc` state machines** — dispatch
+  jumps to the handler's match arm, recording `__err_pc`/`__err_resume_pc`
+  resume registers; bare `RESUME` (retry), `RESUME NEXT`, and `RESUME <line>`
+  all work with real QB semantics at numbered-line granularity. Also fixed:
+  `RESUME NEXT` had always parsed as bare `RESUME` (`NEXT` lexes as
+  `Token::Next`, not `Ident`).
+- **Expanded trappable errors** — beyond OPEN's 53: input past EOF (62), bad
+  file mode (54), bad file name/number (52) across all file statements, and
+  READ out of DATA (4). Untrapped programs emit byte-identical code.
+- **Sigiled vs sigil-less string DIM coexistence** (`DIM t, t$`) — new
+  `VarDecl.str_sigil` flag; sigiled declarations skip the string-recovery
+  collectors and declare under their typed name (`t_s`), since a sigiled
+  `t$` is a distinct QB variable from bare numeric `t`.
+- **`INP(&H60)` keyboard data port** — XT set-1 make/break scancode stream
+  from real window held-key state (windowed) or scripted keys (headless),
+  with hardware-faithful last-scancode persistence. Games that poll held-key
+  state directly (mario's/pin's `PollKeys`) now play correctly.
+- **Deferred end-of-line text wrap** (QB pending-wrap) — printing through
+  the last column of the bottom row no longer scrolls the framebuffer; the
+  wrap fires only when a further character needs the cell, and `LOCATE`
+  clears the pending state. Fixes permanent dirty-rect misalignment in
+  mario once its coin HUD hit two digits.
+
+Verified: 142 unit, 40/40 integration (4 new programs), 54/54 build-all,
+10/10 graphics goldens (checksums unchanged).
+
 ### M22 — Idiomatic-output audit round 2: A1–A5 + T6, COMPLETE ✅
 
 A full audit of 12 representative emitted programs (~10,900 lines) found
@@ -1450,14 +1487,14 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **53/53** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **54/54** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
-vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c).
-The integration suite is **36/36**, with 137 runtime unit tests and 10 graphics golden tests.
+vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario).
+The integration suite is **40/40**, with 142 runtime unit tests and 10 graphics golden tests.
 
 No known QB feature gaps block the bundled set. The only unmodeled features are
 two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;

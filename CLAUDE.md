@@ -49,7 +49,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 44 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 45 tests, all must pass
 ```
 
 ---
@@ -82,7 +82,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **44/44** integration (`tests/run-tests.sh`, stdout-based)
+- **45/45** integration (`tests/run-tests.sh`, stdout-based)
 - **145** runtime+transpiler unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -1851,6 +1851,53 @@ Verified: 137 unit, 37/37 integration, 53/53 build-all (farkle + torus — the
 two programs the naive reset broke — compile and golden-pass), 10/10
 graphics goldens (torus checksum unchanged proves the promoted-`Available$`
 path still emits identically; gorilla/donkey passed without flaking).
+
+### Differential fuzz harness (`tools/fuzz/`) — found 2 real emitter bugs on run one
+
+`tools/fuzz/run-fuzz.sh [count] [start-seed]` generates seeded random QB
+programs (`genfuzz.py`), runs each through qbc + rustc + native execution,
+and diffs the output against an INDEPENDENT reference interpreter
+(`qbref.py`, ~500 lines of Python implementing QB semantics from scratch:
+full operator precedence, CINT banker's rounding for `\`/`MOD`, −1/0
+booleans, PRINT zones/leading-space formatting, 1-indexed string builtins,
+FOR/WHILE/DO/SELECT semantics). Python floats are IEEE f64, so arithmetic
+matches the transpiler's all-numerics-are-f64 model bit-for-bit. The
+generated subset is deliberately constrained so both sides must agree
+EXACTLY: every numeric assignment tamed with `MOD 32749` (keeps all values
+i64/f64-exact), `*` only joins atoms, `^` exponents 0–3, `/` only inside
+`INT(…/lit)`, strings tamed with `LEFT$(…,40)`, all loops provably
+terminate, no RND/TIMER/INKEY$. Any transpile failure, rustc failure,
+crash, hang, oracle failure, or output mismatch is a finding (saved to
+`tools/fuzz/failures/`, gitignored).
+
+**Findings on the first 100 seeds** (both fixed, both locked by
+`tests/programs/selfref_index.bas`):
+
+1. **E0502: array-element assignment whose INDEX reads the same array**
+   (74/100 seeds!). `A(A(I)) = …` is legal QB but emitted as
+   `a[…a[…]…] = …` — the place expression's mutable borrow overlaps the
+   immutable reads inside its own index. Fix: `hoist_self_ref_indices()`
+   (`emitter/mod.rs`, called at the top of `Stmt::Let`) rewrites any
+   self-referencing index expr into a `let __idxN = …;` temp
+   (`expr_refs_array()` in `scan.rs` detects the self-reference; RHS reads
+   of the same array are fine — Rust two-phase borrows). Non-self-referencing
+   assignments emit byte-identically.
+2. **E0425: a variable whose ONLY reference is inside an assignment-target's
+   index expression was never declared** (`BR(f(L3)) = …` with `L3` never
+   assigned — QB reads it as 0). `collect_locals`' `Stmt::Let` arm ignored
+   the target's `LValue::Index`/`FieldIndex` index expressions; they now get
+   `scan_expr`'d like any other read.
+
+After both fixes: **500/500 seeds pass** (seeds 1–500). Verified: 145 unit,
+45/45 integration, 54/54 build-all. **Golden-test note**: during this
+session gorilla's golden began failing with a STABLE different checksum
+(`617f38…` across 10+ idle runs vs golden `0d7695…`) — the captured frame
+is a healthy adjacent banana-flight frame, gorilla's emitted code is
+byte-identical to the last-passing baseline, and the runtime is untouched,
+so this is the documented wall-clock `Rest()` sensitivity presenting as
+persistent drift under changed machine conditions rather than an
+intermittent flake. Not a regression; the golden was left untouched. The
+real fix is the simulated/injectable headless clock (see Known Issues).
 
 ## Known Issues / TODO
 

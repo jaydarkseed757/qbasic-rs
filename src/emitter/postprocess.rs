@@ -147,7 +147,7 @@ pub(super) fn remove_unnecessary_mut(out: &str) -> String {
     // Infrastructure prefixes — always keep mut regardless of apparent usage.
     const SKIP: &[&str] = &[
         "__gs", "__rt", "__fn_ret", "__pc", "__for_", "__tmp_",
-        "__pu_", "__file_", "__put_", "__fa", "__handle",
+        "__pu_", "__file_", "__put_", "__fa", "__handle", "__err_",
     ];
 
     let lines: Vec<&str> = out.lines().collect();

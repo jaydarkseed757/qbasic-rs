@@ -47,7 +47,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 30 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 40 tests, all must pass
 ```
 
 ---
@@ -73,15 +73,15 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **53/53** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **54/54** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
-deffn-multi, onerror, farkle, pin, towers, pride, pride256c). Test suites:
-- **36/36** integration (`tests/run-tests.sh`, stdout-based)
-- **137** runtime unit tests (`cargo test --workspace`)
+deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
+- **40/40** integration (`tests/run-tests.sh`, stdout-based)
+- **142** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -1066,13 +1066,208 @@ bugs were uncovered, plus one source-level `.bas` fix:
   parens, so a method is needed too — field and method coexist legally in Rust).
   **Deliberately NOT implemented** (Tier-1 scope — no bundled program needs them and
   the failure paths don't fire on modern hardware):
-  - Bare `RESUME` (retry the faulting statement) is treated as `RESUME NEXT`.
-  - `ON ERROR GOTO <numeric line>` in `__pc` state-machine programs clears the error
-    but cannot jump to the handler (the numeric label lives in a `match` arm, not a fn).
-  - Only file-`OPEN` failure raises a trappable error; `SCREEN`/`PALETTE`/divide-by-
-    zero/out-of-data do not (and adding SCREEN errors would regress programs that rely
-    on us accepting every mode).
+  - Bare `RESUME` (retry) on the NAMED-handler path behaves as `RESUME NEXT` (the
+    handler fn returns to the dispatch site after the faulting statement; a retry
+    is not representable there). The numeric/state-machine path DOES retry — see
+    the numeric-handler section below.
+  - Trappable errors are the file-I/O family + out-of-DATA (see the expanded-trap
+    section below); `SCREEN`/`PALETTE`/divide-by-zero/subscript-out-of-range do not
+    raise (adding SCREEN errors would regress programs that rely on us accepting
+    every mode; the numeric ones would need per-operation checks everywhere).
   - `ERL` (error line number) is unimplemented; `ERR` works.
+
+### `ON ERROR GOTO <numeric line>` in `__pc` state-machine programs + real RESUME
+
+The numeric-handler gap is closed: in a line-numbered (`__pc` state-machine)
+program, `ON ERROR GOTO 1000` now really jumps to line 1000's match arm, and
+all three `RESUME` forms work with genuine QB semantics at numbered-line
+granularity:
+
+- **Dispatch** (`emit_error_dispatch`, `emitter/mod.rs`): when emitting inside
+  the state machine (`sm_mode`) and the active handler label is numeric, the
+  post-statement check records the fault site into two resume registers —
+  `__err_pc = <current block pc>` (RESUME's retry target) and
+  `__err_resume_pc = <fall-through successor pc>` (RESUME NEXT's target) —
+  then `__pc = <handler>; continue '__sm;`. The registers are declared before
+  the loop only when the program has a numeric `ON ERROR GOTO`
+  (`has_numeric_on_error()` in `emitter/scan.rs`); `sm_err_vars` on the
+  Emitter gates every consumer. Named handlers (extracted fns) and non-SM
+  numeric handlers keep their previous behavior.
+- **`RESUME`** = `__pc = __err_pc` (retry the faulting line — verified with a
+  handler that creates the missing file, so the retried `OPEN` succeeds);
+  **`RESUME NEXT`** = `__pc = __err_resume_pc`; **`RESUME <line>`** = direct
+  `__pc = <line>` (newly parsed — `Stmt::Resume` gained a `label:
+  Option<String>` field; `RESUME 0` is QB shorthand for bare `RESUME`).
+  Granularity is the numbered LINE, not the statement: for a multi-statement
+  faulting line, `RESUME` re-runs the whole line and `RESUME NEXT` skips its
+  remainder (in line-numbered code they almost always coincide).
+- **Parser bug fixed en passant**: `RESUME NEXT` matched `Token::Ident("NEXT")`
+  but `NEXT` lexes as `Token::Next`, so it had ALWAYS parsed as bare `RESUME` —
+  latent only because both forms were previously treated identically.
+- **`stmt_has_numeric_goto` now counts numeric `ON ERROR GOTO`/`RESUME <n>`**
+  so a line-numbered program whose only jumps are error-handling still gets the
+  state machine (otherwise the handler line wouldn't be an arm at all).
+- **`remove_unnecessary_mut` exclusion list** gained the `__err_` prefix — the
+  register assignments are embedded mid-line in the dispatch `if`, which the
+  pass's mutation detector doesn't see, so it was stripping the needed `mut`s.
+
+Regression test `tests/programs/onerror_sm.bas`: two missing-file OPENs, two
+numeric handlers, `ERR` capture, `RESUME NEXT` and `RESUME 90`, and
+deliberately zero plain `GOTO`s (proving numeric `ON ERROR` alone activates
+the state machine). Verified: 137 unit, 38/38 integration, 53/53 build-all,
+10/10 goldens (checksums unchanged).
+
+### Expanded trappable errors: file-I/O family + out-of-DATA
+
+`OPEN` file-not-found (53) is no longer the only trappable error. The full
+set now raised (matching QB 1.1 codes):
+
+| Code | Error | Raised by |
+|------|-------|-----------|
+| 53 | File not found | `OPEN FOR INPUT` on a missing file (as before) |
+| 62 | Input past end of file | `INPUT #` / `LINE INPUT #` reading at EOF |
+| 54 | Bad file mode | read on a write-mode handle, write on a read-mode handle, `GET`/`PUT #` on a sequential handle |
+| 52 | Bad file name or number | any `INPUT #`/`PRINT #`/`WRITE #`/`GET #`/`PUT #` on an unopened file number |
+| 4 | Out of DATA | `READ` past the last `DATA` element |
+
+- **Runtime** (`runtime/src/lib.rs`): new `pub fn raise_err(&mut self, code)`
+  centralizes `err_code`+`error_pending`; `read_file_line`, `write_file`,
+  `read_record`, `write_record` classify their previously-silent failure
+  branches (untrapped programs still see the same silent-continue behavior —
+  the pending flag is only consulted by emitted dispatch code, which doesn't
+  exist without an active `ON ERROR`). Borrow note: the sequential fns record
+  the code in a local and call `raise_err` after the `files.get_mut` match so
+  the map borrow has ended.
+- **Emitter** (`emitter/mod.rs`): `emit_error_dispatch()` (a no-op emission
+  when no handler is active) is now appended after `INPUT #`, `LINE INPUT #`,
+  `PRINT #`, `PRINT #, USING`, `WRITE #`, `GET #`, and `PUT #`. Dispatch is
+  placed BEFORE the input-variable assignments (`INPUT #`'s parse/assign,
+  `GET #`'s field deserialization) so a state-machine handler jump leaves the
+  variables untouched, per QB; `LINE INPUT #` splits into a temp read +
+  dispatch + assign, but only when a handler is active (untrapped output
+  byte-identical). Out-of-DATA is a pre-check emitted before each `READ`
+  element (`__DATA_PTR.load(..) >= __DATA.len()` → `raise_err(4.0)`), again
+  only when a handler is active.
+- **Known approximation** (pre-existing to the whole ON ERROR design):
+  `on_error_label` is tracked linearly at emission time, so fallible
+  statements inside SUBs (emitted before main) don't get dispatch from a
+  main-body `ON ERROR`. `EOF()` on an unopened handle stays a silent `-1.0`
+  (QB raises 52) — reporting EOF keeps `DO WHILE NOT EOF` loops terminating.
+
+Regression test `tests/programs/trap_errors.bas`: one file round-trip, then
+faults for 62, 54, 52, and 4 in sequence, each trapped by a numeric handler
+and `RESUME NEXT`-ed, printing the captured `ERR` after each. Verified: 137
+unit, 39/39 integration, 53/53 build-all, 10/10 goldens (checksums
+unchanged).
+
+### Sigiled vs sigil-less string DIM coexistence (`DIM t, t$`) — mario.bas (build-all 54/54)
+
+`mario.bas` (SCREEN 13 platformer, "MEGA WORLD", 3 worlds loaded from
+`WORLD<n>.TXT` with DATA fallbacks) failed to compile: its title screen
+declares `DIM t, mf, blink, armed, t$` — numeric `t` and string `t$` are
+DISTINCT QB variables sharing a base name in one DIM statement. Root cause
+chain:
+
+- **The lexer strips sigils** (`t$` → `IdentStr("t")`), so `DIM t$` and
+  `DIM t AS STRING` produced identical `VarDecl { name: "t", ty: String }` —
+  the distinction was unrecoverable downstream. But it matters: a sigiled
+  `t$`'s every use carries the `$` (typed String at parse), while a
+  sigil-less `AS STRING` name's bare uses parse as Single and need the
+  `local_string_scalars` type-recovery. Feeding sigiled decls into that
+  recovery set made every bare NUMERIC `t` use in the SUB emit as a string
+  (`t = 0.0f64.to_string()`, `qb_mod(t, …)` type errors).
+- **Fix 1 — `VarDecl.str_sigil: bool`** (`src/parser.rs`): records whether
+  the String type came from the `$` sigil (set in `parse_var_decl` and
+  `parse_param_list`; an `AS` clause clears it). The only two VarDecl
+  construction sites both set it.
+- **Fix 2 — collectors skip sigiled decls** (`emitter/scan.rs`):
+  `collect_local_string_scalars` AND `collect_local_string_arrays` now
+  require `!d.str_sigil` — same reasoning for arrays (`DIM a$(…)` vs bare
+  `a(i)` = different arrays in QB).
+- **Fix 3 — `emit_dim` sigiled-string declaration name** (`emitter/mod.rs`):
+  the String scalar branch emitted `let mut t: String` (BARE name) — correct
+  for sigil-less decls (bare uses emit `t`), but a sigiled `t$`'s uses emit
+  the typed `t_s`, so the bare-named String decl just shadowed the numeric
+  `t` local. Sigiled decls now declare `let mut t_s: String`, deduped
+  against `locals_declared` like the numeric path (the no-dedup rule exists
+  only for sigil-less decls, which must shadow the Single-typed binding
+  collect_locals infers).
+
+mario.bas now compiles, runs, and renders (title screen + sprite animation
+verified headlessly). Regression test `tests/programs/sigil_coexist.bas`
+(numeric/string same-base-name pairs in one DIM, SUB + main scopes).
+Verified: 137 unit, 40/40 integration, **54/54 build-all** (mario now
+included), 10/10 goldens (checksums unchanged). Related latent (not fixed,
+noted): SUB **params** `SUB Foo(t, t$)` would hit the same conflation via
+`str_params`' `rust_ident_typed` lookup — no program does this.
+
+### `INP(&H60)` keyboard data port — real held-key scancode polling (mario, pin)
+
+mario.bas loaded but SPACE didn't start the game: its `PollKeys` SUB (reused
+from PIN.BAS) reads **raw XT set-1 make/break scancodes from port `&H60`**
+every frame to maintain a held-key `kd()` array (make < 128 = key down;
+make+128 = key up), and `qb_in` only modeled the VGA DAC ports — every poll
+returned 0, so `kd()` never saw a key. Now modeled on `Runtime`
+(`runtime/src/lib.rs`):
+
+- **Windowed**: `feed_scancodes()` diffs the minifb window's held-key set
+  (`win.get_keys()`) on every event pump (`pump_events` + `present`) and
+  pushes make/break codes for the transitions into a bounded (64) queue.
+  `minifb_key_to_scancode()` maps letters, digits, space/enter/esc/tab/
+  backspace, arrows, shifts/ctrl/alt, F1–F10; arrows use their bare codes
+  (72/75/77/80, no `0xE0` prefix — QB-era pollers index a 0..127 array).
+- **`INP(&H60)`** (`qb_in`): pops the queue; an empty queue returns
+  `sc_last` — the port *holds* the last scancode until a new event replaces
+  it, exactly the real-hardware persistence mario's own source comment
+  documents relying on.
+- **Headless**: scripted `QBC_KEYS` have no window key state, so `inkey()`
+  feeds the model a make+break pair as each scripted key is consumed — a
+  scancode-polling game sees a one-frame press. This let the SPACE-start and
+  in-game "MEGA WORLD 1-1" render be verified headlessly end-to-end.
+- **Gotcha re-learned**: a root `cargo build --release` does NOT refresh the
+  non-hashed `target/release/libqbasic_runtime.rlib` — manual `rustc` links
+  against the stale runtime and new runtime features silently no-op. Use
+  `cargo build --release -p qbasic_runtime` first (the test scripts already
+  do).
+
+Covered by `scancode_tests` (runtime, 3 tests: make/break/persistence, held-
+state diffing, scripted-key mapping). Verified: 140 unit, 40/40 integration,
+54/54 build-all, 10/10 goldens (checksums unchanged — no golden program
+reads the port).
+
+### Deferred end-of-line text wrap (QB pending-wrap) — mario "graphics ruined" bug
+
+Playing mario, reaching a two-digit coin count permanently corrupted all
+graphics (floating enemy sprites, stacked HUD rows, misaligned bricks for
+the rest of the game). Root cause was NOT sprites/clipping (all blit paths
+clip correctly — verified with a super-jump probe): it was the text cursor.
+`DrawHUD` does `LOCATE 25, 34: PRINT "C:"; coinCt; " ";` — with `coinCt >=
+10` that print ends EXACTLY at column 40 of row 25. Our `cursor_advance`
+wrapped eagerly: printing the last column immediately moved the cursor to
+row 26 and **scrolled the whole framebuffer up 8px**. In a dirty-rect game
+nothing ever redraws the full screen, so every erase thereafter missed by
+8px — permanent corruption, re-triggered on every HUD update.
+
+Real QB **defers** the wrap: after printing the last column the cursor sits
+one past it (pending), and the wrap + bottom-row scroll fire only when a
+FURTHER character actually needs the cell; an intervening `LOCATE` clears
+the pending state. (pin.bas's identical bottom-row `DrawScore` idiom is
+documented proven under real QBASIC 1.1 + DOSBox-X, which pins the faithful
+semantics.) Fix (`runtime/src/lib.rs`): `cursor_advance` just increments;
+new `wrap_cursor_if_pending()` performs the deferred wrap and is called
+before each character draw (`print_gfx` loop + `input_line` echo). An
+explicit newline absorbs a pending wrap (a full-width `PRINT` without `;`
+advances exactly one row, as in QB). Genuine overflow past the last cell
+still wraps and scrolls.
+
+Covered by `deferred_wrap_tests` (runtime, 2 tests: HUD idiom must not
+scroll + repeat after re-LOCATE; genuine overflow must still scroll).
+Verified: 142 unit, 40/40 integration, 54/54 build-all, 10/10 goldens
+(checksums unchanged), plus an end-to-end SCREEN 13 HUD repro (QBC_TEXT_FB
+screenshot: values overprint in place, sky intact). Note: the stale-rlib
+trap struck AGAIN during verification (manual rustc against
+`target/release/libqbasic_runtime.rlib` without `cargo build --release -p
+qbasic_runtime` first shows pre-fix behavior).
 
 ### farkle.bas (SCREEN 13 dice game — sigil-less `DIM … AS STRING` in comparisons)
 
@@ -1509,33 +1704,48 @@ graphics goldens (torus's checksum confirms the revert restored correct
 *behavior*, not just compilation; gorilla needed its documented idle-system
 retry).
 
+### Fixed: per-scope DIM bookkeeping reset in `emit_main` + `emit_gosub_fn`
+
+Closed both scope-bookkeeping TODO items in one change: `emit_main` never
+reset `local_dim_names`/`local_string_arrays` (only `local_string_scalars`,
+from the earlier fix), and `emit_gosub_fn` reset none of the three — so both
+scopes emitted against whatever the last-processed SUB/FUNCTION left behind.
+The naive "just add the reset" was known-unsafe (previously broke
+farkle.bas/torus.bas with E0425): a cross-GOSUB-*promoted* scalar still has
+its original pre-promotion `DIM` statement in the body text, so a fresh
+collection made `is_str_expr_ctx`'s local-shadows-shared guard
+(`!self.local_dim_names.contains(&lc)`) fire for the promoted variable
+itself, skipping the `shared_types` lookup that identifies it as a
+GameState field.
+
+- **`retain_unpromoted()`** (new helper, `emitter/mod.rs`) filters a
+  collected per-scope DIM-name set against `shared_names` — which is fully
+  populated with DIM SHARED + promoted arrays + promoted scalars before any
+  emission starts, and save/restored around the per-sub scoping, so it's
+  valid at both call sites. Checks both the lowercase-bare and `rust_ident`
+  forms (shared_names holds a mix, e.g. keyword-prefixed `qb_true`).
+- **`emit_main`** now resets all three sets (collected over the main body,
+  filtered through `retain_unpromoted`); **`emit_gosub_fn`** does the same
+  over each GOSUB-target body — anything DIM'd there that's also used in
+  main was promoted (and thus excluded), leaving only genuine locals of the
+  extracted fn. `emit_subs`/`emit_functions` are deliberately untouched:
+  a sub-local DIM shadowing a DIM SHARED is the guard's intended positive
+  case, and promotion never originates from SUB bodies.
+- New regression test `tests/programs/scope_reset.bas`: a SUB's local
+  `DIM msg AS INTEGER` (genuine shadow of shared sigil-less
+  `DIM SHARED msg AS STRING` inside the SUB) followed by main-body and
+  GOSUB-target assignments to the shared string. Pre-fix: the leaked
+  `local_dim_names` entry made main's `msg = "…"` stop routing to
+  `__gs.msg` → three E0425s. Confirmed failing on the pre-fix baseline and
+  passing with the fix.
+
+Verified: 137 unit, 37/37 integration, 53/53 build-all (farkle + torus — the
+two programs the naive reset broke — compile and golden-pass), 10/10
+graphics goldens (torus checksum unchanged proves the promoted-`Available$`
+path still emits identically; gorilla/donkey passed without flaking).
+
 ## Known Issues / TODO
 
-- **`local_dim_names`/`local_string_arrays` are never reset in `emit_main`**
-  (discovered — and deliberately left unfixed — while landing the local
-  string-scalar fix above). `emit_subs`/`emit_functions` correctly reset both
-  per-scope; `emit_main` resets neither, so they silently hold whatever the
-  last-processed SUB/FUNCTION left them as while the main body emits.
-  Currently latent (build-all 53/53) because nothing has yet collided on the
-  leftover state, but a naive "just add the reset" fix is NOT safe as-is:
-  tried it, and it broke `farkle.bas`/`torus.bas` (E0425) because
-  `is_str_expr_ctx`'s `shared_types` lookup is guarded by
-  `!self.local_dim_names.contains(&lc)` — a cross-GOSUB-*promoted* scalar
-  still has its original pre-promotion `DIM` statement in the body text, so a
-  correct per-scope reset makes that guard wrongly fire for the *promoted*
-  variable, skipping the lookup that identifies it as a shared/GameState
-  field. A real fix needs promoted names excluded from
-  `collect_local_dim_names`/`collect_local_string_arrays`'s result for main
-  (or the guard reworked to distinguish "a different local shadows this" from
-  "this local name IS the promoted variable").
-- **`emit_gosub_fn` has the identical unset-scope-bookkeeping gap** (same
-  class as the item above, different call site): it never touches
-  `local_dim_names`/`local_string_arrays`/`local_string_scalars` at all, for
-  GOSUB-target functions extracted out of a SUB or the main body. Not
-  reproduced/exercised — noted for whoever eventually tackles the
-  `emit_main` case, since the right fix likely covers both at once (GOSUB
-  targets share the caller's QB scope, so arguably they should *inherit* the
-  caller's sets rather than get their own fresh collection).
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
   the changelog section above). Audit non-findings, recorded so nobody
   re-chases them: `.clone()` uses are all required byref-writeback temps;

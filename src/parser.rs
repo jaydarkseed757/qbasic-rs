@@ -62,6 +62,13 @@ pub struct VarDecl {
     pub dims:      Vec<Expr>,       // upper bound per dimension; empty = scalar
     pub dim_lower: Vec<Expr>,       // lower bound per dimension (parallel to dims; 0 if absent)
     pub shared:    bool,
+    /// True when the String type came from a `$` sigil on the declared name
+    /// (`DIM t$`), false for a sigil-less `AS STRING` clause (`DIM t AS STRING`).
+    /// The lexer strips sigils, so this is the only record of the difference —
+    /// and it matters: a sigiled `t$` is a DISTINCT QB variable from bare `t`
+    /// (every use carries the `$` and is typed at parse), while a sigil-less
+    /// `AS STRING` name's bare uses parse as Single and need type recovery.
+    pub str_sigil: bool,
 }
 
 #[derive(Debug)]
@@ -202,7 +209,7 @@ pub enum Stmt {
     /// ON ERROR GOTO label  (label="0" disables the handler)
     OnError { label: String },
     /// RESUME [NEXT]
-    Resume { next: bool },
+    Resume { next: bool, label: Option<String> },
 
     // ── File I/O ──────────────────────────────────────────────────────────────
     /// OPEN path FOR mode AS [#]n [LEN = reclen]
@@ -715,11 +722,23 @@ impl Parser {
             }
             Token::Resume => {
                 self.advance(); // consume RESUME
-                // RESUME NEXT — skip to next statement after error site
-                let next = matches!(self.peek(), Token::Ident(s) if s.eq_ignore_ascii_case("NEXT"));
+                // RESUME NEXT — resume at the statement after the error site.
+                // NEXT lexes as Token::Next (the FOR/NEXT keyword), not Ident.
+                let next = matches!(self.peek(), Token::Next)
+                    || matches!(self.peek(), Token::Ident(s) if s.eq_ignore_ascii_case("NEXT"));
                 if next { self.advance(); }
+                // RESUME <line-number-or-label> — resume at a specific line.
+                // RESUME 0 is QB shorthand for bare RESUME (retry).
+                let label = if !next {
+                    match self.peek().clone() {
+                        Token::IntLit(n) if n != 0 => { self.advance(); Some(n.to_string()) }
+                        Token::IntLit(_)           => { self.advance(); None }
+                        Token::Ident(s) | Token::IdentInt(s) => { self.advance(); Some(s) }
+                        _ => None,
+                    }
+                } else { None };
                 while !self.at_eol() { self.advance(); }
-                return Ok(Some(Stmt::Resume { next }));
+                return Ok(Some(Stmt::Resume { next, label }));
             }
             Token::Palette => {
                 self.advance(); // consume PALETTE
@@ -1044,6 +1063,10 @@ impl Parser {
 
     fn parse_var_decl(&mut self, shared: bool) -> Result<VarDecl> {
         let (name, mut ty) = self.parse_ident_with_sigil()?;
+        // Was the String type given by a `$` sigil? An `AS` clause below
+        // overrides ty (and clears this — `DIM t$ AS STRING` is illegal in QB
+        // anyway, so only one source of String type ever applies).
+        let mut str_sigil = ty == QbType::String;
         let mut dims      = Vec::new();
         let mut dim_lower = Vec::new();
         if self.peek() == &Token::LParen {
@@ -1062,13 +1085,14 @@ impl Parser {
         if self.peek() == &Token::As {
             self.advance();
             ty = self.parse_type_name()?;
+            str_sigil = false;
             // STRING * n — fixed-length string; consume and ignore the length
             if self.peek() == &Token::Star {
                 self.advance();
                 if !self.at_eol() { self.parse_expr()?; }
             }
         }
-        Ok(VarDecl { name, ty, dims, dim_lower, shared })
+        Ok(VarDecl { name, ty, dims, dim_lower, shared, str_sigil })
     }
 
     /// Parse DEF FnName(params) = expr  or  DEF SEG / DEF SEG = n (skip).
@@ -2664,6 +2688,7 @@ impl Parser {
         let mut params = Vec::new();
         while self.peek() != &Token::RParen && self.peek() != &Token::Eof {
             let (name, mut ty) = self.parse_ident_with_sigil()?;
+            let mut str_sigil = ty == QbType::String;
             let mut dims = Vec::new();
             if self.peek() == &Token::LParen {
                 self.advance();
@@ -2673,8 +2698,9 @@ impl Parser {
             if self.peek() == &Token::As {
                 self.advance();
                 ty = self.parse_type_name()?;
+                str_sigil = false;
             }
-            params.push(VarDecl { name, ty, dims, dim_lower: vec![], shared: false });
+            params.push(VarDecl { name, ty, dims, dim_lower: vec![], shared: false, str_sigil });
             if self.peek() == &Token::Comma { self.advance(); } else { break; }
         }
         self.expect(&Token::RParen)?;

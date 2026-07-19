@@ -117,6 +117,17 @@ pub struct Emitter {
     shared_types: HashMap<String, QbType>,
     /// When true, Stmt::Goto emits `{ __pc = N; continue '__sm; }` instead of a comment.
     sm_mode: bool,
+    /// True while emitting a state machine whose program has a numeric
+    /// `ON ERROR GOTO <line>` — the `__err_pc`/`__err_resume_pc` resume-point
+    /// registers were declared before the loop, so error dispatch may jump to
+    /// the handler arm and RESUME [NEXT] may jump back through them.
+    sm_err_vars: bool,
+    /// The pc of the state-machine block currently being emitted, and its
+    /// fall-through successor. Recorded by emit_state_machine so
+    /// emit_error_dispatch can capture the resume points at the fault site
+    /// (RESUME retries `sm_cur_pc`; RESUME NEXT continues at `sm_next_pc`).
+    sm_cur_pc: u32,
+    sm_next_pc: u32,
     /// Parsed QBC pragma config — populated from prog.directives before emit_main().
     qbc: QbcConfig,
     /// Maps named GOTO target label (QB name, any case) → Rust loop label (e.g. "'_loop_0").
@@ -202,6 +213,9 @@ impl Emitter {
             user_subs: HashSet::new(),
             shared_types: HashMap::new(),
             sm_mode: false,
+            sm_err_vars: false,
+            sm_cur_pc: 0,
+            sm_next_pc: 0,
             qbc: QbcConfig::default(),
             named_loop_labels: HashMap::new(),
             loop_label_counter: 0,
@@ -228,6 +242,27 @@ impl Emitter {
     fn emit_error_dispatch(&mut self) {
         if self.on_error_label.is_empty() { return; }
         let lbl = self.on_error_label.clone();
+        // Numeric handler line inside a __pc state machine: record the resume
+        // points (this block = retry target for RESUME, its fall-through
+        // successor = RESUME NEXT target) and jump to the handler's arm.
+        // Granularity is the numbered LINE, not the individual statement — in
+        // line-numbered programs those almost always coincide; for a
+        // multi-statement faulting line, RESUME re-runs the whole line and
+        // RESUME NEXT skips its remainder.
+        if self.sm_mode && self.sm_err_vars {
+            if let Ok(n) = lbl.parse::<u32>() {
+                if n > 0 {
+                    let cur = self.sm_cur_pc;
+                    let next = self.sm_next_pc;
+                    self.line(&format!(
+                        "if __rt.error_pending {{ __rt.error_pending = false; \
+                         __err_pc = {cur}; __err_resume_pc = {next}; \
+                         __pc = {n}; continue '__sm; }}"
+                    ));
+                    return;
+                }
+            }
+        }
         let rust_lbl = rust_ident(&lbl);
         // Only dispatch if the handler label was extracted as a callable fn.
         if self.user_fns.contains(&rust_lbl) {
@@ -236,8 +271,8 @@ impl Emitter {
                 "if __rt.error_pending {{ __rt.error_pending = false; {rust_lbl}({call_args}); }}"
             ));
         } else {
-            // Handler not callable (state-machine only, or disabled) —
-            // clear the error so execution continues gracefully.
+            // Handler not callable (numeric handler outside a state machine,
+            // or disabled) — clear the error so execution continues gracefully.
             self.line("if __rt.error_pending { __rt.error_pending = false; }");
         }
     }
@@ -259,6 +294,20 @@ impl Emitter {
         } else {
             format!("[({idx_expr} - {lo}.0) as usize]")
         }
+    }
+
+    /// Drop promoted/shared names from a per-scope collected DIM-name set.
+    /// A cross-GOSUB-promoted variable still has its ORIGINAL (pre-promotion)
+    /// `DIM` statement sitting in the main/gosub body text; counting that as a
+    /// "local DIM" would make the local-shadows-shared guards fire for the
+    /// promoted variable itself, suppressing the shared_types/__gs routing
+    /// that identifies it as the GameState field it actually is.
+    /// shared_names holds a mix of lowercase-bare and rust_ident forms
+    /// (keyword-prefixed names like `qb_true`), so check both.
+    fn retain_unpromoted(&self, mut set: HashSet<String>) -> HashSet<String> {
+        set.retain(|n| !self.shared_names.contains(n)
+                    && !self.shared_names.contains(&rust_ident(n)));
+        set
     }
 
     /// Context-aware string-type check that can look up TYPE field types from type_defs
@@ -556,6 +605,15 @@ impl Emitter {
         self.array_params.clear();
         self.numeric_params.clear();
         self.local_arrays = collect_local_array_names(body);
+        // Same per-scope DIM bookkeeping reset as emit_main (previously these
+        // three inherited whatever the last SUB/FUNCTION left behind). GOSUB
+        // targets share the caller's QB module scope, so anything DIM'd here
+        // that is also used in main was promoted to GameState — which is
+        // exactly what retain_unpromoted excludes, leaving only the DIMs
+        // that are genuine locals of this extracted fn.
+        self.local_dim_names      = self.retain_unpromoted(collect_local_dim_names(body));
+        self.local_string_arrays  = self.retain_unpromoted(collect_local_string_arrays(body));
+        self.local_string_scalars = self.retain_unpromoted(collect_local_string_scalars(body));
         let mut exclude = globals.clone();
         exclude.extend(self.shared_names.clone());
         self.emit_locals(body, &exclude)?;
@@ -1089,32 +1147,19 @@ impl Emitter {
         }
 
         self.local_arrays = collect_local_array_names(body);
-        // Reset local_string_scalars for the main body — previously unset
-        // here, so it silently held whatever the last-processed SUB or
-        // FUNCTION left it as. Unlike local_dim_names/local_string_arrays
-        // (deliberately NOT reset here — see below), local_string_scalars
-        // has no other reader that treats membership as "this name is
-        // shadowed/excluded"; it's only ever a positive "treat as string"
-        // signal, so resetting it can only fix false negatives, never
-        // introduce a false positive by name-collision.
-        self.local_string_scalars = collect_local_string_scalars(body);
-        //
-        // local_dim_names/local_string_arrays are DELIBERATELY left unreset
-        // here (a real, separate pre-existing gap — noted but not fixed by
-        // this change): is_str_expr_ctx's shared_types lookup is guarded by
-        // `!self.local_dim_names.contains(&lc)`, intended to let a genuine
-        // local shadow an unrelated DIM SHARED of the same base name. But a
-        // cross-GOSUB-*promoted* scalar (farkle.bas's `k`, torus.bas's
-        // `Available$`) still has its ORIGINAL (pre-promotion) `DIM name AS
-        // STRING` statement sitting in the body text, so a correct reset
-        // here makes that guard fire for the *promoted* variable too,
-        // incorrectly skipping the shared_types lookup that identifies it as
-        // the shared/GameState field it actually is — the emitted code then
-        // references a bare, never-hoisted `name` instead of `__gs.name`
-        // (E0425). Confirmed by reproducing against farkle.bas and
-        // torus.bas. Fixing this properly needs promoted names excluded from
-        // collect_local_dim_names/collect_local_string_arrays's result (or
-        // the guard reworked to distinguish "shadows" from "is this").
+        // Reset ALL per-scope DIM bookkeeping for the main body. Previously
+        // only local_string_scalars was reset here; local_dim_names and
+        // local_string_arrays silently held whatever the last-processed SUB
+        // or FUNCTION left them as. A naive reset was unsafe on its own:
+        // a cross-GOSUB-*promoted* scalar (farkle.bas's `k`, torus.bas's
+        // `Available$`) still has its original pre-promotion `DIM name AS
+        // STRING` statement in the body text, and counting it as a local DIM
+        // made is_str_expr_ctx's local-shadows-shared guard fire for the
+        // promoted variable itself (E0425/E0308). retain_unpromoted filters
+        // those names out, so the sets hold only genuine main-body locals.
+        self.local_dim_names      = self.retain_unpromoted(collect_local_dim_names(body));
+        self.local_string_arrays  = self.retain_unpromoted(collect_local_string_arrays(body));
+        self.local_string_scalars = self.retain_unpromoted(collect_local_string_scalars(body));
 
         let mut exclude = globals.clone();
         exclude.extend(self.shared_names.clone());
@@ -1155,6 +1200,15 @@ impl Emitter {
         // First pc is the first block's pc (or 0 for sentinel).
         let first_pc = blocks[0].0;
 
+        // Numeric ON ERROR GOTO handler support: the resume-point registers are
+        // written by the inline error dispatch at each fault site and read back
+        // by RESUME / RESUME NEXT inside the handler arm.
+        let has_num_err = has_numeric_on_error(stmts);
+        if has_num_err {
+            self.line("let mut __err_pc: u32 = 0;");
+            self.line("let mut __err_resume_pc: u32 = 0;");
+        }
+
         self.line(&format!("let mut __pc: u32 = {first_pc};"));
         self.line("'__sm: loop {");
         self.indent();
@@ -1162,6 +1216,7 @@ impl Emitter {
         self.indent();
 
         self.sm_mode = true;
+        self.sm_err_vars = has_num_err;
 
         for i in 0..blocks.len() {
             let (pc, ref block_stmts) = blocks[i];
@@ -1170,6 +1225,8 @@ impl Emitter {
             } else {
                 u32::MAX
             };
+            self.sm_cur_pc = pc;
+            self.sm_next_pc = next_pc;
 
             // Emit the match arm
             if pc == 0 {
@@ -1192,6 +1249,7 @@ impl Emitter {
         }
 
         self.sm_mode = false;
+        self.sm_err_vars = false;
 
         self.line("_ => break,");
         self.dedent();
@@ -2167,6 +2225,7 @@ impl Emitter {
                 } else {
                     self.line(&format!("__rt.write_file(({fnum}) as u8, &{tmp});"));
                 }
+                self.emit_error_dispatch();
             }
 
             Stmt::End | Stmt::Stop => self.line("__rt.quit();"),
@@ -2222,13 +2281,27 @@ impl Emitter {
             Stmt::OnTimerGosub { interval, target } => {
                 self.on_timer_gosub = Some((*interval, target.to_lowercase()));
             }
-            Stmt::Resume { next } => {
-                // Clear the error flag and continue (RESUME NEXT).
-                // True RESUME (retry) would need to re-run the faulting
-                // statement — not feasible without coroutine machinery, so
-                // we treat RESUME identically to RESUME NEXT.
+            Stmt::Resume { next, label } => {
                 self.line("__rt.error_pending = false;");
-                let _ = next; // both forms just clear and fall through
+                if self.sm_mode && self.sm_err_vars {
+                    // Numeric-handler state-machine path: real RESUME semantics
+                    // at numbered-line granularity via the resume registers
+                    // captured at the fault site by emit_error_dispatch.
+                    match (next, label) {
+                        // RESUME <line> — jump to a specific numbered line.
+                        (_, Some(l)) if l.parse::<u32>().is_ok() => {
+                            self.line(&format!("__pc = {l}; continue '__sm;"));
+                        }
+                        // RESUME NEXT — the line after the faulting one.
+                        (true, _) => self.line("__pc = __err_resume_pc; continue '__sm;"),
+                        // Bare RESUME / RESUME 0 — retry the faulting line.
+                        (false, _) => self.line("__pc = __err_pc; continue '__sm;"),
+                    }
+                }
+                // Named-handler (extracted-fn) path: the handler fn simply
+                // returns to the dispatch site after the faulting statement,
+                // which IS resume-next; bare RESUME (retry) is not
+                // representable there and behaves as RESUME NEXT.
             }
 
             Stmt::Const { name, val } => {
@@ -2338,6 +2411,9 @@ impl Emitter {
                     format!("Some(({rec}) as i64 - 1)")
                 } else { "None".into() };
                 self.line(&format!("let {tmp} = __rt.read_record(({fnum}) as u8, {rec_expr});"));
+                // Trap 52/54 (bad file number / mode) before deserializing, so a
+                // state-machine handler jump leaves the record var untouched.
+                self.emit_error_dispatch();
                 // TYPE-record path: deserialize the buffer into the record var's fields.
                 if let Some((base, tn)) = record_var.as_ref()
                     .and_then(|rv| self.resolve_record_var(rv))
@@ -2405,6 +2481,7 @@ impl Emitter {
                 self.line(&format!(
                     "__rt.write_record(({fnum}) as u8, {rec_expr}, &{tmp});"
                 ));
+                self.emit_error_dispatch();
             }
             Stmt::LSet { var, expr } => {
                 let lhs = self.emit_lvalue(var);
@@ -2470,12 +2547,16 @@ impl Emitter {
                 } else {
                     self.line(&format!("__rt.write_file(({fnum}) as u8, &{joined});"));
                 }
+                self.emit_error_dispatch();
             }
             Stmt::InputFile { file_num, vars } => {
                 let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
                 let tmp = format!("__file_line{}", self.lift_counter);
                 self.lift_counter += 1;
                 self.line(&format!("let {tmp} = __rt.read_file_line(({fnum}) as u8);"));
+                // Trap 62/54/52 before assigning, so a state-machine handler
+                // jump leaves the input variables untouched (QB semantics).
+                self.emit_error_dispatch();
                 // Split on comma for multiple vars (QB INPUT # is CSV-like)
                 if vars.len() == 1 {
                     let lhs = self.emit_lvalue(&vars[0]);
@@ -2515,7 +2596,17 @@ impl Emitter {
             Stmt::LineInputFile { file_num, var } => {
                 let fnum = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
                 let lhs = self.emit_lvalue(var);
-                self.line(&format!("{lhs} = __rt.read_file_line(({fnum}) as u8);"));
+                if self.on_error_label.is_empty() {
+                    self.line(&format!("{lhs} = __rt.read_file_line(({fnum}) as u8);"));
+                } else {
+                    // Read into a temp and dispatch before assigning, so a
+                    // handler jump leaves the variable untouched (QB semantics).
+                    let tmp = format!("__file_line{}", self.lift_counter);
+                    self.lift_counter += 1;
+                    self.line(&format!("let {tmp} = __rt.read_file_line(({fnum}) as u8);"));
+                    self.emit_error_dispatch();
+                    self.line(&format!("{lhs} = {tmp};"));
+                }
             }
             Stmt::WriteFile { file_num, args } => {
                 // WRITE #n — CSV output with values quoted if strings
@@ -2533,10 +2624,21 @@ impl Emitter {
                 self.line(&format!(
                     "__rt.write_file(({fnum}) as u8, &({line_s} + \"\\n\"));"
                 ));
+                self.emit_error_dispatch();
             }
 
             Stmt::Read(vars) => {
                 for v in vars {
+                    // Out of DATA is QB error 4. The check is only emitted when
+                    // a handler is active, so untrapped programs stay
+                    // byte-identical (they keep the read-""-silently behavior).
+                    if !self.on_error_label.is_empty() {
+                        self.line(
+                            "if __DATA_PTR.load(std::sync::atomic::Ordering::SeqCst) \
+                             >= __DATA.len() { __rt.raise_err(4.0); }"
+                        );
+                        self.emit_error_dispatch();
+                    }
                     let lhs = self.emit_lvalue(v);
                     self.line(&format!(
                         "{lhs} = qb_read_data(&__DATA, &__DATA_PTR).parse().unwrap_or_default();"
@@ -2622,6 +2724,15 @@ impl Emitter {
                 let typed = rust_ident_typed(&decl.name, &decl.ty);
                 if self.locals_declared.contains(&typed) { return; }
                 self.line(&format!("let mut {name}: {ty} = 0.0;"));
+            } else if decl.str_sigil {
+                // Sigiled `DIM t$`: every use carries the `$` and emits the
+                // typed name (t_s), so declare that — the bare `t` may be a
+                // coexisting, distinct NUMERIC variable (`DIM t, t$`). No
+                // Single-shadowing concern applies to a sigiled decl, so
+                // dedup against collect_locals like the numeric path.
+                let typed = rust_ident_typed(&decl.name, &QbType::String);
+                if self.locals_declared.contains(&typed) { return; }
+                self.line(&format!("let mut {typed}: {ty} = String::new();"));
             } else {
                 self.line(&format!("let mut {name}: {ty} = String::new();"));
             }

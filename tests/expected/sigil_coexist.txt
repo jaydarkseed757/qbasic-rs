@@ -1,0 +1,6 @@
+ 42 
+sub- 42
+even
+ 14 
+main- 7
+done

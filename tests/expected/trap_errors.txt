@@ -1,0 +1,6 @@
+got: only line
+past eof err: 62 
+wrong mode err: 54 
+unopened err: 52 
+data: 7 
+out of data err: 4 

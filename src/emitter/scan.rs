@@ -496,7 +496,11 @@ pub(super) fn collect_local_string_arrays(stmts: &[Stmt]) -> HashSet<String> {
     fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
         for stmt in stmts {
             match stmt {
-                Stmt::Dim(d) if !d.dims.is_empty() && !d.shared && d.ty == QbType::String => {
+                // Sigil-less only, same reasoning as collect_local_string_scalars:
+                // a sigiled `DIM a$(…)` array's uses always carry the `$`; a bare
+                // `a(i)` access refers to a different (numeric) array in QB.
+                Stmt::Dim(d) if !d.dims.is_empty() && !d.shared
+                    && d.ty == QbType::String && !d.str_sigil => {
                     names.insert(d.name.to_lowercase());
                 }
                 Stmt::If { then_body, elseif_branches, else_body, .. } => {
@@ -533,7 +537,13 @@ pub(super) fn collect_local_string_scalars(stmts: &[Stmt]) -> HashSet<String> {
     fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
         for stmt in stmts {
             match stmt {
-                Stmt::Dim(d) if d.dims.is_empty() && !d.shared && d.ty == QbType::String => {
+                // Only sigil-less `DIM name AS STRING` — a sigiled `DIM name$`
+                // declares a DISTINCT QB variable whose every use carries the
+                // `$` (typed String at parse); including it here would
+                // misclassify a coexisting bare NUMERIC `name` as a string
+                // (`DIM t, t$` — mario.bas's title-screen frame counter).
+                Stmt::Dim(d) if d.dims.is_empty() && !d.shared
+                    && d.ty == QbType::String && !d.str_sigil => {
                     names.insert(d.name.to_lowercase());
                 }
                 Stmt::If { then_body, elseif_branches, else_body, .. } => {
@@ -1562,6 +1572,10 @@ pub(super) fn stmt_has_numeric_goto(stmt: &Stmt) -> bool {
         // ON expr GOTO <numeric> implies a line-numbered program → state machine.
         Stmt::OnGoto { labels, is_gosub: false, .. } =>
             labels.iter().any(|l| l.parse::<u32>().is_ok()),
+        // ON ERROR GOTO <numeric> / RESUME <numeric> also imply a line-numbered
+        // program: the handler line must be a state-machine arm to be jumpable.
+        Stmt::OnError { label } => label != "0" && label.parse::<u32>().is_ok(),
+        Stmt::Resume { label: Some(l), .. } => l.parse::<u32>().is_ok(),
         Stmt::If { then_body, elseif_branches, else_body, .. } => {
             then_body.iter().any(stmt_has_numeric_goto)
             || elseif_branches.iter().any(|(_, b)| b.iter().any(stmt_has_numeric_goto))
@@ -1577,6 +1591,29 @@ pub(super) fn stmt_has_numeric_goto(stmt: &Stmt) -> bool {
         Stmt::Block(inner) => inner.iter().any(stmt_has_numeric_goto),
         _ => false,
     }
+}
+
+/// Does this statement list (recursively) contain an `ON ERROR GOTO <numeric>`?
+/// When true, emit_state_machine declares the `__err_pc`/`__err_resume_pc`
+/// resume-point registers so error dispatch can jump to the handler arm and
+/// RESUME [NEXT] can jump back.
+pub(super) fn has_numeric_on_error(stmts: &[Stmt]) -> bool {
+    stmts.iter().any(|stmt| match stmt {
+        Stmt::OnError { label } => label != "0" && label.parse::<u32>().is_ok(),
+        Stmt::If { then_body, elseif_branches, else_body, .. } => {
+            has_numeric_on_error(then_body)
+            || elseif_branches.iter().any(|(_, b)| has_numeric_on_error(b))
+            || else_body.as_ref().map_or(false, |b| has_numeric_on_error(b))
+        }
+        Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } =>
+            has_numeric_on_error(body),
+        Stmt::Select { cases, default, .. } => {
+            cases.iter().any(|c| has_numeric_on_error(&c.body))
+            || default.as_ref().map_or(false, |b| has_numeric_on_error(b))
+        }
+        Stmt::Block(inner) => has_numeric_on_error(inner),
+        _ => false,
+    })
 }
 
 /// Partition a flat statement list into blocks separated by numeric line-number labels.

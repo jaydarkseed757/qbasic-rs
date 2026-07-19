@@ -444,6 +444,15 @@ pub struct Runtime {
     present_buf: Vec<u32>,
     /// Keys harvested from the window on every update — never lost between frames.
     key_queue: std::collections::VecDeque<String>,
+    /// XT set-1 make/break scancode stream for `INP(&H60)` (the keyboard data
+    /// port — used by games that poll held-key state directly, e.g. mario/pin).
+    /// Fed by diffing the window's held-key set on every event pump; in
+    /// headless runs, by scripted keys as `inkey()` consumes them (make+break
+    /// pair). `sc_last` models the port's persistence: reads return the most
+    /// recent scancode until a new event replaces it, matching real hardware.
+    sc_queue: std::collections::VecDeque<u8>,
+    sc_last: u8,
+    sc_prev_down: Vec<Key>,
     // RNG (LCG matching QB's generator)
     rng: u32,
     /// Last value returned by rnd() — QB's RND(0) repeats it.
@@ -654,6 +663,9 @@ impl Runtime {
             win_h:              DEFAULT_WIN_H,
             present_buf:  Vec::new(),
             key_queue:    std::collections::VecDeque::new(),
+            sc_queue:     std::collections::VecDeque::new(),
+            sc_last:      0,
+            sc_prev_down: Vec::new(),
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
@@ -752,6 +764,9 @@ impl Runtime {
             win_h:             effective_h,
             present_buf:  Vec::new(),
             key_queue:    std::collections::VecDeque::new(),
+            sc_queue:     std::collections::VecDeque::new(),
+            sc_last:      0,
+            sc_prev_down: Vec::new(),
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
@@ -1090,9 +1105,24 @@ impl Runtime {
         }
     }
 
-    /// Advance the text cursor by one column; wrap + scroll as needed.
+    /// Advance the text cursor by one column after drawing a character.
+    /// QB DEFERS the end-of-line wrap: after printing in the last column the
+    /// cursor sits one past it (pending), and the wrap — plus the bottom-row
+    /// screen scroll — happens only when the NEXT character actually needs
+    /// the cell. An intervening LOCATE clears the pending state. This is what
+    /// makes the classic bottom-row HUD idiom safe (`LOCATE 25,34: PRINT
+    /// "C:"; n;` re-LOCATE-d every update — mario/pin): a print that ENDS at
+    /// column 40 of row 25 must NOT scroll the screen. The previous eager
+    /// wrap scrolled the whole framebuffer up 8px the moment the count grew
+    /// to two digits, permanently misaligning every dirty-rect erase in the
+    /// game (the "graphics ruined for the rest of the game" bug).
     fn cursor_advance(&mut self) {
         self.cursor_col += 1;
+    }
+
+    /// Perform a deferred end-of-line wrap if the cursor is pending past the
+    /// last column. Call before drawing a character at the cursor.
+    fn wrap_cursor_if_pending(&mut self) {
         let max_col = (self.width / self.char_w) as usize;
         if self.cursor_col > max_col {
             self.cursor_col = 1;
@@ -1191,12 +1221,15 @@ impl Runtime {
                 '\r' => { self.cursor_col = 1; }
                 '\n' => { self.cursor_col = 1; self.cursor_row += 1; }
                 _ => {
+                    self.wrap_cursor_if_pending();
                     self.draw_char_fb(ch);
                     self.cursor_advance();
                 }
             }
         }
         if newline {
+            // An explicit newline absorbs any pending wrap (QB: a full-width
+            // line printed WITHOUT a semicolon advances exactly one row).
             self.cursor_col = 1;
             self.cursor_row += 1;
             self.scroll_if_needed();
@@ -1275,6 +1308,7 @@ impl Runtime {
                     k => {
                         if let Some(ch) = window_key_to_char(k, shift) {
                             buf.push(ch);
+                            self.wrap_cursor_if_pending();
                             self.draw_char_fb(ch);
                             self.cursor_advance();
                         }
@@ -1310,9 +1344,17 @@ impl Runtime {
             self.files.insert(file_num, fh);
         } else {
             // File open failed — QB error 53 = "file not found"
-            self.err_code = 53.0;
-            self.error_pending = true;
+            self.raise_err(53.0);
         }
+    }
+
+    /// Record a trappable QB error: sets `ERR` and the pending flag that the
+    /// emitted `ON ERROR` dispatch (appended after each fallible statement)
+    /// checks. With no active handler the flag is never consulted, so an
+    /// untrapped program's behavior is unchanged (silent continue, as before).
+    pub fn raise_err(&mut self, code: f64) {
+        self.err_code = code;
+        self.error_pending = true;
     }
 
     /// QB `ERR` — the code of the most recent trappable error (0 = none).
@@ -1332,8 +1374,7 @@ impl Runtime {
                 file, record_len, cur_record: 0,
             });
         } else {
-            self.err_code = 53.0;
-            self.error_pending = true;
+            self.raise_err(53.0);
         }
     }
 
@@ -1368,6 +1409,10 @@ impl Runtime {
             let _ = std::io::Read::read(file, &mut buf);
             buf
         } else {
+            // GET # on a handle that isn't an open RANDOM file — trappable:
+            // 54 bad file mode (open, wrong mode) / 52 bad file name or number.
+            let code = if self.files.contains_key(&file_num) { 54.0 } else { 52.0 };
+            self.raise_err(code);
             Vec::new()
         }
     }
@@ -1390,29 +1435,48 @@ impl Runtime {
             buf[..copy_len].copy_from_slice(&data[..copy_len]);
             let _ = file.write_all(&buf);
             let _ = file.flush();
+        } else {
+            // PUT # on a handle that isn't an open RANDOM file (see read_record).
+            let code = if self.files.contains_key(&file_num) { 54.0 } else { 52.0 };
+            self.raise_err(code);
         }
     }
 
     /// INPUT #n — read one line from a sequential file (strips trailing \n/\r).
+    /// Trappable errors: 62 "input past end of file" (read at EOF),
+    /// 54 "bad file mode" (open, but not for sequential input),
+    /// 52 "bad file name or number" (not open). The error is recorded via
+    /// `raise_err` and an empty string returned — untrapped programs see the
+    /// same silent-continue behavior as before.
     pub fn read_file_line(&mut self, file_num: u8) -> String {
-        if let Some(QbFile::Sequential { reader: Some(r), .. }) =
-            self.files.get_mut(&file_num)
-        {
-            let mut line = String::new();
-            let _ = r.read_line(&mut line);
-            line.trim_end_matches(['\n', '\r']).to_string()
-        } else {
-            String::new()
-        }
+        let mut err = 0.0f64;
+        let out = match self.files.get_mut(&file_num) {
+            Some(QbFile::Sequential { reader: Some(r), .. }) => {
+                let mut line = String::new();
+                match r.read_line(&mut line) {
+                    Ok(0) => { err = 62.0; String::new() }
+                    _ => line.trim_end_matches(['\n', '\r']).to_string(),
+                }
+            }
+            Some(_) => { err = 54.0; String::new() }
+            None    => { err = 52.0; String::new() }
+        };
+        if err != 0.0 { self.raise_err(err); }
+        out
     }
 
     /// PRINT #n / WRITE #n — write a string to a sequential file.
+    /// Trappable: 54 (open, wrong mode) / 52 (not open), as in read_file_line.
     pub fn write_file(&mut self, file_num: u8, s: &str) {
-        if let Some(QbFile::Sequential { writer: Some(w), .. }) =
-            self.files.get_mut(&file_num)
-        {
-            let _ = w.write_all(s.as_bytes());
-        }
+        let err = match self.files.get_mut(&file_num) {
+            Some(QbFile::Sequential { writer: Some(w), .. }) => {
+                let _ = w.write_all(s.as_bytes());
+                0.0f64
+            }
+            Some(_) => 54.0,
+            None    => 52.0,
+        };
+        if err != 0.0 { self.raise_err(err); }
     }
 
     /// EOF(n) — QB boolean: -1.0 at end of a sequential input file (or when the
@@ -1557,16 +1621,39 @@ impl Runtime {
     /// `update()` does not sleep, and we skip the 2.3 MB alloc + full-frame
     /// rebuild that `present()` does. Used by `inkey()` between throttled blits.
     fn pump_events(&mut self) {
-        let new_keys: Vec<Key> = {
+        let (new_keys, down_keys): (Vec<Key>, Vec<Key>) = {
             let win = match self.window.as_mut() { Some(w) => w, None => return };
             win.update();
             if !win.is_open() { std::process::exit(0); }
-            win.get_keys_pressed(KeyRepeat::No)
+            (win.get_keys_pressed(KeyRepeat::No), win.get_keys())
         };
         for key in new_keys {
             let s = minifb_key_to_qb(key);
             if !s.is_empty() { self.key_queue.push_back(s); }
         }
+        self.feed_scancodes(down_keys);
+    }
+
+    /// Diff the window's currently-held key set against the previous pump and
+    /// translate transitions into XT make/break scancodes for `INP(&H60)`.
+    /// Bounded so a program that never reads the port can't grow the queue.
+    fn feed_scancodes(&mut self, down: Vec<Key>) {
+        for k in &down {
+            if !self.sc_prev_down.contains(k) {
+                if let Some(sc) = minifb_key_to_scancode(*k) { self.push_scancode(sc); }
+            }
+        }
+        for k in &self.sc_prev_down.clone() {
+            if !down.contains(k) {
+                if let Some(sc) = minifb_key_to_scancode(*k) { self.push_scancode(sc | 0x80); }
+            }
+        }
+        self.sc_prev_down = down;
+    }
+
+    fn push_scancode(&mut self, sc: u8) {
+        if self.sc_queue.len() >= 64 { self.sc_queue.pop_front(); }
+        self.sc_queue.push_back(sc);
     }
 
     /// Flush the palette-indexed framebuffer to the minifb window.
@@ -1598,12 +1685,12 @@ impl Runtime {
         }
         // Borrow window in a nested block so it's released before we touch key_queue.
         // get_keys_pressed returns owned Vec<Key> so new_keys doesn't borrow the window.
-        let new_keys: Vec<Key> = {
+        let (new_keys, down_keys): (Vec<Key>, Vec<Key>) = {
             let out = &self.present_buf;
             let win = self.window.as_mut().unwrap();
             let _ = win.update_with_buffer(out, win_w, win_h);
             if !win.is_open() { std::process::exit(0); }
-            win.get_keys_pressed(KeyRepeat::No)
+            (win.get_keys_pressed(KeyRepeat::No), win.get_keys())
         }; // window borrow released here
         // Harvest into key_queue so keys are never lost to intervening present() calls.
         for key in new_keys {
@@ -1612,6 +1699,7 @@ impl Runtime {
                 self.key_queue.push_back(s);
             }
         }
+        self.feed_scancodes(down_keys);
     }
 
     /// `BLOAD file$[, offset]` — load a raw/BSAVE screen image into video memory.
@@ -2336,7 +2424,19 @@ impl Runtime {
         }
         match self.key_queue.pop_front() {
             Some(k) if k == "\u{0}" => "".to_string(), // DRAIN sentinel → "" (stops drain loops)
-            Some(k) => k,
+            Some(k) => {
+                // Headless: scripted keys have no window key state, so feed the
+                // INP(&H60) model a make+break pair as each key is consumed —
+                // a scancode-polling game sees a one-frame press. (Windowed
+                // runs get real held-key state from feed_scancodes instead.)
+                if self.headless_cfg.is_some() {
+                    if let Some(sc) = key_str_to_scancode(&k) {
+                        self.push_scancode(sc);
+                        self.push_scancode(sc | 0x80);
+                    }
+                }
+                k
+            }
             None    => "".to_string(),
         }
     }
@@ -2525,6 +2625,15 @@ impl Runtime {
                 }
                 // Scale 8-bit back to 6-bit DAC (reverse of dac6_to_8)
                 (match ch { 0 => r >> 2, 1 => g >> 2, _ => b >> 2 }) as f64
+            }
+            // Keyboard data port: XT make/break scancode stream. Real hardware
+            // holds the last scancode until the next key event replaces it, so
+            // reads with an empty queue return `sc_last` (games poll this every
+            // frame to maintain a held-key `kd()` array — mario/pin).
+            0x60 => {
+                self.pump_events();
+                if let Some(sc) = self.sc_queue.pop_front() { self.sc_last = sc; }
+                self.sc_last as f64
             }
             _ => 0.0
         }
@@ -3115,6 +3224,67 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
 // ── minifb key → QB INKEY$ string ────────────────────────────────────────────
 
 /// Map a minifb Key to a QB INKEY$ string (unshifted, lowercase letters).
+/// minifb Key → XT set-1 make scancode (what `INP(&H60)` reports; break code
+/// is make | 0x80). Covers the keys DOS games actually poll: letters, digits,
+/// space/enter/esc/tab/backspace, arrows, shifts/ctrl/alt, F1–F10.
+/// Arrow keys return their bare codes (72/75/77/80) without the 0xE0 extended
+/// prefix — QB-era pollers index a 0..127 `kd()` array and treat them so.
+fn minifb_key_to_scancode(key: Key) -> Option<u8> {
+    use Key::*;
+    Some(match key {
+        Escape=>1,
+        Key1=>2, Key2=>3, Key3=>4, Key4=>5, Key5=>6,
+        Key6=>7, Key7=>8, Key8=>9, Key9=>10, Key0=>11,
+        Minus=>12, Equal=>13, Backspace=>14, Tab=>15,
+        Q=>16, W=>17, E=>18, R=>19, T=>20, Y=>21, U=>22, I=>23, O=>24, P=>25,
+        LeftBracket=>26, RightBracket=>27, Enter=>28, LeftCtrl=>29,
+        A=>30, S=>31, D=>32, F=>33, G=>34, H=>35, J=>36, K=>37, L=>38,
+        Semicolon=>39, Apostrophe=>40, Backquote=>41, LeftShift=>42, Backslash=>43,
+        Z=>44, X=>45, C=>46, V=>47, B=>48, N=>49, M=>50,
+        Comma=>51, Period=>52, Slash=>53, RightShift=>54,
+        LeftAlt=>56, Space=>57, CapsLock=>58,
+        F1=>59, F2=>60, F3=>61, F4=>62, F5=>63,
+        F6=>64, F7=>65, F8=>66, F9=>67, F10=>68,
+        Home=>71, Up=>72, PageUp=>73, Left=>75, Right=>77,
+        End=>79, Down=>80, PageDown=>81, Insert=>82, Delete=>83,
+        // Right-side modifiers report the same base code as QB-era BIOSes fold to.
+        RightCtrl=>29, RightAlt=>56,
+        _ => return None,
+    })
+}
+
+/// Scripted-key string (normalize_key output) → XT make scancode, for feeding
+/// the `INP(&H60)` model in headless runs where there is no window key state.
+fn key_str_to_scancode(k: &str) -> Option<u8> {
+    match k {
+        " "     => Some(57),
+        "\r"    => Some(28),
+        "\u{1b}" => Some(1),
+        "\t"    => Some(15),
+        "\u{8}" => Some(14),
+        "\u{0}H" => Some(72), // extended arrows (CHR$(0)+code form)
+        "\u{0}P" => Some(80),
+        "\u{0}K" => Some(75),
+        "\u{0}M" => Some(77),
+        s => {
+            let mut chars = s.chars();
+            let (c, rest) = (chars.next()?, chars.next());
+            if rest.is_some() { return None; }
+            match c.to_ascii_lowercase() {
+                'a'=>Some(30),'b'=>Some(48),'c'=>Some(46),'d'=>Some(32),'e'=>Some(18),
+                'f'=>Some(33),'g'=>Some(34),'h'=>Some(35),'i'=>Some(23),'j'=>Some(36),
+                'k'=>Some(37),'l'=>Some(38),'m'=>Some(50),'n'=>Some(49),'o'=>Some(24),
+                'p'=>Some(25),'q'=>Some(16),'r'=>Some(19),'s'=>Some(31),'t'=>Some(20),
+                'u'=>Some(22),'v'=>Some(47),'w'=>Some(17),'x'=>Some(45),'y'=>Some(21),
+                'z'=>Some(44),
+                '1'=>Some(2),'2'=>Some(3),'3'=>Some(4),'4'=>Some(5),'5'=>Some(6),
+                '6'=>Some(7),'7'=>Some(8),'8'=>Some(9),'9'=>Some(10),'0'=>Some(11),
+                _ => None,
+            }
+        }
+    }
+}
+
 fn minifb_key_to_qb(key: Key) -> String {
     use Key::*;
     match key {
@@ -3757,6 +3927,85 @@ pub fn qb_width(_cols: f64, _rows: f64) {}
 
 /// LPRINT — print to printer (stub: print to stdout)
 pub fn qb_lprint(s: &str) { println!("{s}"); }
+
+#[cfg(test)]
+mod deferred_wrap_tests {
+    use super::*;
+
+    fn type_chars(rt: &mut Runtime, s: &str) {
+        for ch in s.chars() {
+            rt.wrap_cursor_if_pending();
+            rt.draw_char_fb(ch);
+            rt.cursor_advance();
+        }
+    }
+
+    /// QB defers the end-of-line wrap: a print ENDING exactly at the last
+    /// column of the bottom row must NOT scroll the screen (the mario/pin
+    /// bottom-row HUD idiom); the wrap+scroll fires only when a further
+    /// character actually needs the next cell.
+    #[test]
+    fn bottom_row_print_ending_at_last_column_does_not_scroll() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0); // 320x200, 40x25 text grid
+        rt.fb[0] = 7;    // sentinel: any scroll would shift/replace it
+        rt.locate(Some(25.0), Some(34.0), None);
+        type_chars(&mut rt, "C: 10  "); // 7 chars: cols 34..=40 exactly
+        assert_eq!(rt.fb[0], 7, "print ending at col 40 of row 25 must not scroll");
+        // Re-LOCATE clears the pending wrap — repeated HUD updates stay safe.
+        rt.locate(Some(25.0), Some(34.0), None);
+        type_chars(&mut rt, "C: 11  ");
+        assert_eq!(rt.fb[0], 7);
+    }
+
+    #[test]
+    fn genuine_overflow_past_last_column_still_scrolls() {
+        let mut rt = Runtime::headless();
+        rt.screen(13.0);
+        rt.fb[0] = 7;
+        rt.locate(Some(25.0), Some(34.0), None);
+        type_chars(&mut rt, "12345678"); // 8th char needs col 41 → wrap → scroll
+        assert_eq!(rt.fb[0], 0, "printing past the last cell must scroll the screen");
+    }
+}
+
+#[cfg(test)]
+mod scancode_tests {
+    use super::*;
+
+    #[test]
+    fn inp_60_returns_make_break_and_persists() {
+        let mut rt = Runtime::headless();
+        rt.push_scancode(57);
+        rt.push_scancode(57 | 0x80);
+        assert_eq!(rt.qb_in(96.0), 57.0);   // Space make
+        assert_eq!(rt.qb_in(96.0), 185.0);  // Space break
+        assert_eq!(rt.qb_in(96.0), 185.0);  // port holds last scancode
+    }
+
+    #[test]
+    fn feed_scancodes_diffs_held_state() {
+        let mut rt = Runtime::headless();
+        rt.feed_scancodes(vec![Key::Space]);
+        rt.feed_scancodes(vec![Key::Space, Key::Right]);
+        rt.feed_scancodes(vec![]);
+        assert_eq!(rt.qb_in(96.0), 57.0);   // Space make
+        assert_eq!(rt.qb_in(96.0), 77.0);   // Right make
+        assert_eq!(rt.qb_in(96.0), 185.0);  // Space break
+        assert_eq!(rt.qb_in(96.0), 205.0);  // Right break
+    }
+
+    #[test]
+    fn scripted_key_strings_map_to_xt_codes() {
+        assert_eq!(key_str_to_scancode(" "), Some(57));
+        assert_eq!(key_str_to_scancode("\u{1b}"), Some(1));
+        assert_eq!(key_str_to_scancode("\u{0}M"), Some(77)); // RIGHT
+        assert_eq!(key_str_to_scancode("\u{0}H"), Some(72)); // UP
+        assert_eq!(key_str_to_scancode("a"), Some(30));
+        assert_eq!(key_str_to_scancode("1"), Some(2));
+        assert_eq!(key_str_to_scancode("~~"), None);
+    }
+}
 
 #[cfg(test)]
 mod rng_and_logic_tests {

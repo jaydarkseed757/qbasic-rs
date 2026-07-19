@@ -1,0 +1,3 @@
+main: chaining
+child score: 42 
+child msg: hi there

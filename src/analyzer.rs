@@ -55,6 +55,8 @@ pub struct AnalyzedProgram {
     pub type_field_dims: HashMap<String, HashMap<String, usize>>,
     /// QBC transpiler directives from `REM QBC …` lines (uppercased).
     pub directives:   Vec<String>,
+    /// COMMON variables in declaration order (for CHAIN's positional passing).
+    pub common_decls: Vec<crate::parser::VarDecl>,
 }
 
 // ── Analyzer ──────────────────────────────────────────────────────────────────
@@ -123,6 +125,7 @@ impl Analyzer {
             type_layouts:    program.type_layouts,
             type_field_dims: program.type_field_dims,
             directives:      program.directives,
+            common_decls:    program.common_decls,
         })
     }
 

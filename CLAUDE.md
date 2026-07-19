@@ -49,7 +49,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 41 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 44 tests, all must pass
 ```
 
 ---
@@ -82,7 +82,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **41/41** integration (`tests/run-tests.sh`, stdout-based)
+- **44/44** integration (`tests/run-tests.sh`, stdout-based)
 - **142** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -365,8 +365,9 @@ The bundled programs in `basic-src/` are for manual/visual verification only.
 ## Recently Added Language Features
 
 - **`COMMON [SHARED] varlist`** — parsed like `DIM SHARED` (the variables become
-  `GameState` fields). Single-module only; `CHAIN`/inter-module sharing is not
-  modelled. (`Token::Common`, `parse_common` in `parser.rs`.)
+  `GameState` fields), and the ordered list is recorded on
+  `Program::common_decls` for `CHAIN`'s positional value passing.
+  (`Token::Common`, `parse_common` in `parser.rs`.)
 - **`STATIC var [AS type]`** (statement form, inside a SUB/FUNCTION) — a local
   that persists across calls. Emitted as `Stmt::SharedDecl`, so it rides the
   shared-promotion path and becomes a persistent `GameState` field. Caveat:
@@ -1302,6 +1303,57 @@ the never-emitted `__DATA` statics); switched to the unopened-file fault.
 Verified: 142 unit, 41/41 integration, 54/54 build-all, 10/10 goldens
 (checksums unchanged).
 
+### `CHAIN` (positional COMMON passing) + `SHELL` + `ENVIRON` — no longer stubs
+
+All three previously emitted `// STUB` + `__rt.quit()` (ending the program —
+actively wrong for SHELL, which must continue). Now:
+
+- **`SHELL cmd$`** (`Runtime::qb_shell`) — runs `/bin/sh -c cmd` (`cmd /C` on
+  Windows) synchronously with inherited stdio, matching QB's blocking SHELL;
+  the command's output interleaves with the program's own PRINTs. Bare
+  `SHELL` (interactive COMMAND.COM) emits a no-op comment.
+- **`ENVIRON "NAME=value"`** (`Runtime::qb_environ`) — sets a process env var
+  (previously quit the program!).
+- **`CHAIN prog$`** (`Runtime::qb_chain`) — QB loads and runs another program
+  passing COMMON variables **positionally** (matched by ORDER, not name). The
+  native model: exec the transpiled binary of the named program. Pieces:
+  - **Parser**: `parse_common` still lowers COMMON to shared DIMs but now ALSO
+    records the ordered decls on a `Parser::common_decls` side-channel →
+    `Program::common_decls` → `AnalyzedProgram` (order was previously lost).
+  - **Emitter**: `common_list: Vec<(name, QbType)>` (scalars only —
+    arrays/UserTypes are skipped with a transpile-time warning). The CHAIN
+    call site serializes each as `ChainVal::N(__gs.x)` / `ChainVal::S(…)`
+    via `emit_lvalue` (so shared/sigiled naming is handled by the existing
+    machinery); the top of `emit_main` assigns `__gs.x =
+    __rt.chain_in_num(i)` / `chain_in_str(i)` per position. Started
+    directly, the getters return type defaults = a fresh variable's value,
+    so standalone behavior is unchanged.
+  - **Runtime**: `ChainVal` enum; values travel through a temp file
+    (`N <f64>` / `S <escaped>` lines) whose path rides the
+    `QBC_CHAIN_COMMON` env var; `load_chain_common()` (in `new_configured`)
+    reads and deletes it. Target resolution: strip `.bas`/`.BAS`, try
+    as-given + lowercased next to `current_exe()`, then the working dir;
+    then `exec()` (unix — process replaced; non-unix falls back to
+    spawn+wait+exit). Missing target → stderr warning + trappable err 53,
+    silent-continue when untrapped (consistent with the error-model
+    convention). Open QB file handles do NOT survive the exec (real QB keeps
+    them open across CHAIN — documented divergence, nothing uses it).
+
+Integration tests: `shell.bas` (SHELL echo interleaves between PRINTs), and
+the pair `chain_child.bas`/`chain_main.bas` — child standalone prints type
+defaults; main sets `score`/`msg$`, CHAINs, and the child (found next to the
+current executable in `tests/tmp/`; it compiles first alphabetically)
+prints the passed 42/"hi there". Verified: 142 unit, 44/44 integration,
+54/54 build-all, 10/10 goldens (checksums unchanged).
+
+**Also corrected while here (stale docs)**: `PAINT` with a `CHR$()` tiling
+pattern was listed in three places as an unimplemented solid-fill stub — it
+has been fully implemented for some time (emitter dispatches string fills to
+`Runtime::paint_pattern`, `flood_fill_pattern` tiles 1-byte-per-row / bit 7
+leftmost / fg on set bits, locked by `tests/programs/paint_pattern.bas`).
+The simplification vs real QB: EGA planar modes' multi-byte-per-row plane
+grouping is read as single-plane; no bundled program uses tiling at all.
+
 ### farkle.bas (SCREEN 13 dice game — sigil-less `DIM … AS STRING` in comparisons)
 
 `farkle.bas` is a SCREEN 13 push-your-luck dice game. Two transpiler fixes plus one
@@ -1866,7 +1918,9 @@ path still emits identically; gorilla/donkey passed without flaking).
   `**` asterisk fill, and `**$` combined prefixes (`*` slots extend digit
   capacity, `$` does not), alongside numeric/string/`_X`/`^^^^`/`%` formats. 36
   unit tests (`print_using_tests` + `print_using_prefix_tests`). The only
-  unmodeled QB features are the `PAINT CHR$()` tiling pattern and `CHAIN`/`SHELL`.
+  unmodeled QB features are hardware-level port I/O beyond the VGA DAC +
+  keyboard ports (`PAINT CHR$()` tiling, `CHAIN` + positional COMMON, and
+  `SHELL` are all supported — see the CHAIN/SHELL changelog section).
   `OUT`/`INP` are supported for VGA DAC ports — see the VGA DAC section above and
   `vgadac.bas`.
 - **gorilla is now golden-tested** — seed 42, scripted intro + one banana throw

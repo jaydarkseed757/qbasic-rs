@@ -180,9 +180,18 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
   code and keep silent-continue behavior. SCREEN/PALETTE/numeric errors do
   not raise.
 
-### Not supported / stubbed
-- `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
-- `CHAIN` / `SHELL` → not modeled (stubbed to program end)
+### Simplified / partial emulation (formerly stubs — all functional now)
+- `PAINT` with a `CHR$()` tiling pattern — supported (1-byte-per-row tile,
+  bit 7 = leftmost pixel, fg color on set bits; the multi-byte-per-row planar
+  grouping of EGA modes is simplified to the single-plane reading)
+- `CHAIN prog$` — supported: execs the transpiled binary of the named program
+  (found next to the current executable, `.bas` extension stripped), passing
+  COMMON values positionally through a temp file (QBC_CHAIN_COMMON env var,
+  read-and-deleted by the child at startup). Missing target = trappable
+  err 53. `CHAIN "prog", line` / ALL / MERGE variants ignore the extras.
+- `SHELL cmd$` — supported: runs the host shell synchronously with inherited
+  stdio; bare `SHELL` (interactive) is a no-op. `ENVIRON "N=v"` sets a
+  process env var.
 - `OUT` / `INP` — supported for VGA DAC ports (0x3C7/0x3C8/0x3C9) and the
   keyboard data port `&H60` (XT make/break scancode stream from real window
   held-key state, or scripted keys in headless runs); other port addresses
@@ -307,7 +316,9 @@ pub struct VarDecl {
 - **`SELECT CASE`** — supports `CASE x`, `CASE x TO y`, `CASE IS > x`,
   `CASE ELSE`.
 - **`COMMON [SHARED] varlist`** — parsed by `parse_common`, mirroring
-  `parse_dim`; emits shared `Stmt::Dim` decls (single-module only — no `CHAIN`).
+  `parse_dim`; emits shared `Stmt::Dim` decls AND records the ordered list on
+  `Program::common_decls` — `CHAIN` passes COMMON values positionally (matched
+  by ORDER, not name, per QB) to the chained program's own COMMON list.
 - **`STATIC varlist [AS type]`** (statement form inside a procedure) — parsed by
   `parse_static` into `Stmt::SharedDecl`, so the analyzer promotes the names to
   persistent `GameState` fields (see Analyzer). The `SUB … STATIC` *header
@@ -1508,9 +1519,10 @@ qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario).
 The integration suite is **40/40**, with 142 runtime unit tests and 10 graphics golden tests.
 
-No known QB feature gaps block the bundled set. The only unmodeled features are
-two rarely-used stubs (`PAINT` with a `CHR$()` tiling pattern → solid fill;
-`CHAIN`/`SHELL` → program end).
+No known QB feature gaps block the bundled set. `PAINT` `CHR$()` tiling,
+`CHAIN` (with positional COMMON passing), and `SHELL` are all modeled — see
+the "Not supported / stubbed" section, which is now down to hardware-level
+port emulation beyond the VGA DAC + keyboard ports.
 
 Previously listed items that are now complete:
 - **`PRINT USING` floating tokens** — ✅ Implemented. `$$` (floating dollar),

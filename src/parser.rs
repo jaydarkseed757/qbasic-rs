@@ -88,6 +88,8 @@ pub struct Program {
     pub type_field_dims: HashMap<String, HashMap<String, usize>>,
     /// QBC transpiler directives from `REM QBC <directive>` lines (uppercased).
     pub directives: Vec<String>,
+    /// COMMON variables in declaration order (for CHAIN's positional passing).
+    pub common_decls: Vec<VarDecl>,
 }
 
 #[derive(Debug, Clone)]
@@ -336,6 +338,10 @@ pub struct Parser {
     /// merged into `Program::functions` at the end (they emit as top-level fns,
     /// so position is irrelevant). Mirrors how `directives` are accumulated.
     pending_funcs: Vec<FuncDef>,
+    /// COMMON variables in declaration order. QB's CHAIN passes COMMON values
+    /// to the chained program POSITIONALLY, so the order must be preserved
+    /// (the decls themselves are lowered to shared DIMs and lose it).
+    common_decls: Vec<VarDecl>,
 }
 
 impl Parser {
@@ -343,7 +349,8 @@ impl Parser {
         Self { tokens, pos: 0, type_defs: HashMap::new(),
                type_layouts: HashMap::new(), type_field_dims: HashMap::new(),
                directives: Vec::new(), pending_nexts: 0,
-               pending_funcs: Vec::new() }
+               pending_funcs: Vec::new(),
+               common_decls: Vec::new() }
     }
 
     fn peek(&self) -> &Token {
@@ -445,6 +452,7 @@ impl Parser {
             type_layouts:    self.type_layouts.clone(),
             type_field_dims: self.type_field_dims.clone(),
             directives:      std::mem::take(&mut self.directives),
+            common_decls:    std::mem::take(&mut self.common_decls),
         })
     }
 
@@ -1018,13 +1026,18 @@ impl Parser {
     fn parse_common(&mut self) -> Result<Stmt> {
         self.expect(&Token::Common)?;
         if self.peek() == &Token::Shared { self.advance(); }
-        // COMMON vars are always shared module-wide for our purposes.
-        let first = Stmt::Dim(self.parse_var_decl(true)?);
+        // COMMON vars are always shared module-wide for our purposes; the
+        // ordered list is ALSO recorded for CHAIN's positional value passing.
+        let d0 = self.parse_var_decl(true)?;
+        self.common_decls.push(d0.clone());
+        let first = Stmt::Dim(d0);
         if self.peek() != &Token::Comma { return Ok(first); }
         let mut stmts = vec![first];
         while self.peek() == &Token::Comma {
             self.advance();
-            stmts.push(Stmt::Dim(self.parse_var_decl(true)?));
+            let d = self.parse_var_decl(true)?;
+            self.common_decls.push(d.clone());
+            stmts.push(Stmt::Dim(d));
         }
         Ok(Stmt::Block(stmts))
     }

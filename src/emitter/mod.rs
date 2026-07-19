@@ -133,6 +133,11 @@ pub struct Emitter {
     /// (QB's ERL convention for unnumbered code). Tracked linearly at
     /// emission time (same approximation as `on_error_label`).
     last_line_label: u32,
+    /// COMMON variables in declaration order: (QB name, type). QB's CHAIN
+    /// passes COMMON values positionally, so both the CHAIN call site (values
+    /// out) and the top of main (values in) iterate this list in order.
+    /// Arrays/UserTypes in COMMON are not serialized (scalar-only; warned).
+    common_list: Vec<(String, QbType)>,
     /// Parsed QBC pragma config — populated from prog.directives before emit_main().
     qbc: QbcConfig,
     /// Maps named GOTO target label (QB name, any case) → Rust loop label (e.g. "'_loop_0").
@@ -222,6 +227,7 @@ impl Emitter {
             sm_cur_pc: 0,
             sm_next_pc: 0,
             last_line_label: 0,
+            common_list: Vec::new(),
             qbc: QbcConfig::default(),
             named_loop_labels: HashMap::new(),
             loop_label_counter: 0,
@@ -575,6 +581,18 @@ impl Emitter {
 
         // Store data_labels for RESTORE label support
         self.data_labels = prog.data_labels.clone();
+
+        // Ordered COMMON list for CHAIN's positional value passing.
+        // Scalars only: arrays/UserTypes are skipped with a warning (QB can
+        // pass them, but no bundled program does and the serialization isn't
+        // modeled).
+        for d in &prog.common_decls {
+            if !d.dims.is_empty() || matches!(d.ty, QbType::UserType(_)) {
+                eprintln!("warning: COMMON {} is an array/record — not passed across CHAIN", d.name);
+                continue;
+            }
+            self.common_list.push((d.name.clone(), d.ty.clone()));
+        }
 
         // Pre-scan ALL DIM statements across the entire program to populate
         // array_lower BEFORE emitting any code.  Subs are emitted first, so
@@ -1158,6 +1176,22 @@ impl Emitter {
 
         if self.gamestate_emitted {
             self.line("let mut __gs = GameState::default();");
+            self.blank();
+        }
+
+        // COMMON hand-off: when this process was CHAIN'd into, load the
+        // parent's COMMON values positionally (QB semantics — matched by
+        // ORDER, not name). Started directly, the getters return the type
+        // defaults, i.e. exactly a fresh variable's value.
+        if !self.common_list.is_empty() {
+            for (i, (name, ty)) in self.common_list.clone().into_iter().enumerate() {
+                let lv = self.emit_lvalue(&LValue::Scalar { name, ty: ty.clone() });
+                if ty == QbType::String {
+                    self.line(&format!("{lv} = __rt.chain_in_str({i});"));
+                } else {
+                    self.line(&format!("{lv} = __rt.chain_in_num({i});"));
+                }
+            }
             self.blank();
         }
 
@@ -2120,10 +2154,43 @@ impl Emitter {
                     // SYSTEM — exit to DOS immediately, no wait-for-key
                     // (programs do their own "press any key" prompt first).
                     self.line("__rt.qb_system();");
-                } else if matches!(fn_lower.as_str(), "chain" | "shell" | "environ") {
-                    // CHAIN loads another BASIC program — treat as program end
-                    self.line(&format!("// STUB: {name}"));
-                    self.line("__rt.quit();");
+                } else if fn_lower == "shell" {
+                    // SHELL cmd$ — run a host shell command synchronously
+                    // (stdio inherited). Bare SHELL (interactive) is a no-op.
+                    match args.first() {
+                        Some(e) => {
+                            let c = self.lift_expr(e);
+                            self.line(&format!("__rt.qb_shell(&({c}).to_string());"));
+                        }
+                        None => self.line("// SHELL (interactive shell) — no-op"),
+                    }
+                } else if fn_lower == "environ" {
+                    // ENVIRON "NAME=value" — set a process environment variable.
+                    if let Some(e) = args.first() {
+                        let c = self.lift_expr(e);
+                        self.line(&format!("__rt.qb_environ(&({c}).to_string());"));
+                    }
+                } else if fn_lower == "chain" {
+                    // CHAIN prog$ — exec the transpiled binary of the named
+                    // program, passing COMMON values positionally. Extra QB
+                    // args (CHAIN "prog", line / ALL / MERGE) are ignored.
+                    let prog = args.first()
+                        .map(|e| self.lift_expr(e))
+                        .unwrap_or_else(|| "String::new()".into());
+                    let vals: Vec<String> = self.common_list.clone().into_iter()
+                        .map(|(name, ty)| {
+                            let lv = self.emit_lvalue(&LValue::Scalar { name, ty: ty.clone() });
+                            if ty == QbType::String {
+                                format!("ChainVal::S({lv}.clone())")
+                            } else {
+                                format!("ChainVal::N({lv})")
+                            }
+                        })
+                        .collect();
+                    self.line(&format!(
+                        "__rt.qb_chain(&({prog}).to_string(), vec![{}]);",
+                        vals.join(", ")
+                    ));
                 } else if fn_lower == "draw" {
                     // DRAW "turtle-graphics-string" → runtime method
                     let s = args.first()

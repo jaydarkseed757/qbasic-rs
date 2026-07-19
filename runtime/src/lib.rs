@@ -498,6 +498,10 @@ pub struct Runtime {
     pub err_code: f64,
     /// ERL — line number of the most recent error (see erl_line()).
     pub erl_line: f64,
+    /// COMMON values handed to this process by a CHAIN'ing parent (positional,
+    /// QB semantics). Loaded once from the QBC_CHAIN_COMMON temp file in
+    /// new_configured(); empty when the program was started directly.
+    chain_common: Vec<ChainVal>,
     /// Headless driver config (Some when any `QBC_*` env var requests it).
     /// Drives scripted input, framebuffer export, and guaranteed auto-exit so a
     /// transpiled binary can be run non-interactively for debugging and tests.
@@ -541,6 +545,55 @@ enum DumpAt { Exit, Present(u64), Ms(u64) }
 enum ExitAfter { Idle, Ms(u64), Presents(u64) }
 
 /// Parsed `QBC_*` headless-driver configuration.
+/// One CHAIN'd COMMON value (QB passes COMMON positionally, typed).
+#[derive(Debug, Clone)]
+pub enum ChainVal {
+    N(f64),
+    S(String),
+}
+
+fn chain_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\n', "\\n").replace('\r', "\\r")
+}
+
+fn chain_unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('r') => out.push('\r'),
+                Some('\\') => out.push('\\'),
+                Some(other) => { out.push('\\'); out.push(other); }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Read (and delete) the COMMON hand-off file a CHAIN'ing parent left for us.
+fn load_chain_common() -> Vec<ChainVal> {
+    let Some(path) = std::env::var_os("QBC_CHAIN_COMMON") else { return Vec::new() };
+    std::env::remove_var("QBC_CHAIN_COMMON");
+    let Ok(text) = std::fs::read_to_string(&path) else { return Vec::new() };
+    let _ = std::fs::remove_file(&path);
+    text.lines()
+        .filter_map(|l| {
+            if let Some(v) = l.strip_prefix("N ") {
+                v.parse().ok().map(ChainVal::N)
+            } else if let Some(v) = l.strip_prefix("S ") {
+                Some(ChainVal::S(chain_unescape(v)))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 struct HeadlessCfg {
     dump_path:  Option<String>,
     dump_at:    DumpAt,
@@ -684,6 +737,7 @@ impl Runtime {
             error_pending: false,
             err_code: 0.0,
             erl_line: 0.0,
+            chain_common: Vec::new(),
             headless_cfg: None,
             seed_locked: false,
             present_count: 0,
@@ -786,6 +840,7 @@ impl Runtime {
             error_pending: false,
             err_code: 0.0,
             erl_line: 0.0,
+            chain_common: load_chain_common(),
             headless_cfg,
             seed_locked: false,
             present_count: 0,
@@ -1375,6 +1430,107 @@ impl Runtime {
     /// compile time); method + field coexist for the same reason as err_code.
     pub fn erl_line(&self) -> f64 {
         self.erl_line
+    }
+
+    // ── CHAIN / SHELL / ENVIRON ───────────────────────────────────────────────
+
+    /// CHAIN'd-in COMMON value at position `idx` (QB passes COMMON values
+    /// positionally). Returns the type's default when absent or mismatched —
+    /// which is exactly a fresh variable's value, so a program started
+    /// directly (not via CHAIN) behaves as if nothing was passed.
+    pub fn chain_in_num(&self, idx: usize) -> f64 {
+        match self.chain_common.get(idx) { Some(ChainVal::N(v)) => *v, _ => 0.0 }
+    }
+    pub fn chain_in_str(&self, idx: usize) -> String {
+        match self.chain_common.get(idx) { Some(ChainVal::S(s)) => s.clone(), _ => String::new() }
+    }
+
+    /// `CHAIN prog$` — replace this process with the transpiled binary of the
+    /// named program, passing the current COMMON values positionally.
+    /// Resolution: strip a `.bas`/`.BAS` extension, then try (as-given, then
+    /// lowercased) next to the current executable, then in the working
+    /// directory. Values travel through a temp file whose path is handed to
+    /// the child via QBC_CHAIN_COMMON (read-and-deleted at its startup).
+    /// A missing target raises trappable error 53 and continues (QB errors
+    /// there too); untrapped programs keep the silent-continue convention.
+    pub fn qb_chain(&mut self, prog: &str, vals: Vec<ChainVal>) {
+        let p = prog.trim();
+        let stem = if p.len() >= 4 && p[p.len() - 4..].eq_ignore_ascii_case(".bas") {
+            &p[..p.len() - 4]
+        } else { p };
+        let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                candidates.push(dir.join(stem));
+                candidates.push(dir.join(stem.to_lowercase()));
+            }
+        }
+        candidates.push(std::path::PathBuf::from(stem));
+        candidates.push(std::path::PathBuf::from(stem.to_lowercase()));
+        let target = match candidates.into_iter().find(|c| c.is_file()) {
+            Some(t) => t,
+            None => {
+                eprintln!("CHAIN: no transpiled binary found for \"{p}\"");
+                self.raise_err(53.0);
+                return;
+            }
+        };
+        // Serialize COMMON values: one per line, "N <f64>" / "S <escaped>".
+        let mut out = String::new();
+        for v in &vals {
+            match v {
+                ChainVal::N(n) => out.push_str(&format!("N {n}\n")),
+                ChainVal::S(s) => out.push_str(&format!("S {}\n", chain_escape(s))),
+            }
+        }
+        let path = std::env::temp_dir()
+            .join(format!("qbc_chain_{}.dat", std::process::id()));
+        if std::fs::write(&path, out).is_err() {
+            eprintln!("CHAIN: cannot write COMMON hand-off file");
+            self.raise_err(53.0);
+            return;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            let err = std::process::Command::new(&target)
+                .env("QBC_CHAIN_COMMON", &path)
+                .exec(); // only returns on failure
+            eprintln!("CHAIN: failed to exec {}: {err}", target.display());
+        }
+        #[cfg(not(unix))]
+        {
+            match std::process::Command::new(&target)
+                .env("QBC_CHAIN_COMMON", &path)
+                .status()
+            {
+                Ok(st) => std::process::exit(st.code().unwrap_or(0)),
+                Err(e) => eprintln!("CHAIN: failed to run {}: {e}", target.display()),
+            }
+        }
+        let _ = std::fs::remove_file(&path);
+        self.raise_err(53.0);
+    }
+
+    /// `SHELL cmd$` — run a host shell command synchronously, inheriting
+    /// stdio (QB's SHELL blocks until the command exits). Bare `SHELL`
+    /// (interactive COMMAND.COM) is emitted as a no-op.
+    pub fn qb_shell(&mut self, cmd: &str) {
+        if cmd.trim().is_empty() { return; }
+        #[cfg(unix)]
+        let status = std::process::Command::new("/bin/sh").arg("-c").arg(cmd).status();
+        #[cfg(not(unix))]
+        let status = std::process::Command::new("cmd").arg("/C").arg(cmd).status();
+        if let Err(e) = status {
+            eprintln!("SHELL: failed to run \"{cmd}\": {e}");
+        }
+    }
+
+    /// `ENVIRON "NAME=value"` — set a process environment variable.
+    pub fn qb_environ(&mut self, spec: &str) {
+        if let Some((name, value)) = spec.split_once('=') {
+            std::env::set_var(name.trim(), value);
+        }
     }
 
     /// OPEN path FOR RANDOM AS #n LEN = rec_len

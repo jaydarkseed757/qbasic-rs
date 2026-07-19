@@ -2473,8 +2473,10 @@ impl Parser {
                 match upper.as_str() {
                     "TIMER" => return Ok(Expr::Call { name: "TIMER".into(), args: vec![] }),
                     "INKEY" => return Ok(Expr::Call { name: "INKEY$".into(), args: vec![] }),
-                    // ERR — QB system variable holding the last error number
+                    // ERR / ERL — QB system variables: last error number and the
+                    // number of the line where it occurred (0 = unnumbered).
                     "ERR"   => return Ok(Expr::Call { name: "ERR".into(), args: vec![] }),
+                    "ERL"   => return Ok(Expr::Call { name: "ERL".into(), args: vec![] }),
                     _ => {}
                 }
 

@@ -162,19 +162,31 @@ statement parser (`src/parser.rs`), and the emitter's built-in dispatch
   parameters + shared/global (`GameState`) state, not arbitrary main-module locals
   (QB's true `DEF FN` shares module scope).
 
-### `ON ERROR GOTO` / `RESUME` — named-label happy path only
-- `ON ERROR GOTO <named label>` + `RESUME NEXT` work: the handler is extracted as a fn
-  and invoked when `__rt.error_pending` is set after a fallible statement; `ERR` returns
-  the error code. The only error the runtime raises is **file-not-found (err 53) on
-  `OPEN`**. Not implemented: bare `RESUME` retry (treated as `RESUME NEXT`), numeric-
-  label handlers in `__pc` state-machine programs (error cleared but no jump), `ERL`,
-  and error triggers beyond file-`OPEN`.
+### `ON ERROR GOTO` / `RESUME` — both handler styles, real RESUME, ERR + ERL
+- `ON ERROR GOTO <named label>`: handler extracted as a fn, invoked when
+  `__rt.error_pending` is set after a fallible statement; the fn's return IS
+  resume-next (bare `RESUME` retry is not representable on this path).
+- `ON ERROR GOTO <numeric line>` in `__pc` state-machine programs: dispatch
+  jumps to the handler's match arm, recording `__err_pc`/`__err_resume_pc`
+  resume registers. All three `RESUME` forms work with QB semantics at
+  numbered-line granularity: bare `RESUME` (retry the faulting line),
+  `RESUME NEXT`, `RESUME <line>`.
+- `ERR` returns the error code; `ERL` returns the numeric line label nearest
+  before the fault site (0 for unnumbered code), recorded by the emitted
+  dispatch which knows the line at compile time.
+- Trappable errors (QB 1.1 codes): OPEN file-not-found (53), INPUT#/LINE
+  INPUT# past EOF (62), bad file mode (54), bad file name/number (52) on any
+  file statement, READ out of DATA (4). Untrapped programs emit byte-identical
+  code and keep silent-continue behavior. SCREEN/PALETTE/numeric errors do
+  not raise.
 
 ### Not supported / stubbed
 - `PAINT` with a `CHR$()` tiling pattern → solid-foreground stub (dead on color paths)
 - `CHAIN` / `SHELL` → not modeled (stubbed to program end)
-- `OUT` / `INP` — **now supported** for VGA DAC ports (0x3C7/0x3C8/0x3C9); other port
-  addresses are silently ignored (not modeled at the hardware level)
+- `OUT` / `INP` — supported for VGA DAC ports (0x3C7/0x3C8/0x3C9) and the
+  keyboard data port `&H60` (XT make/break scancode stream from real window
+  held-key state, or scripted keys in headless runs); other port addresses
+  are silently ignored (not modeled at the hardware level)
 
 `GET`/`PUT` sprites are fully supported across pixel depths: EGA 4-plane planar
 (SCREEN 9/12), CGA 2bpp packed (SCREEN 1), and MCGA 8bpp chunky (SCREEN 13).

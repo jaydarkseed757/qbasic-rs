@@ -128,6 +128,11 @@ pub struct Emitter {
     /// (RESUME retries `sm_cur_pc`; RESUME NEXT continues at `sm_next_pc`).
     sm_cur_pc: u32,
     sm_next_pc: u32,
+    /// Most recent numeric line label seen during emission — the value ERL
+    /// reports for an error raised past that line. 0 = no numbered line yet
+    /// (QB's ERL convention for unnumbered code). Tracked linearly at
+    /// emission time (same approximation as `on_error_label`).
+    last_line_label: u32,
     /// Parsed QBC pragma config — populated from prog.directives before emit_main().
     qbc: QbcConfig,
     /// Maps named GOTO target label (QB name, any case) → Rust loop label (e.g. "'_loop_0").
@@ -216,6 +221,7 @@ impl Emitter {
             sm_err_vars: false,
             sm_cur_pc: 0,
             sm_next_pc: 0,
+            last_line_label: 0,
             qbc: QbcConfig::default(),
             named_loop_labels: HashMap::new(),
             loop_label_counter: 0,
@@ -249,6 +255,10 @@ impl Emitter {
         // line-numbered programs those almost always coincide; for a
         // multi-statement faulting line, RESUME re-runs the whole line and
         // RESUME NEXT skips its remainder.
+        // ERL: the number of the most recent numeric line label before this
+        // fault site (0 = unnumbered code, QB's convention). Recorded inside
+        // the pending-check so ERL only updates when an error actually fired.
+        let erl = self.last_line_label;
         if self.sm_mode && self.sm_err_vars {
             if let Ok(n) = lbl.parse::<u32>() {
                 if n > 0 {
@@ -256,6 +266,7 @@ impl Emitter {
                     let next = self.sm_next_pc;
                     self.line(&format!(
                         "if __rt.error_pending {{ __rt.error_pending = false; \
+                         __rt.erl_line = {erl}.0; \
                          __err_pc = {cur}; __err_resume_pc = {next}; \
                          __pc = {n}; continue '__sm; }}"
                     ));
@@ -268,12 +279,16 @@ impl Emitter {
         if self.user_fns.contains(&rust_lbl) {
             let call_args = self.rt_args();
             self.line(&format!(
-                "if __rt.error_pending {{ __rt.error_pending = false; {rust_lbl}({call_args}); }}"
+                "if __rt.error_pending {{ __rt.error_pending = false; \
+                 __rt.erl_line = {erl}.0; {rust_lbl}({call_args}); }}"
             ));
         } else {
             // Handler not callable (numeric handler outside a state machine,
             // or disabled) — clear the error so execution continues gracefully.
-            self.line("if __rt.error_pending { __rt.error_pending = false; }");
+            self.line(&format!(
+                "if __rt.error_pending {{ __rt.error_pending = false; \
+                 __rt.erl_line = {erl}.0; }}"
+            ));
         }
     }
 
@@ -1227,6 +1242,7 @@ impl Emitter {
             };
             self.sm_cur_pc = pc;
             self.sm_next_pc = next_pc;
+            self.last_line_label = pc;
 
             // Emit the match arm
             if pc == 0 {
@@ -1646,6 +1662,10 @@ impl Emitter {
                 }
             }
             Stmt::Label(l)     => {
+                // Track the most recent numeric line label for ERL (works in
+                // non-SM programs too; inside the state machine the per-block
+                // pc assignment in emit_state_machine is the primary source).
+                if let Ok(n) = l.parse::<u32>() { self.last_line_label = n; }
                 if self.sm_mode && l.parse::<u32>().is_ok() {
                     // Numeric labels inside FOR/IF bodies in state-machine mode are comments.
                     // (Top-level labels are consumed by flatten_to_blocks.)
@@ -4817,6 +4837,7 @@ impl Emitter {
                 }
                 if upper == "INKEY$" { return Ok("__rt.inkey()".into()); }
                 if upper == "ERR"    { return Ok("__rt.err_code".into()); }
+                if upper == "ERL"    { return Ok("__rt.erl_line".into()); }
                 if upper == "PMAP" && args.len() == 2 {
                     let a0 = self.emit_expr_inner(&args[0])?;
                     let a1 = self.emit_expr_inner(&args[1])?;

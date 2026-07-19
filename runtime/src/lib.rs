@@ -496,6 +496,8 @@ pub struct Runtime {
     /// QB ERR system variable — holds the QB error code for the last error.
     /// 53 = "file not found", 24/25 = printer errors, 0 = no error.
     pub err_code: f64,
+    /// ERL — line number of the most recent error (see erl_line()).
+    pub erl_line: f64,
     /// Headless driver config (Some when any `QBC_*` env var requests it).
     /// Drives scripted input, framebuffer export, and guaranteed auto-exit so a
     /// transpiled binary can be run non-interactively for debugging and tests.
@@ -681,6 +683,7 @@ impl Runtime {
             vp_bot: 0, // 0 = unset (use full height)
             error_pending: false,
             err_code: 0.0,
+            erl_line: 0.0,
             headless_cfg: None,
             seed_locked: false,
             present_count: 0,
@@ -782,6 +785,7 @@ impl Runtime {
             vp_bot: 0, // 0 = unset (use full height)
             error_pending: false,
             err_code: 0.0,
+            erl_line: 0.0,
             headless_cfg,
             seed_locked: false,
             present_count: 0,
@@ -1363,6 +1367,14 @@ impl Runtime {
     /// directly at other emission sites.
     pub fn err_code(&self) -> f64 {
         self.err_code
+    }
+
+    /// QB `ERL` — the numeric line label nearest before the statement that
+    /// raised the most recent error (0 = none yet, or unnumbered code).
+    /// Written by the emitted ON ERROR dispatch (which knows the line at
+    /// compile time); method + field coexist for the same reason as err_code.
+    pub fn erl_line(&self) -> f64 {
+        self.erl_line
     }
 
     /// OPEN path FOR RANDOM AS #n LEN = rec_len

@@ -229,6 +229,7 @@ pub(super) fn rust_fn_name(name: &str) -> String {
         "LOF"     => "qb_lof_fn".into(),
         // Error handling
         "ERR"     => "__rt.err_code".into(),  // emitted as a field access, not a fn call
+        "ERL"     => "__rt.erl_line".into(),  // ditto — faulting line number (0 = unnumbered)
         other     => rust_ident(other),
     }
 }

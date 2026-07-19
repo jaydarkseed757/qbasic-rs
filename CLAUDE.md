@@ -49,7 +49,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 40 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 41 tests, all must pass
 ```
 
 ---
@@ -82,7 +82,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **40/40** integration (`tests/run-tests.sh`, stdout-based)
+- **41/41** integration (`tests/run-tests.sh`, stdout-based)
 - **142** runtime unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -1076,7 +1076,8 @@ bugs were uncovered, plus one source-level `.bas` fix:
     section below); `SCREEN`/`PALETTE`/divide-by-zero/subscript-out-of-range do not
     raise (adding SCREEN errors would regress programs that rely on us accepting
     every mode; the numeric ones would need per-operation checks everywhere).
-  - `ERL` (error line number) is unimplemented; `ERR` works.
+  - (`ERL` — previously listed here as unimplemented — now works: see the ERL
+    section below.)
 
 ### `ON ERROR GOTO <numeric line>` in `__pc` state-machine programs + real RESUME
 
@@ -1270,6 +1271,36 @@ screenshot: values overprint in place, sky intact). Note: the stale-rlib
 trap struck AGAIN during verification (manual rustc against
 `target/release/libqbasic_runtime.rlib` without `cargo build --release -p
 qbasic_runtime` first shows pre-fix behavior).
+
+### `ERL` — error line number (closes the last ON ERROR gap)
+
+`ERL` returns the numeric line label nearest before the statement that
+raised the most recent error (0 = no error yet, or unnumbered code — QB's
+convention). The error is *raised* inside runtime fns that don't know source
+lines, so the line is recorded by the **emitted dispatch**, which does:
+
+- **Emitter** (`emitter/mod.rs`): new `last_line_label: u32` tracks the most
+  recent numeric line label during emission — updated per-block in
+  `emit_state_machine` (alongside `sm_cur_pc`) and in the `Stmt::Label` arm
+  (so non-SM programs with numbered lines work too). All three
+  `emit_error_dispatch` variants (SM-numeric jump, named-handler call,
+  clear-only) now write `__rt.erl_line = {line}.0;` inside the
+  pending-check, so ERL only updates when an error actually fired. Same
+  linear-emission approximation as `on_error_label` (SUB bodies emitted
+  before main don't see main's numbering).
+- **Parser** (`parser.rs`): bare `ERL` → zero-arg `Expr::Call` (exact ERR
+  pattern). **Emitter routing**: `emit_expr_inner` + `rust_fn_name` map it
+  to `__rt.erl_line` (field); **runtime** adds the `erl_line: f64` field +
+  `erl_line()` method (field/method coexistence, same reason as `err_code`).
+
+Regression test `tests/programs/erl.bas`: ERL=0 before any error, two faults
+on different numbered lines (30: OPEN missing file → 53; 50: INPUT # on
+unopened → 52) each reporting its own line in the handler, values surviving
+`RESUME NEXT`. Gotcha note: an early draft used `READ` for the second fault
+— a program with `READ` but NO `DATA` statements cannot compile (references
+the never-emitted `__DATA` statics); switched to the unopened-file fault.
+Verified: 142 unit, 41/41 integration, 54/54 build-all, 10/10 goldens
+(checksums unchanged).
 
 ### farkle.bas (SCREEN 13 dice game — sigil-less `DIM … AS STRING` in comparisons)
 

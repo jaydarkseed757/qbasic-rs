@@ -1,0 +1,6 @@
+start erl: 0 
+trapped err: 53 at line: 30 
+after first
+trapped err: 52 at line: 50 
+after second
+final err: 52 erl: 50 

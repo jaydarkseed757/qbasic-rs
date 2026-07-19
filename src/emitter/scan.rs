@@ -75,8 +75,16 @@ pub(super) fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(
                                 }
                             }
                         }
-                        LValue::FieldIndex { .. } => {}
-                        LValue::Index { .. } => {}
+                        // The assignment TARGET's index expressions are reads
+                        // too — a variable referenced ONLY there (e.g.
+                        // `BR(f(L3)) = …` with L3 never assigned) must still
+                        // be declared. (Found by the differential fuzzer.)
+                        LValue::FieldIndex { indices, .. } => {
+                            for e in indices { scan_expr(e, result, added, exclude); }
+                        }
+                        LValue::Index { indices, .. } => {
+                            for e in indices { scan_expr(e, result, added, exclude); }
+                        }
                     }
                     scan_expr(expr, result, added, exclude);
                 }
@@ -1589,6 +1597,28 @@ pub(super) fn stmt_has_numeric_goto(stmt: &Stmt) -> bool {
             || default.as_ref().map_or(false, |b| b.iter().any(stmt_has_numeric_goto))
         }
         Stmt::Block(inner) => inner.iter().any(stmt_has_numeric_goto),
+        _ => false,
+    }
+}
+
+/// Does `e` (recursively) read array `bare` (sigil-stripped lowercase name)?
+/// Array reads appear as `Expr::Call { name }` (the usual parse of `arr(i)`)
+/// or `Expr::Var(LValue::Index { name, .. })`. A same-named SCALAR read is
+/// NOT counted — it binds to a different Rust local (`local_scalar_name`),
+/// so it can't conflict with a borrow of the array Vec.
+pub(super) fn expr_refs_array(e: &Expr, bare: &str) -> bool {
+    match e {
+        Expr::Call { name, args } => {
+            rust_ident(name) == bare || args.iter().any(|a| expr_refs_array(a, bare))
+        }
+        Expr::Var(LValue::Index { name, indices, .. }) => {
+            rust_ident(name) == bare || indices.iter().any(|a| expr_refs_array(a, bare))
+        }
+        Expr::Var(_) => false,
+        Expr::BinOp { lhs, rhs, .. } => {
+            expr_refs_array(lhs, bare) || expr_refs_array(rhs, bare)
+        }
+        Expr::UnOp { operand, .. } => expr_refs_array(operand, bare),
         _ => false,
     }
 }

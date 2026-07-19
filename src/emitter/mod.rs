@@ -331,6 +331,35 @@ impl Emitter {
         set
     }
 
+    /// If `var` is an array-element target whose index expressions read the
+    /// same array, hoist those indexes into `let __idxN = …;` temps and
+    /// return a rewritten LValue referencing the temps (see the E0502 note at
+    /// Stmt::Let). Any other lvalue is returned unchanged.
+    fn hoist_self_ref_indices(&mut self, var: &LValue) -> LValue {
+        if let LValue::Index { name, ty, indices } = var {
+            let bare = rust_ident(name);
+            if indices.iter().any(|e| expr_refs_array(e, &bare)) {
+                let new_idx: Vec<Expr> = indices.iter().map(|e| {
+                    if expr_refs_array(e, &bare) {
+                        let t = format!("__idx{}", self.lift_counter);
+                        self.lift_counter += 1;
+                        let v = self.lift_expr(e);
+                        self.line(&format!("let {t} = {v};"));
+                        Expr::Var(LValue::Scalar { name: t, ty: QbType::Single })
+                    } else {
+                        e.clone()
+                    }
+                }).collect();
+                return LValue::Index {
+                    name: name.clone(),
+                    ty: ty.clone(),
+                    indices: new_idx,
+                };
+            }
+        }
+        var.clone()
+    }
+
     /// Context-aware string-type check that can look up TYPE field types from type_defs
     /// and shared array types from shared_types.
     fn is_str_expr_ctx(&self, expr: &Expr) -> bool {
@@ -1386,6 +1415,20 @@ impl Emitter {
             Stmt::ReDim(decl) => self.emit_redim(decl),
 
             Stmt::Let { var, expr } => {
+                // QB allows an array-element assignment whose INDEX expression
+                // reads the same array (`A(A(I)) = …`). Emitted naively that's
+                // `a[…a[…]…] = …` — an E0502 place-borrow conflict in Rust
+                // (the place's mutable borrow overlaps the immutable reads
+                // inside its own index). Hoist any self-referencing index
+                // expr to a temp first. (Found by the differential fuzzer;
+                // RHS reads of the same array are fine — two-phase borrows.)
+                let hoisted;
+                let var = if matches!(var, LValue::Index { .. }) {
+                    hoisted = self.hoist_self_ref_indices(var);
+                    &hoisted
+                } else {
+                    var
+                };
                 // Detect whole-record TYPE array/scalar assignments and expand them.
                 // Helper: get RHS typed-array info from either LValue::Index or Expr::Call
                 let rhs_typed = if let Expr::Var(rhs_lv) = expr {

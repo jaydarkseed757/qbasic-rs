@@ -207,9 +207,24 @@ QBC_HEADLESS=1 QBC_SEED=1 QBC_KEYS=ENTER QBC_FBSTATS=1 \
 `tests/run-graphics-tests.sh` runs each graphics program headless with a fixed
 seed and key script, then compares its framebuffer checksum against a committed
 golden in `tests/golden/<name>.txt` — regression coverage for rendering that the
-stdout-based suite can't provide. On a mismatch it writes `<name>.actual.ppm` for
-visual inspection. Regenerate goldens after an intended change with
-`--write-golden`.
+stdout-based suite can't provide. Headless time is fully **simulated** (TIMER,
+INKEY$ yields, SLEEP, vsync WAITs and frame pacing all run on a virtual clock),
+so every golden is bit-deterministic on any machine and the whole suite runs in
+~8 seconds. On a mismatch it writes `<name>.actual.ppm` for visual inspection.
+Regenerate goldens after an intended change with `--write-golden`.
+
+### Differential fuzzing
+`tools/fuzz/run-fuzz.sh [count] [start-seed]` generates seeded random QBasic
+programs (`genfuzz.py`) over a deliberately exact-agreement subset — structured
+programs with IF/FOR/WHILE/DO/SELECT (numeric and string selectors), GOSUB
+subroutines, SWAP, 1-D/2-D arrays, string builtins, PRINT USING, and a second
+flat line-numbered style with forward/backward GOTO targeting the `__pc` state
+machine — transpiles and runs each natively, and diffs the output against an
+independent ~600-line Python reference interpreter (`qbref.py`; Python floats
+are IEEE f64, matching the transpiler's numeric model bit-for-bit). Any
+transpile/compile/run failure or output mismatch is a finding saved to
+`tools/fuzz/failures/`. The harness has found 13 real bugs to date; 500/500
+seeds currently pass.
 
 ---
 

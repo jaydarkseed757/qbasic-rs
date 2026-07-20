@@ -427,6 +427,9 @@ pub struct Runtime {
     /// This lets text-only programs (no SCREEN) run without opening a GUI window.
     win_title: String,
     last_present: std::time::Instant,  // for auto frame pacing
+    /// Virtual-clock timestamp (ms) of the last present in a headless run —
+    /// the deterministic counterpart of `last_present`.
+    last_present_virt_ms: f64,
     pset_counter: u32,                 // cheap throttle for auto_present checks
     fullspeed: bool,                   // when true, skip auto_present() throttle (REM QBC FULLSPEED)
     frame_interval_ms: u64,            // target ms between frames (REM QBC FPS n); default 16 ≈ 60fps
@@ -709,6 +712,7 @@ impl Runtime {
             window:             None,
             win_title:          "QBasic".to_string(),
             last_present:       std::time::Instant::now(),
+            last_present_virt_ms: 0.0,
             pset_counter:       0,
             fullspeed:          false,
             frame_interval_ms:  16,
@@ -812,6 +816,7 @@ impl Runtime {
             window,
             win_title:         effective_title.to_string(),
             last_present:      std::time::Instant::now(),
+            last_present_virt_ms: 0.0,
             pset_counter:      0,
             fullspeed:         false,
             frame_interval_ms: 16,
@@ -859,6 +864,9 @@ impl Runtime {
                 rt.seed_locked = true;
             }
         }
+        // Headless: all time observation is VIRTUAL (see the simulated-clock
+        // section) so pacing — and golden checksums — are machine-independent.
+        if rt.headless_cfg.is_some() { virt_enable(); }
         // QBC_KEYS pre-loads scripted keystrokes into the queue (headless input).
         if is_headless {
             if let Ok(keys) = std::env::var("QBC_KEYS") {
@@ -1747,6 +1755,22 @@ impl Runtime {
         // must stay off the screen).
         if self.vsync_paced { return; }
         self.pset_counter = self.pset_counter.wrapping_add(1);
+        // Headless: pacing decisions run on the VIRTUAL clock (drawing itself
+        // advances it a little, so draw-only loops still reach the present
+        // cadence) — deterministic on any machine, and never really sleeps
+        // (PACE's watchability matters only with a window).
+        if self.headless_cfg.is_some() {
+            if self.pset_counter & 0xFF == 0 {
+                let now_ms = virt_advance_us(2000) as f64 / 1000.0;
+                if now_ms - self.last_present_virt_ms
+                    >= self.frame_interval_ms as f64
+                {
+                    self.present();
+                    self.last_present_virt_ms = now_ms;
+                }
+            }
+            return;
+        }
         if self.pace_ms > 0 {
             // Paced mode (REM QBC PACE n): hold a steady blit cadence by
             // SLEEPING the remainder of each interval, which blocks — and
@@ -2578,17 +2602,27 @@ impl Runtime {
         // 960×600 frame every call; throttling keeps progressive rendering
         // visible (~60fps) while the rest are cheap event polls. Both branches
         // harvest keypresses into key_queue, so no key is lost.
-        let now = std::time::Instant::now();
-        if now.duration_since(self.last_present)
-              >= std::time::Duration::from_millis(self.frame_interval_ms) {
-            self.present();
-            self.last_present = now;
+        if self.headless_cfg.is_some() {
+            // Headless: the 1 ms yield becomes a 1 ms VIRTUAL advance, and the
+            // blit throttle runs on the virtual clock — fast AND deterministic.
+            let now_ms = virt_advance_us(1000) as f64 / 1000.0;
+            if now_ms - self.last_present_virt_ms >= self.frame_interval_ms as f64 {
+                self.present();
+                self.last_present_virt_ms = now_ms;
+            }
         } else {
-            self.pump_events();
-            // Yield 1 ms so INKEY$-based busy-wait loops (e.g. gorilla's
-            // Rest() SUB) don't spin the CPU at 100% and so their timer
-            // checks are accurate to ~1 ms rather than sub-microsecond.
-            std::thread::sleep(std::time::Duration::from_millis(1));
+            let now = std::time::Instant::now();
+            if now.duration_since(self.last_present)
+                  >= std::time::Duration::from_millis(self.frame_interval_ms) {
+                self.present();
+                self.last_present = now;
+            } else {
+                self.pump_events();
+                // Yield 1 ms so INKEY$-based busy-wait loops (e.g. gorilla's
+                // Rest() SUB) don't spin the CPU at 100% and so their timer
+                // checks are accurate to ~1 ms rather than sub-microsecond.
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
         }
         match self.key_queue.pop_front() {
             Some(k) if k == "\u{0}" => "".to_string(), // DRAIN sentinel → "" (stops drain loops)
@@ -2821,8 +2855,21 @@ impl Runtime {
     pub fn qb_wait(&mut self, port: f64, mask: f64, xormask: f64) {
         let m = (mask as i64) as u8;
         let x = (xormask as i64) as u8;
+        // Headless: a modeled vsync WAIT advances the virtual clock to the
+        // next frame-interval edge and flips — one WAIT = one deterministic
+        // frame, exactly the windowed draw-then-flip-at-retrace shape.
+        if self.headless_cfg.is_some() {
+            if (port as u16) == 0x3DA && (m & 8) != 0 && x == 0 {
+                let fi = (self.frame_interval_ms.max(1) * 1000) as u64;
+                let now = VIRT_CLOCK_US.load(std::sync::atomic::Ordering::Relaxed);
+                virt_advance_us(fi - (now % fi));
+                self.present();
+                self.last_present_virt_ms = virt_now_ms();
+            }
+            return;
+        }
         // Only the 0x3DA retrace bit is modeled; anything else = old no-op path.
-        if self.headless_cfg.is_some() || (port as u16) != 0x3DA || (m & 8) == 0 {
+        if (port as u16) != 0x3DA || (m & 8) == 0 {
             self.pump_events();
             return;
         }
@@ -2986,6 +3033,11 @@ impl Runtime {
     /// is visible during the sleep.
     pub fn sleep(&mut self, secs: f64) {
         self.present();
+        // Headless: advance the virtual clock instead of really sleeping.
+        if self.headless_cfg.is_some() {
+            virt_advance_us((secs.max(0.0) * 1_000_000.0) as u64);
+            return;
+        }
         std::thread::sleep(std::time::Duration::from_secs_f64((secs * self.slowmo).max(0.0)));
     }
 
@@ -3697,7 +3749,58 @@ pub fn qb_mod(l: f64, r: f64) -> f64 {
 #[inline] pub fn qb_exp(x: f64) -> f64   { x.exp() }
 #[inline] pub fn qb_log(x: f64) -> f64   { x.ln() }
 
+// ── Simulated headless clock ─────────────────────────────────────────────────
+//
+// In headless runs every observation of time is VIRTUAL, so pacing decisions
+// (and therefore golden-test framebuffer checksums) are deterministic on any
+// machine. Wall-clock pacing made gorilla's golden oscillate between two
+// adjacent banana-flight frames depending on ambient machine load: its
+// `Rest()` SUB busy-waits on TIMER while presents accumulate from draw calls,
+// and the interleave depended on real elapsed time.
+//
+// Virtual time advances only at defined observation/yield points:
+//   - each TIMER read:            +0.1 ms  (a busy-wait TIMER loop progresses)
+//   - each INKEY$ poll:           +1 ms    (mirrors the real 1 ms yield)
+//   - SLEEP n:                    +n s     (no real sleep)
+//   - WAIT &H3DA vsync:           advance to the next frame-interval edge
+//   - every 256th draw call:      +2 ms    (draw-only loops still hit the
+//                                           present cadence — ~one present per
+//                                           2048 draw calls at 16 ms/frame)
+//
+// Globals (not Runtime fields) because `qb_timer()` is a free function; the
+// flag is only ever set by `new_configured` in a headless process, so unit
+// tests running in parallel are unaffected.
+static VIRT_CLOCK_ON: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static VIRT_CLOCK_US: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+/// TIMER's virtual base: a fixed 10:00:00 AM, so TIMER-derived values are
+/// identical on every run and machine.
+const VIRT_TIMER_BASE: f64 = 36000.0;
+
+pub fn virt_clock_on() -> bool {
+    VIRT_CLOCK_ON.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+fn virt_enable() {
+    VIRT_CLOCK_ON.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Advance the virtual clock by `us` microseconds; returns the NEW value.
+fn virt_advance_us(us: u64) -> u64 {
+    VIRT_CLOCK_US.fetch_add(us, std::sync::atomic::Ordering::Relaxed) + us
+}
+
+fn virt_now_ms() -> f64 {
+    VIRT_CLOCK_US.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1000.0
+}
+
 pub fn qb_timer() -> f64 {
+    if virt_clock_on() {
+        // Each read advances the clock a quantum so `WHILE TIMER < t` busy
+        // waits (gorilla's Rest()) terminate deterministically.
+        return VIRT_TIMER_BASE + virt_advance_us(100) as f64 / 1_000_000.0;
+    }
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
     now.as_secs_f64() % 86400.0
 }

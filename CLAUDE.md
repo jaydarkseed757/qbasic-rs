@@ -49,7 +49,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 45 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 46 tests, all must pass
 ```
 
 ---
@@ -82,8 +82,8 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **45/45** integration (`tests/run-tests.sh`, stdout-based)
-- **145** runtime+transpiler unit tests (`cargo test --workspace`)
+- **46/46** integration (`tests/run-tests.sh`, stdout-based)
+- **147** runtime+transpiler unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
@@ -1898,6 +1898,87 @@ so this is the documented wall-clock `Rest()` sensitivity presenting as
 persistent drift under changed machine conditions rather than an
 intermittent flake. Not a regression; the golden was left untouched. The
 real fix is the simulated/injectable headless clock (see Known Issues).
+
+### Idiomatic-output audit round 3 — the new emission paths (R1–R5)
+
+This session's features (CHAIN/SHELL, expanded traps, ERL, hoisted index
+temps) added emission paths rounds 1–2 never saw. A pass over their output
+found five patterns, all fixed, all behavior-preserving (proven by
+byte-identical integration stdout + unchanged golden checksums, including
+gorilla back on its original `0d7695…` — the drift observed during the fuzz
+session was confirmed environmental and resolved on its own):
+
+- **R1 — dead `let msg_s: String` local for shared sigiled strings**:
+  collect_locals saw the TYPED name (`msg_s`) while the exclude set held
+  only the bare `msg`, so a `COMMON`/`DIM SHARED msg$` program declared a
+  local that shadowed nothing (all real uses emit `__gs.msg`). emit_locals
+  now also excludes `rust_ident_typed` of every string-typed shared name;
+  shared_names is per-sub restricted during SUB emission, so a genuine
+  sub-local `msg$` still declares.
+- **R2 — string LITERAL args wrapped `&("lit").to_string()`** at `&str`
+  runtime params: OPEN's path and the CHAIN/SHELL/ENVIRON args now pass
+  literals through directly (new `str_arg()` helper; BLOAD/BSAVE already
+  did this).
+- **R3 — `PRINT #`/`WRITE #` single-part join**: one argument no longer
+  goes through `format!("{}", [x].join(""))` / `[x].join(",")`; a single
+  string-LITERAL `PRINT #` writes the literal directly with the newline
+  folded in (`__rt.write_file(1, "only line\n")`).
+- **R4 — DIM allocation folding**: literal bounds emit plain integers —
+  `vec![0.0; (10.0f64+1.0) as usize]` → `vec![0.0; 11]` (reuses
+  `const_usize_lit`, now pub(super)).
+- **R5 — `fold_u8_casts` postprocess pass** (chained after simplify_parens):
+  `(1.0f64) as u8` / `1.0f64 as u8` → `1` for literals 0–255 (money.bas
+  alone had 76 sites — every file statement's file number). String-literal-
+  aware scanner with identifier-boundary guard; out-of-range/fractional/
+  non-literal casts untouched. 2 unit tests (`fold_u8_tests`).
+
+Verified: 147 unit, 45/45 integration byte-identical, 54/54 build-all,
+10/10 goldens (checksums unchanged), 60-seed fuzz spot-check on the new
+emission shapes.
+
+### Fuzzer subset widened: SWAP, 2-D arrays, GOSUB, PRINT USING, string comparisons, line-numbered mode — 4 more bugs found
+
+`genfuzz.py` now also generates: `SWAP` (scalar/element/same-array/2-D
+mixes), 2-D arrays (`DIM G2(6, 4)`), string comparisons (as conditions AND
+as numeric −1/0 values), `PRINT USING` with plain `#` fields, GOSUB
+subroutines after END (strictly-downward call order guarantees
+termination), and — a whole second program style — **mode B (seed % 3 == 0):
+flat line-numbered programs** with forward `GOTO` / `IF…THEN GOTO <line>` /
+numeric `GOSUB`, which specifically exercise the `__pc` state-machine
+emitter and numeric-GOSUB extraction. `qbref.py` gained the matching
+features plus a program-counter executor for mode B.
+
+**Found on the first widened run (seeds 1–120: 28 rustc failures + 1
+mismatch), all fixed, locked by `tests/programs/swap_semantics.bas`:**
+
+1. **SWAP borrow-safety family** (`emitter/mod.rs` Stmt::Swap rewrite):
+   `SWAP X, X` (legal QB no-op) emitted `mem::swap(&mut x, &mut x)` (E0499);
+   same-array element swaps now use `Vec::swap` for LOCAL arrays too (was
+   shared-only), with self-referencing index args hoisted first (the
+   two-phase reservation does NOT cover field-projected receivers like
+   `__gs.br` — E0502, seed 218); everything else (scalar⇄element, different
+   arrays, 2-D elements) uses eval-once index temps + a value swap through
+   `__swpN`, matching QB's compute-both-addresses-BEFORE-exchange
+   semantics.
+2. **Scan passes had no `Stmt::Swap` arms** — a scalar or array whose ONLY
+   reference is a SWAP operand was never declared (E0425) nor promoted
+   across GOSUB boundaries. Added to `collect_locals` (already had it),
+   `collect_scalar_names_stmt`, and `collect_array_use_refs_stmt`.
+3. **`collect_scalar_names_stmt` ignored assignment-TARGET index exprs** —
+   the promotion twin of the earlier `collect_locals` fix: a scalar whose
+   only use in a GOSUB sub is inside an LHS index (`G2(f(T$), …) = …`) never
+   promoted, so the sub read a local empty string (wrong VALUES, not a
+   compile error — the nastiest kind).
+4. **Oracle bug (qbref, not qbc)**: its SWAP re-evaluated the second
+   operand's index AFTER writing the first — QB resolves both addresses
+   first. Fixed with lvalue references (`lv_ref`/`ref_get`/`ref_set`).
+
+After the fixes: **500/500 widened seeds pass.** Verified: 147 unit, 46/46
+integration, 54/54 build-all, graphics goldens 9/10 + gorilla sitting on
+its documented wall-clock drift frame (`617f38…`, same value as before;
+emitted-code diff vs baseline is exactly the round-3 cosmetic folds —
+value-identical — and the machine has oscillated between the two frames all
+day; simulated headless clock remains the real fix).
 
 ## Known Issues / TODO
 

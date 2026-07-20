@@ -331,6 +331,18 @@ impl Emitter {
         set
     }
 
+    /// Emit an expression destined for a `&str` runtime parameter: a string
+    /// LITERAL passes through directly; anything else is lifted and coerced
+    /// with `&(…).to_string()` (handles both String and numeric-typed exprs).
+    fn str_arg(&mut self, e: &Expr) -> String {
+        let v = self.lift_expr(e);
+        if matches!(e, Expr::StrLit(_)) {
+            v
+        } else {
+            format!("&({v}).to_string()")
+        }
+    }
+
     /// If `var` is an array-element target whose index expressions read the
     /// same array, hoist those indexes into `let __idxN = …;` temps and
     /// return a rewritten LValue referencing the temps (see the E0502 note at
@@ -358,6 +370,57 @@ impl Emitter {
             }
         }
         var.clone()
+    }
+
+    /// The whole-Vec path for array `name` (mirrors emit_lvalue's Index-arm
+    /// naming: shared → `__gs.{typed}`, local string arrays → `{name}_s`).
+    /// `lv` supplies the access-site type for the fallback.
+    fn vec_path(&self, name: &str, lv: &LValue) -> String {
+        let lower = name.to_lowercase();
+        let ty = match lv {
+            LValue::Index { ty, .. } => ty.clone(),
+            _ => QbType::Single,
+        };
+        let effective_ty = if self.shared_names.contains(&lower) {
+            self.shared_types.get(&lower).cloned().unwrap_or(ty)
+        } else if self.local_string_arrays.contains(&lower) {
+            QbType::String
+        } else {
+            ty
+        };
+        let rname = rust_ident_typed(name, &effective_ty);
+        if self.shared_names.contains(&lower) {
+            format!("__gs.{rname}")
+        } else {
+            rname
+        }
+    }
+
+    /// Hoist EVERY non-literal index expression of a SWAP operand into a
+    /// `let __idxN = …;` temp. Unlike hoist_self_ref_indices (which only
+    /// breaks place-borrow conflicts), this also pins evaluation order: QB
+    /// computes both operand addresses BEFORE the exchange, so an index that
+    /// reads a variable the swap itself modifies must not be re-evaluated.
+    fn hoist_swap_indices(&mut self, lv: &LValue) -> LValue {
+        if let LValue::Index { name, ty, indices } = lv {
+            let new_idx: Vec<Expr> = indices.iter().map(|e| {
+                if is_const_numeric_lit(e) {
+                    e.clone()
+                } else {
+                    let t = format!("__idx{}", self.lift_counter);
+                    self.lift_counter += 1;
+                    let v = self.lift_expr(e);
+                    self.line(&format!("let {t} = {v};"));
+                    Expr::Var(LValue::Scalar { name: t, ty: QbType::Single })
+                }
+            }).collect();
+            return LValue::Index {
+                name: name.clone(),
+                ty: ty.clone(),
+                indices: new_idx,
+            };
+        }
+        lv.clone()
     }
 
     /// Context-aware string-type check that can look up TYPE field types from type_defs
@@ -655,7 +718,7 @@ impl Emitter {
         self.emit_main(&main_stmts, &globals)?;
         // simplify_parens runs FIRST (on raw output) so it never fights the
         // (*x) handling that strip_deref_parens owns at the end of the chain.
-        Ok(strip_dead_gamestate_fields(&strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&simplify_parens(&self.out))))))
+        Ok(strip_dead_gamestate_fields(&strip_deref_parens(&remove_unnecessary_mut(&inline_single_use_tmps(&fold_u8_casts(&simplify_parens(&self.out)))))))
     }
 
     fn emit_gosub_fn(&mut self, label: &str, body: &[Stmt], globals: &HashSet<String>) -> Result<()> {
@@ -1342,6 +1405,20 @@ impl Emitter {
         // When a typed-array DIM is present, emit_dim will emit `let mut arr__field`
         // with the correct size — so collect_locals must not also declare them.
         let mut combined_exclude = exclude.clone();
+
+        // A shared STRING scalar's uses may carry the `$` sigil, making
+        // collect_locals see the TYPED name (`msg_s`) while the exclude set
+        // holds only the bare `msg` — which produced a dead
+        // `let mut msg_s: String` local shadowing nothing (all real uses
+        // emit `__gs.msg`). Exclude the typed form of every string-typed
+        // shared name too. shared_names is per-sub restricted during SUB
+        // emission, so a sub-local `msg$` (distinct var in QB) still
+        // declares its local.
+        for name in &self.shared_names {
+            if matches!(self.shared_types.get(name.as_str()), Some(QbType::String)) {
+                combined_exclude.insert(rust_ident_typed(name, &QbType::String));
+            }
+        }
 
         // REDIM'd local arrays are declared inline by emit_redim() — exclude them
         // here so collect_locals doesn't also emit a scalar `let mut x: f64` for them.
@@ -2160,27 +2237,77 @@ impl Emitter {
                         (arr_a.clone(), idx_a.clone(), arr_b.clone(), idx_b.clone(), fields);
                     self.emit_typed_array_swap(&aa, &ia, &ab, &ib, &flds);
                 } else {
-                    // Detect SWAP arr(i), arr(j) on the same Vec — use Vec::swap to
-                    // avoid dual &mut on the same allocation (Rust E0499).
-                    let same_shared_vec = match (a, b) {
+                    // SWAP arr(i), arr(j) on the same 1-D Vec (shared OR local)
+                    // → Vec::swap. Two-phase borrows make even self-referencing
+                    // index args (`SWAP AR(AR(0)), AR(1)`) safe here.
+                    let same_vec_1d = match (a, b) {
                         (LValue::Index { name: na, indices: ia, .. },
                          LValue::Index { name: nb, indices: ib, .. })
-                            if na.to_lowercase() == nb.to_lowercase()
-                               && self.shared_names.contains(&na.to_lowercase()) =>
+                            if rust_ident(na) == rust_ident(nb)
+                               && ia.len() == 1 && ib.len() == 1 =>
                         {
-                            let i0 = self.emit_expr(&ia[0]).unwrap_or_default();
-                            let i1 = self.emit_expr(&ib[0]).unwrap_or_default();
-                            let arr = format!("__gs.{}", rust_ident(na));
+                            // A self-referencing index (`SWAP AR(AR(0)), …`)
+                            // must be hoisted: reading the vec inside its own
+                            // `.swap()` args is an E0502 (the two-phase
+                            // reservation doesn't cover field-projected
+                            // receivers like `__gs.br`).
+                            let bare = rust_ident(na);
+                            let mut idx_of = |e: &Expr| {
+                                if expr_refs_array(e, &bare) {
+                                    let t = format!("__idx{}", self.lift_counter);
+                                    self.lift_counter += 1;
+                                    let v = self.lift_expr(e);
+                                    self.line(&format!("let {t} = {v};"));
+                                    t
+                                } else {
+                                    self.emit_expr(e).unwrap_or_default()
+                                }
+                            };
+                            let i0 = idx_of(&ia[0]);
+                            let i1 = idx_of(&ib[0]);
+                            let arr = self.vec_path(na, a);
                             Some((arr, i0, i1))
                         }
                         _ => None,
                     };
-                    if let Some((arr, i0, i1)) = same_shared_vec {
+                    if let Some((arr, i0, i1)) = same_vec_1d {
                         self.line(&format!("{arr}.swap(({i0}) as usize, ({i1}) as usize);"));
-                    } else {
+                    } else if matches!((a, b), (LValue::Scalar { .. }, LValue::Scalar { .. })) {
+                        // Scalar ⇄ scalar: mem::swap. Identical operands
+                        // (`SWAP A, A` — legal QB) are a no-op; naive
+                        // mem::swap(&mut a, &mut a) is E0499.
                         let la = self.emit_lvalue(a);
                         let lb = self.emit_lvalue(b);
-                        self.line(&format!("std::mem::swap(&mut {la}, &mut {lb});"));
+                        if la == lb {
+                            self.line(&format!("// SWAP {la}, {lb} — no-op"));
+                        } else {
+                            self.line(&format!("std::mem::swap(&mut {la}, &mut {lb});"));
+                        }
+                    } else {
+                        // General case (scalar ⇄ element, different arrays,
+                        // 2-D elements): dual &mut can alias (E0499/E0502/
+                        // E0503), so hoist every index once (QB computes both
+                        // operand addresses BEFORE exchanging) and swap by
+                        // value through a temp.
+                        let a2 = self.hoist_swap_indices(a);
+                        let b2 = self.hoist_swap_indices(b);
+                        let la = self.emit_lvalue(&a2);
+                        let lb = self.emit_lvalue(&b2);
+                        if la == lb {
+                            self.line(&format!("// SWAP {la}, {lb} — no-op"));
+                        } else {
+                            let is_str = self.is_str_expr_ctx(&Expr::Var(a2.clone()));
+                            let tc = self.lift_counter;
+                            self.lift_counter += 1;
+                            if is_str {
+                                self.line(&format!("let __swp{tc} = {la}.clone();"));
+                                self.line(&format!("{la} = {lb}.clone();"));
+                            } else {
+                                self.line(&format!("let __swp{tc} = {la};"));
+                                self.line(&format!("{la} = {lb};"));
+                            }
+                            self.line(&format!("{lb} = __swp{tc};"));
+                        }
                     }
                 }
             }
@@ -2202,24 +2329,24 @@ impl Emitter {
                     // (stdio inherited). Bare SHELL (interactive) is a no-op.
                     match args.first() {
                         Some(e) => {
-                            let c = self.lift_expr(e);
-                            self.line(&format!("__rt.qb_shell(&({c}).to_string());"));
+                            let c = self.str_arg(e);
+                            self.line(&format!("__rt.qb_shell({c});"));
                         }
                         None => self.line("// SHELL (interactive shell) — no-op"),
                     }
                 } else if fn_lower == "environ" {
                     // ENVIRON "NAME=value" — set a process environment variable.
                     if let Some(e) = args.first() {
-                        let c = self.lift_expr(e);
-                        self.line(&format!("__rt.qb_environ(&({c}).to_string());"));
+                        let c = self.str_arg(e);
+                        self.line(&format!("__rt.qb_environ({c});"));
                     }
                 } else if fn_lower == "chain" {
                     // CHAIN prog$ — exec the transpiled binary of the named
                     // program, passing COMMON values positionally. Extra QB
                     // args (CHAIN "prog", line / ALL / MERGE) are ignored.
                     let prog = args.first()
-                        .map(|e| self.lift_expr(e))
-                        .unwrap_or_else(|| "String::new()".into());
+                        .map(|e| self.str_arg(e))
+                        .unwrap_or_else(|| "\"\"".into());
                     let vals: Vec<String> = self.common_list.clone().into_iter()
                         .map(|(name, ty)| {
                             let lv = self.emit_lvalue(&LValue::Scalar { name, ty: ty.clone() });
@@ -2231,7 +2358,7 @@ impl Emitter {
                         })
                         .collect();
                     self.line(&format!(
-                        "__rt.qb_chain(&({prog}).to_string(), vec![{}]);",
+                        "__rt.qb_chain({prog}, vec![{}]);",
                         vals.join(", ")
                     ));
                 } else if fn_lower == "draw" {
@@ -2461,6 +2588,12 @@ impl Emitter {
             // ── File I/O ──────────────────────────────────────────────────────
             Stmt::Open { path, mode, file_num, rec_len } => {
                 let path_s = self.emit_expr(path).unwrap_or_else(|_| "String::new()".into());
+                // open_* take &str — a string literal passes through directly.
+                let path_arg = if matches!(path, Expr::StrLit(_)) {
+                    path_s
+                } else {
+                    format!("&({path_s}).to_string()")
+                };
                 let fnum   = self.emit_expr(file_num).unwrap_or_else(|_| "1.0".into());
                 let mode_s = match mode {
                     FileMode::Input  => "\"input\"",
@@ -2474,11 +2607,11 @@ impl Emitter {
                         .and_then(|e| self.emit_expr(e).ok())
                         .unwrap_or_else(|| "128.0".into());
                     self.line(&format!(
-                        "__rt.open_random(&({path_s}).to_string(), ({fnum}) as u8, ({rlen}) as usize);"
+                        "__rt.open_random({path_arg}, ({fnum}) as u8, ({rlen}) as usize);"
                     ));
                 } else {
                     self.line(&format!(
-                        "__rt.open_seq(&({path_s}).to_string(), {mode_s}, ({fnum}) as u8);"
+                        "__rt.open_seq({path_arg}, {mode_s}, ({fnum}) as u8);"
                     ));
                 }
                 self.emit_error_dispatch();
@@ -2667,8 +2800,24 @@ impl Emitter {
                         }
                     }
                 }
+                // Single string-literal arg: write the literal directly
+                // (with the newline folded in) — no format!/join/to_string.
+                if let [PrintArg::Expr(e @ Expr::StrLit(_))] = args.as_slice() {
+                    let lit = self.emit_expr(e).unwrap_or_else(|_| "\"\"".into());
+                    let s = if *newline {
+                        format!("{}\\n\"", &lit[..lit.len() - 1])
+                    } else {
+                        lit
+                    };
+                    self.line(&format!("__rt.write_file(({fnum}) as u8, {s});"));
+                    self.emit_error_dispatch();
+                    return Ok(());
+                }
                 let joined = if parts.is_empty() {
                     "String::new()".into()
+                } else if parts.len() == 1 {
+                    // One part: it is already a String-typed expression.
+                    parts[0].clone()
                 } else {
                     format!("format!(\"{{}}\", [{}].join(\"\"))", parts.join(", "))
                 };
@@ -2750,7 +2899,11 @@ impl Emitter {
                         parts.push(format!("qb_str_fn({s})"));
                     }
                 }
-                let line_s = format!("[{}].join(\",\")", parts.join(", "));
+                let line_s = if parts.len() == 1 {
+                    parts[0].clone()
+                } else {
+                    format!("[{}].join(\",\")", parts.join(", "))
+                };
                 self.line(&format!(
                     "__rt.write_file(({fnum}) as u8, &({line_s} + \"\\n\"));"
                 ));
@@ -2876,9 +3029,13 @@ impl Emitter {
             let ndims = decl.dims.len();
 
             // Per-dimension allocation sizes (wasted-slots: upper + 1), outermost first.
+            // A literal bound folds to a plain integer (`DIM a(10)` → 11).
             let allocs: Vec<String> = decl.dims.iter().map(|d| {
                 let upper = self.emit_expr(d).unwrap_or_else(|_| "0".into());
-                format!("({upper}+1.0) as usize")
+                match const_usize_lit(&upper) {
+                    Some(n) => format!("{}", n + 1),
+                    None => format!("({upper}+1.0) as usize"),
+                }
             }).collect();
             let alloc0 = allocs[0].clone();
             // Typed-array paths below still use a 2-D-max (alloc1) shape.

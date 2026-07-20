@@ -1228,10 +1228,39 @@ pub(super) fn collect_scalar_names_inner(stmts: &[Stmt], out: &mut HashMap<Strin
 pub(super) fn collect_scalar_names_stmt(stmt: &Stmt, out: &mut HashMap<String, QbType>) {
     match stmt {
         Stmt::Let { var, expr } => {
-            if let LValue::Scalar { name, ty } = var {
-                out.entry(name.to_lowercase()).or_insert_with(|| ty.clone());
+            match var {
+                LValue::Scalar { name, ty } => {
+                    out.entry(name.to_lowercase()).or_insert_with(|| ty.clone());
+                }
+                // The TARGET's index expressions are reads — a scalar whose
+                // only use in a scope is inside an assignment-target index
+                // (`G2(f(T$), …) = …`) must still count for cross-boundary
+                // promotion. (Found by the differential fuzzer: the sub read
+                // a local empty string instead of the shared value.)
+                LValue::Index { indices, .. } |
+                LValue::FieldIndex { indices, .. } => {
+                    for e in indices { collect_scalar_names_expr(e, out); }
+                }
+                _ => {}
             }
             collect_scalar_names_expr(expr, out);
+        }
+        // SWAP reads+writes both operands — a scalar referenced ONLY in a
+        // SWAP still counts for cross-boundary promotion. Index expressions
+        // are scanned as reads. (Found by the differential fuzzer.)
+        Stmt::Swap(a, b) => {
+            for lv in [a, b] {
+                match lv {
+                    LValue::Scalar { name, ty } => {
+                        out.entry(name.to_lowercase()).or_insert_with(|| ty.clone());
+                    }
+                    LValue::Index { indices, .. } |
+                    LValue::FieldIndex { indices, .. } => {
+                        for e in indices { collect_scalar_names_expr(e, out); }
+                    }
+                    _ => {}
+                }
+            }
         }
         Stmt::Dim(decl) if decl.dims.is_empty() && !decl.shared => {
             out.entry(decl.name.to_lowercase()).or_insert_with(|| decl.ty.clone());
@@ -1453,6 +1482,12 @@ pub(super) fn collect_array_use_refs_stmt(stmt: &Stmt, known_arrays: &HashSet<St
         Stmt::Let { var, expr }     => { scan_lv(var, known_arrays, out); scan_expr(expr, known_arrays, out); }
         Stmt::LSet { var, expr } | Stmt::RSet { var, expr } => {
             scan_lv(var, known_arrays, out); scan_expr(expr, known_arrays, out);
+        }
+        // SWAP operands are both reads and writes — an array referenced ONLY
+        // in a SWAP still crosses scopes. (Found by the differential fuzzer.)
+        Stmt::Swap(a, b) => {
+            scan_lv(a, known_arrays, out);
+            scan_lv(b, known_arrays, out);
         }
         Stmt::Print { args, .. } | Stmt::PrintFile { args, .. } => {
             for a in args {

@@ -49,7 +49,7 @@ qbasic-rust/
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
     ├── expected/               # Expected stdout output for each test program
-    └── run-tests.sh            # Transpile → compile → run → diff; 46 tests, all must pass
+    └── run-tests.sh            # Transpile → compile → run → diff; 47 tests, all must pass
 ```
 
 ---
@@ -82,9 +82,10 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **46/46** integration (`tests/run-tests.sh`, stdout-based)
+- **47/47** integration (`tests/run-tests.sh`, stdout-based)
 - **147** runtime+transpiler unit tests (`cargo test --workspace`)
-- **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — framebuffer
+- **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
+  under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
   torus, hangman-gfx, duck, gorilla, donkey)
 
@@ -1980,6 +1981,65 @@ emitted-code diff vs baseline is exactly the round-3 cosmetic folds —
 value-identical — and the machine has oscillated between the two frames all
 day; simulated headless clock remains the real fix).
 
+### Simulated headless clock — goldens deterministic on any machine (the last flake, fixed)
+
+In headless runs every observation of time is now VIRTUAL
+(`runtime/src/lib.rs`, "Simulated headless clock" section): global
+`VIRT_CLOCK_US`/`VIRT_CLOCK_ON` statics (globals because `qb_timer()` is a
+free function; enabled only by `new_configured` when a headless driver var
+is set, so parallel unit tests are unaffected). TIMER returns a fixed
+10:00:00 base plus virtual elapsed. Virtual time advances only at defined
+points: +0.1 ms per TIMER read (busy-wait `Rest()` loops progress
+deterministically), +1 ms per INKEY$ poll (mirroring the real 1 ms yield,
+without sleeping), SLEEP n → +n s (no real sleep), a modeled vsync WAIT →
+advance to the next frame-interval edge + present (one WAIT = one frame),
+and +2 ms per 256th draw call (draw-only loops still reach the present
+cadence). All headless pacing decisions (`inkey` blit throttle,
+`auto_present`, PACE) run on the virtual clock; `ms:` dump/exit triggers
+and the 10 s safety net deliberately stay on REAL time (hang guards).
+
+Results: gorilla's checksum is bit-stable across repeated runs regardless
+of machine load; the graphics suite dropped from wall-clock-paced to ~8 s
+total; donkey's occasional no-checksum timeout is gone (no real sleeps
+left to starve). Regenerating all 10 goldens under the virtual clock
+reproduced 9/10 EXACTLY (proof the virtual pacing preserves behavior);
+gorilla's golden moved to the unoptimized-build value `617f38…` — see the
+resolved Known Issues entry for the opt-level nuance that the old
+"wall-clock flake" turned out to partly be.
+
+Verified: 147 unit, 46/46 integration, 54/54 build-all, 10/10 goldens ×3
+consecutive runs, 60-seed fuzz spot-check.
+
+### Fuzzer widening round 3: string SELECT CASE, INSTR edges, MID$ statement, EQV/IMP, backward GOTO — 2 more bug classes
+
+`genfuzz.py` additions: `SELECT CASE` on STRING selectors (value lists,
+`"A" TO "N"` ranges, `CASE IS < "Q"`), 2- AND 3-arg `INSTR` (including the
+start<1 → 1 and start-past-end → 0 edges), the `MID$(V$, pos[, len]) = val`
+statement form, `EQV`/`IMP`, and — in mode B — **backward-GOTO counted
+loops** (a dedicated counter the body never touches; segment insertion
+re-anchors any earlier loop's stored jump index so nesting stays
+terminating). `qbref.py` mirrors: full `qb_instr` semantics, `qb_mid_assign`
+semantics (no-op past end, replace ≤ min(len, remaining) chars), EQV/IMP
+precedence levels below XOR, `MID$(` statement dispatch in both executors.
+
+**Found (60 rustc failures on the first run), fixed, locked by
+`tests/programs/mid_assign_selfref.bas` (oracle-verified):**
+
+1. **MID$ statement borrow-safety** (`Stmt::MidAssign` emission): pos/len/
+   val expressions may READ the target string (`MID$(U$, LEN(U$)-1, 1) =
+   U$ + "x"`) — E0502 against the `&mut` target borrow. All three are now
+   hoisted to `__midp/__midl/__midv` temps, which is also semantically
+   exact (QB evaluates them before the in-place replacement).
+2. **Scan passes had no `Stmt::MidAssign` arms** (and `collect_locals`'
+   Swap arm ignored Index-operand index exprs) — variables referenced only
+   inside a MID$ statement (or a SWAP operand's index) were never declared
+   (E0425) nor promoted across GOSUB boundaries. Added to `collect_locals`,
+   `collect_scalar_names_stmt`, `collect_array_use_refs_stmt`.
+
+After the fixes: **500/500 seeds pass** on the round-3 subset. Verified:
+147 unit, 47/47 integration, 54/54 build-all, 10/10 goldens ×2
+(bit-identical under the simulated clock).
+
 ## Known Issues / TODO
 
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
@@ -1987,36 +2047,20 @@ day; simulated headless clock remains the real fix).
   re-chases them: `.clone()` uses are all required byref-writeback temps;
   remaining `((` nestings are precedence-required (f64 non-associativity);
   zero `qb_bool(qb_from_bool(…))` round-trips.
-- **`gorilla`/`donkey` golden tests are load-sensitive (intermittent flakes,
-  pre-existing).** Bisected during the M21 session by stashing all M21 changes
-  and re-testing the clean, already-pushed baseline commit: both flakes
-  reproduce **identically** with or without M21's changes, so neither is a
-  regression from any recent change.
-  - `gorilla` fails its checksum non-deterministically (observed ~3-in-4 under
-    heavy concurrent system load, 0-in-4 once the system settled). Likely
-    cause: gorilla.bas's `Rest()` SUB paces via real wall-clock `TIMER` (not
-    simulated frame count) — `CalcDelay!` returns the fixed `SPEEDCONST`, so
-    it's not a speed-calibration issue, but under CPU contention the scripted
-    `QBC_KEYS` stream and `Rest()`'s wall-clock waits can interleave
-    differently, landing the `presents:80` capture on a different simulation
-    frame (e.g. before vs. after the banana becomes visible).
-  - `donkey` occasionally produces **no checksum at all** (times out its full
-    30s `timeout` with zero output), reproduced on the clean baseline under
-    heavy load. Root cause not yet isolated (donkey.bas has no TIMER/SLEEP
-    calls, so it's a different mechanism than gorilla's — possibly headless
-    event-pump/window-init contention).
-  - A real fix for either would need the affected pacing/init path to key off
-    a simulated/injectable clock in headless mode rather than wall time or
-    real scheduling. Until then: if either flakes in CI or a local run, retry
-    once on an idle system before assuming a real regression.
-  - **Bonus finding while debugging this:** `tests/run-graphics-tests.sh` had
-    a latent bug (now fixed) that made the "no checksum" case far worse than
-    a mere per-test failure — `sum="$(... | grep -o ... | ...)"` had no
-    `|| true` guard, so under `set -o pipefail` a `grep` no-match (exactly the
-    "no checksum" case) aborted the **entire script** via `set -e`, silently
-    skipping every remaining test and the final `Results:` summary instead of
-    reporting one clean "no checksum" failure and continuing. This is what
-    made the `donkey` flake invisible until the pipe was patched.
+- **Golden-test wall-clock flakes — RESOLVED by the simulated headless clock**
+  (see the changelog entry below). Historical context: gorilla's checksum
+  oscillated between two adjacent banana-flight frames with machine load
+  (`Rest()` paced on real TIMER), and donkey occasionally timed out with no
+  checksum. Headless time is now fully virtual, all 10 goldens are
+  deterministic and the whole graphics suite runs in ~8 s. One nuance
+  discovered while fixing this: the two historical gorilla checksums were
+  actually the OPT-LEVEL split — `rustc -O` builds yield `0d7695…`, the
+  harness's unoptimized builds yield `617f38…` (a tiny f64 difference in
+  trajectory math crossing an INT() boundary → one simulation frame apart).
+  Golden values are therefore tied to the harness's own (unoptimized) build
+  config; gorilla's golden is canonicalized to `617f38…`.
+  - The `tests/run-graphics-tests.sh` pipefail guard fix from the original
+    debugging (a `grep` no-match aborting the whole script) remains in place.
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a
   256-entry table; `screen(13)` loads the authentic VGA BIOS power-on default
   palette (`vga256_default()` — 16 EGA + 16 grays + 216-color HSV cube, matches

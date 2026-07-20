@@ -1024,6 +1024,26 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M24 — Differential fuzzing (3 rounds) + simulated headless clock ✅
+
+- **`tools/fuzz/`**: seeded random-program generator + independent Python
+  reference interpreter + driver. Three widening rounds (base subset; SWAP/
+  2-D/GOSUB/PRINT USING/string comparisons/line-numbered mode B; string
+  SELECT CASE/INSTR edges/MID$ statement/EQV-IMP/backward GOTO loops) found
+  **13 real bugs** — borrow-safety families (self-referencing indices, SWAP,
+  MID$), scan-pass gaps (variables only referenced in SWAP/MID$/LHS indices
+  never declared or promoted), and one oracle bug (SWAP address resolution).
+  500/500 seeds pass. Regression locks: `selfref_index.bas`,
+  `swap_semantics.bas`, `mid_assign_selfref.bas`.
+- **Simulated headless clock** (`runtime/src/lib.rs`): all headless time
+  observation is virtual (TIMER reads, INKEY$ yields, SLEEP, vsync WAIT,
+  draw-call pacing), making every golden bit-deterministic on any machine
+  and dropping the graphics suite to ~8 s. Resolved the long-standing
+  gorilla/donkey wall-clock flakes; also surfaced that the two historical
+  gorilla checksums were an `-O`-vs-unoptimized float split — goldens are
+  canonicalized to the harness's own build config.
+- Idiomatic-output audit round 3 (R1–R5) over the newest emission paths.
+
 ### M23 — mario.bas (MEGA WORLD), INP(&H60) input, numeric ON ERROR, expanded traps, deferred wrap (build-all 54/54) ✅
 
 A new 2,139-line SCREEN 13 platformer (`basic-src/mario.bas` + `WORLD<n>.TXT`
@@ -1517,7 +1537,12 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario).
-The integration suite is **40/40**, with 142 runtime unit tests and 10 graphics golden tests.
+The integration suite is **47/47**, with 147 unit tests and 10 graphics golden
+tests (deterministic on any machine under the simulated headless clock; the
+whole graphics suite runs in ~8 s). A differential fuzz harness
+(`tools/fuzz/`) checks qbc-transpiled output against an independent Python
+reference interpreter across seeded random programs — 500/500 seeds pass; it
+has found and driven the fix of 13 real emitter/runtime bugs to date.
 
 No known QB feature gaps block the bundled set. `PAINT` `CHR$()` tiling,
 `CHAIN` (with positional COMMON passing), and `SHELL` are all modeled — see

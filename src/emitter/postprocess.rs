@@ -382,6 +382,85 @@ fn matching_paren(b: &[u8], open: usize) -> Option<usize> {
     None
 }
 
+// ── Post-processing: fold literal file-number casts ──────────────────────────
+//
+// File statements emit their file number as `({expr}) as u8`, which for the
+// overwhelmingly common literal case reads `(1.0f64) as u8` (or the unparen'd
+// `1.0f64 as u8`). Fold those to the plain integer literal — value-identical
+// for 0..=255, and larger literals are left alone (`as u8` saturates; a bare
+// out-of-range integer literal wouldn't even compile).
+
+pub(super) fn fold_u8_casts(src: &str) -> String {
+    let b = src.as_bytes();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+    let mut in_str = false;
+    while i < b.len() {
+        let c = b[i];
+        if in_str {
+            out.push(c as char);
+            if c == b'\\' && i + 1 < b.len() {
+                out.push(b[i + 1] as char);
+                i += 2;
+                continue;
+            }
+            if c == b'"' { in_str = false; }
+            i += 1;
+            continue;
+        }
+        if c == b'"' {
+            in_str = true;
+            out.push('"');
+            i += 1;
+            continue;
+        }
+        // Only attempt a match at a non-identifier boundary so `x1.0f64`-style
+        // text inside a longer token can never be picked up.
+        let boundary = out.as_bytes().last()
+            .map_or(true, |p| !p.is_ascii_alphanumeric() && *p != b'_' && *p != b'.');
+        if boundary {
+            if let Some((digits, next)) = match_u8_cast(src, i) {
+                out.push_str(digits);
+                i = next;
+                continue;
+            }
+        }
+        out.push(c as char);
+        i += 1;
+    }
+    out
+}
+
+/// Match `<digits>.0f64 as u8` or `(<digits>.0f64) as u8` at byte offset `i`;
+/// return the digit text and the offset just past the cast when the value is
+/// in u8 range.
+fn match_u8_cast(src: &str, i: usize) -> Option<(&str, usize)> {
+    let b = src.as_bytes();
+    for parens in [true, false] {
+        let mut j = i;
+        if parens {
+            if b.get(j) != Some(&b'(') { continue; }
+            j += 1;
+        }
+        let d0 = j;
+        while j < b.len() && b[j].is_ascii_digit() { j += 1; }
+        if j == d0 || !src[j..].starts_with(".0f64") { continue; }
+        let digits = &src[d0..j];
+        j += 5;
+        if parens {
+            if b.get(j) != Some(&b')') { continue; }
+            j += 1;
+        }
+        if !src[j..].starts_with(" as u8") { continue; }
+        if let Ok(n) = digits.parse::<u32>() {
+            if n <= 255 {
+                return Some((digits, j + 6));
+            }
+        }
+    }
+    None
+}
+
 // ── Post-processing: strip dead GameState fields ─────────────────────────────
 //
 // GameState collects DIM SHARED variables plus every cross-GOSUB-boundary
@@ -487,5 +566,29 @@ fn f() { __gs.x2 += 1.0; }
     fn no_gamestate_struct_is_a_no_op() {
         let src = "fn main() { let a = 1; }\n";
         assert_eq!(strip_dead_gamestate_fields(src), src);
+    }
+}
+
+#[cfg(test)]
+mod fold_u8_tests {
+    use super::*;
+
+    #[test]
+    fn folds_paren_and_bare_literal_casts() {
+        assert_eq!(fold_u8_casts("f((1.0f64) as u8);"), "f(1);");
+        assert_eq!(fold_u8_casts("f(2.0f64 as u8, x);"), "f(2, x);");
+        assert_eq!(fold_u8_casts("f((255.0f64) as u8);"), "f(255);");
+    }
+
+    #[test]
+    fn leaves_non_literals_out_of_range_and_strings_alone() {
+        assert_eq!(fold_u8_casts("f((n) as u8);"), "f((n) as u8);");
+        assert_eq!(fold_u8_casts("f((300.0f64) as u8);"), "f((300.0f64) as u8);");
+        assert_eq!(fold_u8_casts("f((1.5f64) as u8);"), "f((1.5f64) as u8);");
+        let s = "let x = \"(1.0f64) as u8\";";
+        assert_eq!(fold_u8_casts(s), s);
+        // mid-identifier boundary must not match
+        let t = "x1.0f64 as u8";
+        assert_eq!(fold_u8_casts(t), t);
     }
 }

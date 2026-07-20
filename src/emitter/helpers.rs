@@ -123,7 +123,7 @@ pub(super) fn idx_sub(idx: &str) -> String {
 /// Parse an emitted index string that is a constant, integral, non-negative
 /// numeric literal (`"1.0f64"`, `"7"`) into its usize value. Anything else —
 /// expressions, negatives, fractions — returns `None`.
-fn const_usize_lit(idx: &str) -> Option<u64> {
+pub(super) fn const_usize_lit(idx: &str) -> Option<u64> {
     let core = idx.strip_suffix("f64").unwrap_or(idx);
     // Must be purely [0-9.] so idents/exprs ("i", "a + b", "(x)") never match.
     if core.is_empty() || !core.bytes().all(|b| b.is_ascii_digit() || b == b'.') {

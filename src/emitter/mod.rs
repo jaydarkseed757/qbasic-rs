@@ -2089,15 +2089,26 @@ impl Emitter {
 
             // MID$(var$, pos[, len]) = val — in-place substring replacement.
             Stmt::MidAssign { var, pos, len, val } => {
+                // Hoist pos/len/val to temps: any of them may READ the target
+                // string (`MID$(U$, LEN(U$), 1) = U$ + "x"`), which conflicts
+                // with the `&mut` borrow of the call. QB evaluates them before
+                // the replacement anyway, so temps are also semantically exact.
+                // (Found by the differential fuzzer.)
                 let v = self.emit_lvalue(var);
-                let p = self.emit_expr_inline(pos);
+                let tc = self.lift_counter;
+                self.lift_counter += 1;
+                let p = self.lift_expr(pos);
+                self.line(&format!("let __midp{tc} = {p};"));
+                let ln_tmp = len.as_ref().map(|l| {
+                    let e = self.lift_expr(l);
+                    self.line(&format!("let __midl{tc} = {e};"));
+                    format!("Some(__midl{tc})")
+                }).unwrap_or_else(|| "None".into());
                 let rhs = self.emit_expr(val)?;
-                if let Some(l) = len {
-                    let ln = self.emit_expr_inline(l);
-                    self.line(&format!("qb_mid_assign(&mut {v}, {p}, Some({ln}), &{rhs});"));
-                } else {
-                    self.line(&format!("qb_mid_assign(&mut {v}, {p}, None, &{rhs});"));
-                }
+                self.line(&format!("let __midv{tc} = ({rhs}).to_string();"));
+                self.line(&format!(
+                    "qb_mid_assign(&mut {v}, __midp{tc}, {ln_tmp}, &__midv{tc});"
+                ));
             }
             Stmt::Poke { addr, val } => {
                 // lift_expr hoists any nested __rt call (e.g. PEEK inside the value:

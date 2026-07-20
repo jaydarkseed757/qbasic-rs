@@ -240,8 +240,26 @@ pub(super) fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(
                     scan_expr(val, result, added, exclude);
                 }
                 Stmt::Swap(a, b) => {
-                    if let LValue::Scalar { name, ty } = a { push(name, ty, result, added, exclude); }
-                    if let LValue::Scalar { name, ty } = b { push(name, ty, result, added, exclude); }
+                    for lv in [a, b] {
+                        match lv {
+                            LValue::Scalar { name, ty } => push(name, ty, result, added, exclude),
+                            // Index expressions are reads — a variable used
+                            // only there must still be declared.
+                            LValue::Index { indices, .. } |
+                            LValue::FieldIndex { indices, .. } => {
+                                for e in indices { scan_expr(e, result, added, exclude); }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Stmt::MidAssign { var, pos, len, val } => {
+                    if let LValue::Scalar { name, ty } = var {
+                        push(name, ty, result, added, exclude);
+                    }
+                    scan_expr(pos, result, added, exclude);
+                    if let Some(l) = len { scan_expr(l, result, added, exclude); }
+                    scan_expr(val, result, added, exclude);
                 }
                 Stmt::Palette { attr, color64 } => {
                     scan_expr(attr, result, added, exclude);
@@ -1245,6 +1263,16 @@ pub(super) fn collect_scalar_names_stmt(stmt: &Stmt, out: &mut HashMap<String, Q
             }
             collect_scalar_names_expr(expr, out);
         }
+        // MID$(V$, pos, len) = val — the target and every argument are uses.
+        // (Found by the differential fuzzer, same class as the Swap arm.)
+        Stmt::MidAssign { var, pos, len, val } => {
+            if let LValue::Scalar { name, ty } = var {
+                out.entry(name.to_lowercase()).or_insert_with(|| ty.clone());
+            }
+            collect_scalar_names_expr(pos, out);
+            if let Some(l) = len { collect_scalar_names_expr(l, out); }
+            collect_scalar_names_expr(val, out);
+        }
         // SWAP reads+writes both operands — a scalar referenced ONLY in a
         // SWAP still counts for cross-boundary promotion. Index expressions
         // are scanned as reads. (Found by the differential fuzzer.)
@@ -1488,6 +1516,12 @@ pub(super) fn collect_array_use_refs_stmt(stmt: &Stmt, known_arrays: &HashSet<St
         Stmt::Swap(a, b) => {
             scan_lv(a, known_arrays, out);
             scan_lv(b, known_arrays, out);
+        }
+        Stmt::MidAssign { var, pos, len, val } => {
+            scan_lv(var, known_arrays, out);
+            scan_expr(pos, known_arrays, out);
+            if let Some(l) = len { scan_expr(l, known_arrays, out); }
+            scan_expr(val, known_arrays, out);
         }
         Stmt::Print { args, .. } | Stmt::PrintFile { args, .. } => {
             for a in args {

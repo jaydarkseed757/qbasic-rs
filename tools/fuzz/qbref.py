@@ -100,7 +100,21 @@ class Expr:
         assert k == 'op' and v == op, f"expected {op}, got {v}"
 
     def parse(self):
-        return self.p_xor()
+        return self.p_imp()
+
+    def p_imp(self):
+        v = self.p_eqv()
+        while self.peek() == ('id', 'IMP'):
+            self.take()
+            v = float(~int(v) | int(self.p_eqv()))
+        return v
+
+    def p_eqv(self):
+        v = self.p_xor()
+        while self.peek() == ('id', 'EQV'):
+            self.take()
+            v = float(~(int(v) ^ int(self.p_xor())))
+        return v
 
     def p_xor(self):
         v = self.p_or()
@@ -251,7 +265,13 @@ class Expr:
             a = self.args()
             s1, s2 = a[-2], a[-1]
             start = int(a[0]) if len(a) == 3 else 1
-            p = s1.find(s2, max(start - 1, 0))
+            if start < 1:
+                start = 1        # QB treats start < 1 as 1
+            if start > len(s1):
+                return 0.0       # start past the end → 0
+            if not s2:
+                return float(start)   # null needle → start
+            p = s1.find(s2, start - 1)
             return float(p + 1)
         if name == 'CHR$':
             return chr(int(self.args()[0]))
@@ -368,6 +388,29 @@ def ref_set(env, ref, v):
         env.svars[name] = v
     else:
         env.nvars[name] = v
+
+
+def exec_mid_assign(env, arg):
+    """MID$(V$, pos[, len]) = val — in-place replacement, length preserved
+    (mirrors qb_mid_assign: no-op past the end; replaces at most min(len,
+    remaining) chars, and only as many as val provides)."""
+    eq = find_top_eq(arg)
+    lhs, rhs = arg[:eq].strip(), arg[eq + 1:].strip()
+    inner = lhs[lhs.index('(') + 1:lhs.rindex(')')]
+    parts, _ = split_top(inner, ',')
+    var = parts[0].strip().upper()
+    pos = int(ev(env, parts[1]))
+    ln = int(ev(env, parts[2])) if len(parts) == 3 else None
+    val = ev(env, rhs)
+    s0 = list(env.svars.get(var, ''))
+    start = max(pos - 1, 0)
+    if start >= len(s0):
+        return
+    max_replace = len(s0) - start
+    replace_len = min(ln, max_replace) if ln is not None else max_replace
+    for i, c in enumerate(val[:replace_len]):
+        s0[start + i] = c
+    env.svars[var] = ''.join(s0)
 
 
 def lv_get(env, text):
@@ -495,6 +538,8 @@ def parse_block(lines, i, terminators):
         elif up.startswith('SWAP '):
             a, b = split_top(raw[5:], ',')[0]
             block.append(('swap', a, b))
+        elif up.startswith('MID$('):
+            block.append(('midassign', raw))
         elif up.startswith('GOSUB '):
             block.append(('gosub', raw[6:].strip().upper()))
         elif up.startswith('IF '):
@@ -590,6 +635,8 @@ def run_block(env, block, subs):
             va, vb = ref_get(env, ra), ref_get(env, rb)
             ref_set(env, ra, vb)
             ref_set(env, rb, va)
+        elif op == 'midassign':
+            exec_mid_assign(env, stmt[1])
         elif op == 'print':
             exec_print(env, stmt[1])
         elif op == 'printusing':
@@ -761,6 +808,8 @@ def run_flat(src):
             va, vb = ref_get(env, ra), ref_get(env, rb)
             ref_set(env, ra, vb)
             ref_set(env, rb, va)
+        elif up.startswith('MID$('):
+            exec_mid_assign(env, st)
         else:
             eq = find_top_eq(st)
             lv_set(env, st[:eq], ev(env, st[eq + 1:]))

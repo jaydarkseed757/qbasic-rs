@@ -96,14 +96,21 @@ class Gen:
             op = self.r.choice(["=", "<>", "<", ">", "<=", ">="])
             return f"({self.sexpr(depth + 1)} {op} {self.sexpr(depth + 1)})"
         if c < 0.87:
-            op = self.r.choice(["AND", "OR", "XOR"])
+            op = self.r.choice(["AND", "OR", "XOR", "EQV", "IMP"])
             return f"({a} {op} {b})"
         if c < 0.90:
             return f"(NOT {a})"
-        if c < 0.94:
+        if c < 0.93:
             return f"ABS({a})"
-        if c < 0.97:
+        if c < 0.95:
             return f"SGN({a})"
+        if c < 0.98:
+            # 2- and 3-arg INSTR; the start can be 0 (treated as 1) or past
+            # the end of the haystack (returns 0) — both QB edge cases.
+            if self.r.random() < 0.5:
+                return f"INSTR({self.sexpr(depth + 1)}, {self.sexpr(depth + 1)})"
+            return (f"INSTR(ABS({self.atom()}) MOD 9, "
+                    f"{self.sexpr(depth + 1)}, {self.sexpr(depth + 1)})")
         return f"LEN({self.sexpr(depth + 1)})"
 
     def cond(self, depth=1):
@@ -155,11 +162,16 @@ class Gen:
 
     def gen_assign(self, indent):
         c = self.r.random()
-        if c < 0.75:
+        if c < 0.70:
             self.emit(f"{self.num_target()} = ({self.nexpr(0)}) MOD 32749", indent)
-        else:
+        elif c < 0.92:
             v = self.r.choice(STRVARS)
             self.emit(f"{v} = LEFT$({self.sexpr(0)}, 40)", indent)
+        else:
+            # MID$ statement form: in-place replacement, length preserved.
+            v = self.r.choice(STRVARS)
+            self.emit(f"MID$({v}, ABS({self.atom()}) MOD 20 + 1, "
+                      f"ABS({self.atom()}) MOD 6) = {self.sexpr(1)}", indent)
 
     def gen_swap(self, indent):
         c = self.r.random()
@@ -259,6 +271,9 @@ class Gen:
             self.emit("LOOP", indent)
 
     def gen_select(self, indent, depth):
+        if self.r.random() < 0.3:
+            self.gen_select_str(indent, depth)
+            return
         self.emit(f"SELECT CASE ABS({self.nexpr(1)}) MOD 10", indent)
         for _ in range(self.r.randint(1, 3)):
             c = self.r.random()
@@ -274,6 +289,29 @@ class Gen:
                 self.emit(f"CASE IS {op} {self.r.randint(0, 9)}", indent)
             self.gen_block(indent + 1, depth + 1, self.r.randint(1, 2))
         if self.r.random() < 0.6:
+            self.emit("CASE ELSE", indent)
+            self.gen_block(indent + 1, depth + 1, 1)
+        self.emit("END SELECT", indent)
+
+    def gen_select_str(self, indent, depth):
+        # String selector: single normalized character keeps CASE specs simple.
+        self.emit(f"SELECT CASE LEFT$(UCASE$({self.sexpr(1)}), 1)", indent)
+        letters = "ABFHNQXZ"
+        for _ in range(self.r.randint(1, 3)):
+            c = self.r.random()
+            if c < 0.4:
+                vals = ", ".join(f'"{self.r.choice(letters)}"'
+                                 for _ in range(self.r.randint(1, 2)))
+                self.emit(f"CASE {vals}", indent)
+            elif c < 0.7:
+                lo = self.r.choice("ABCDEF")
+                hi = self.r.choice("MNPQRS")
+                self.emit(f'CASE "{lo}" TO "{hi}"', indent)
+            else:
+                op = self.r.choice(["<", ">", "<=", ">="])
+                self.emit(f'CASE IS {op} "{self.r.choice(letters)}"', indent)
+            self.gen_block(indent + 1, depth + 1, self.r.randint(1, 2))
+        if self.r.random() < 0.7:
             self.emit("CASE ELSE", indent)
             self.gen_block(indent + 1, depth + 1, 1)
         self.emit("END SELECT", indent)
@@ -395,6 +433,28 @@ class GenFlat:
         for _ in range(n_main):
             stmts.append(flat_stmt())
 
+        # Backward-GOTO counted loops (0-2): a dedicated counter the body
+        # never touches guarantees termination. Encoded as tuples resolved to
+        # concrete line numbers during the numbering pass below.
+        for loop_n, cvar in enumerate(["L8", "L9"][:r.randint(0, 2)]):
+            at = r.randint(0, len(stmts) - 1)
+            body_len = r.randint(1, 3)
+            limit = r.randint(2, 5)
+            body = [flat_stmt() or f"{r.choice(NUMVARS)} = ({g.nexpr(1)}) MOD 32749"
+                    for _ in range(body_len)]
+            seg = ([f"{cvar} = 0"] + body
+                   + [f"{cvar} = {cvar} + 1",
+                      ("backjump", cvar, limit, at + 1)])
+            seg_len = len(seg)
+            stmts[at:at] = seg
+            # Re-anchor any EARLIER loop's stored body index that the
+            # insertion shifted — a stale backward target could skip that
+            # loop's counter increment and never terminate.
+            for j, e in enumerate(stmts):
+                if (isinstance(e, tuple) and j != at + seg_len - 1
+                        and e[3] >= at):
+                    stmts[j] = (e[0], e[1], e[2], e[3] + seg_len)
+
         # Line numbering: DIMs first, then main, dump, END, subs.
         out = ["' fuzz-generated program (genfuzz.py, mode B: line-numbered)"]
         num = 10
@@ -425,6 +485,10 @@ class GenFlat:
 
         for i, st in enumerate(stmts):
             this = main_nums[i]
+            if isinstance(st, tuple):
+                cvar, limit, tgt_idx = st[1], st[2], st[3]
+                out.append(f"{this} IF {cvar} < {limit} THEN GOTO {main_nums[tgt_idx]}")
+                continue
             if st is None:
                 # jump slot: forward GOTO / IF…GOTO to a later main line or
                 # the dump; or a GOSUB into the sub region.

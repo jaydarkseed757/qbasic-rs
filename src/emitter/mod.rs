@@ -82,6 +82,14 @@ pub struct Emitter {
     /// Each entry is (rust_field_name, QbType). The shared_names key is the
     /// lowercase original name (already inserted into shared_names separately).
     promoted_scalars: Vec<(String, QbType)>,
+    /// When true, `emit()` additionally builds `explain_report` — a plain-text
+    /// breakdown of every `GameState` field's origin (DIM SHARED / SHARED-in-SUB
+    /// or STATIC / cross-GOSUB scalar promotion / cross-GOSUB array promotion),
+    /// for the `qbc --explain` CLI flag. Off by default so a normal build never
+    /// pays for the extra scope-usage scan.
+    want_explain: bool,
+    /// Populated by `emit()` iff `want_explain` — see `qbc --explain`.
+    explain_report: String,
     /// Track which REDIM'd local arrays have already been declared (`let mut name: Vec<T>`)
     /// so we don't emit duplicate declarations on the second REDIM in the same sub.
     redim_declared: HashSet<String>,
@@ -210,6 +218,8 @@ impl Emitter {
             numeric_params: HashSet::new(),
             promoted_arrays: HashSet::new(),
             promoted_scalars: Vec::new(),
+            want_explain: false,
+            explain_report: String::new(),
             redim_declared: HashSet::new(),
             data_labels:  HashMap::new(),
             sub_params:   HashMap::new(),
@@ -499,6 +509,14 @@ impl Emitter {
 
     // ── Top-level emit ────────────────────────────────────────────────────────
 
+    /// Enable the `--explain` origin report (see `explain_report()`). Must be
+    /// called before `emit()`.
+    pub fn set_want_explain(&mut self, want: bool) { self.want_explain = want; }
+
+    /// The `GameState` field-origin report built during `emit()` when
+    /// `set_want_explain(true)` was called first; empty otherwise.
+    pub fn explain_report(&self) -> &str { &self.explain_report }
+
     pub fn emit(&mut self, prog: &AnalyzedProgram) -> Result<String> {
         // Populate name sets used throughout the emitter
         for sym in prog.global_scope.symbols.values() {
@@ -658,6 +676,17 @@ impl Emitter {
                 self.shared_types.insert(name_lc.clone(), real_ty.clone());
                 self.promoted_scalars.push((rust_name, real_ty));
             }
+        }
+
+        // --explain: every shared_names entry is now finalized (DIM SHARED,
+        // SHARED-in-SUB/STATIC, and both cross-boundary promotion passes have
+        // all run) — build the origin report before subs/functions emission
+        // starts touching unrelated per-scope state.
+        if self.want_explain {
+            self.explain_report = build_explain_report(
+                prog, &self.shared_names, &self.shared_types, &self.dim_shared_names,
+                &self.promoted_arrays, &self.promoted_scalars, &main_stmts, &gosub_fns,
+            );
         }
 
         // Register gosub block names as user_fns so CALLs to them get __rt/__gs prepended
@@ -5430,6 +5459,239 @@ use postprocess::*;
 
 pub fn emit(prog: &AnalyzedProgram) -> Result<String> {
     Emitter::new().emit(prog)
+}
+
+/// Transpile AND build the `--explain` `GameState`-field-origin report.
+/// Returns (rust_source, explain_report). See `docs/explain.md` /
+/// `qbc --explain --help` for the report's format and what each of the
+/// four origin categories means.
+pub fn emit_explained(prog: &AnalyzedProgram) -> Result<(String, String)> {
+    let mut e = Emitter::new();
+    e.set_want_explain(true);
+    let rust = e.emit(prog)?;
+    Ok((rust, e.explain_report().to_string()))
+}
+
+/// Build the `--explain` report: every `GameState` field, tagged with WHY it
+/// exists. There are exactly four sources a field can come from (see
+/// CLAUDE.md's "Emitter" section) — this function classifies every name in
+/// `shared_names` into one of them and, for the two IMPLICIT ones (cross-
+/// GOSUB promotion, where nothing in the `.bas` source says "this is shared"),
+/// also reports which scopes (main / which GOSUB blocks) actually touch it —
+/// that scope list IS the reason the promotion pass fired.
+///
+/// Deliberately NOT distinguished: `SHARED name` written inside a SUB/FUNCTION
+/// body vs a `STATIC name` local. Both lower to the same `Stmt::SharedDecl` at
+/// parse time (see `parse_static`'s doc comment) and are indistinguishable by
+/// the time `emit()` builds `shared_names` — the report says so plainly rather
+/// than guessing.
+fn build_explain_report(
+    prog: &AnalyzedProgram,
+    shared_names: &HashSet<String>,
+    shared_types: &HashMap<String, QbType>,
+    dim_shared_names: &HashSet<String>,
+    promoted_arrays: &HashSet<String>,
+    promoted_scalars: &[(String, QbType)],
+    main_stmts: &[Stmt],
+    gosub_fns: &[(String, Vec<Stmt>)],
+) -> String {
+    // promoted_scalars/promoted_arrays store rust_ident'd names; shared_names
+    // stores lowercase QB names. A promoted scalar's rust_ident and lowercase
+    // QB name coincide for every legal identifier (rust_ident only adds a
+    // qb_/_s prefix/suffix for keyword collisions or string sigils — neither
+    // changes which BARE name shared_names was keyed on), so build lookup
+    // sets in both forms rather than assume which one a given call site used.
+    let promoted_scalar_names: HashSet<String> =
+        promoted_scalars.iter().map(|(n, _)| n.to_lowercase()).collect();
+
+    // Per-scope usage, computed once — this IS the promotion evidence for the
+    // two implicit categories. "main" plus one entry per extracted GOSUB fn.
+    let mut scopes: Vec<(String, &[Stmt])> = vec![("main".to_string(), main_stmts)];
+    for (label, body) in gosub_fns {
+        scopes.push((format!("GOSUB {label}"), body.as_slice()));
+    }
+    let mut scalar_scopes: HashMap<String, Vec<String>> = HashMap::new();
+    let mut array_scopes:  HashMap<String, Vec<String>> = HashMap::new();
+    for (scope_name, body) in &scopes {
+        for name in collect_scalar_names_stmts(body).keys() {
+            scalar_scopes.entry(name.clone()).or_default().push(scope_name.clone());
+        }
+        // Mirror detect_cross_boundary_arrays's OWN signal exactly: a name
+        // counts as "touched in this scope" if it's DIM'd here, referenced as
+        // a GET/PUT sprite buffer, passed bare to a CALL, OR subscripted here
+        // (the narrower Expr::Call-with-args signal alone misses sprite
+        // buffers like gorilla's GorD/GorL/GorR, which are never subscripted).
+        let mut used = collect_array_names_stmts(body);
+        collect_array_use_refs_stmts(body, promoted_arrays, &mut used);
+        for name in used {
+            if promoted_arrays.contains(&name) {
+                array_scopes.entry(name).or_default().push(scope_name.clone());
+            }
+        }
+    }
+
+    // Classify every field into exactly one of the four buckets.
+    let mut dim_shared: Vec<String> = Vec::new();
+    let mut shared_in_sub_or_static: Vec<String> = Vec::new();
+    let mut cross_scalar: Vec<String> = Vec::new();
+    let mut cross_array: Vec<String> = Vec::new();
+    let mut names: Vec<&String> = shared_names.iter().collect();
+    names.sort();
+    for name in names {
+        if promoted_arrays.contains(name) {
+            cross_array.push(name.clone());
+        } else if promoted_scalar_names.contains(name) {
+            cross_scalar.push(name.clone());
+        } else if dim_shared_names.contains(name) {
+            dim_shared.push(name.clone());
+        } else {
+            shared_in_sub_or_static.push(name.clone());
+        }
+    }
+
+    let ty_str = |name: &str| -> String {
+        match shared_types.get(name) {
+            Some(QbType::String) => "String".to_string(),
+            Some(_) | None => {
+                // Fall back to the symbol table for names shared_types missed
+                // (plain DIM SHARED scalars never populate shared_types — only
+                // promotions and typed arrays do).
+                let sym = prog.global_scope.symbols.values()
+                    .find(|s| s.name.to_lowercase() == name);
+                match sym {
+                    Some(s) if s.dims > 0 && s.ty == QbType::String => "Vec<String>".into(),
+                    Some(s) if s.dims > 0 => "Vec<f64>".into(),
+                    Some(s) if s.ty == QbType::String => "String".into(),
+                    _ => "f64".into(),
+                }
+            }
+        }
+    };
+
+    let mut out = String::new();
+    let total = dim_shared.len() + shared_in_sub_or_static.len()
+              + cross_scalar.len() + cross_array.len();
+    out.push_str(&format!(
+        "── qbc --explain: GameState field origins ──────────────────────────\n\
+         {total} field(s): {d} DIM SHARED · {s} SHARED-in-SUB/STATIC · \
+         {cs} cross-GOSUB scalar · {ca} cross-GOSUB array\n\n",
+        d = dim_shared.len(), s = shared_in_sub_or_static.len(),
+        cs = cross_scalar.len(), ca = cross_array.len(),
+    ));
+
+    if !dim_shared.is_empty() {
+        out.push_str("DIM SHARED (module-level, explicit):\n");
+        for n in &dim_shared {
+            out.push_str(&format!("  {:<20} {}\n", n, ty_str(n)));
+        }
+        out.push('\n');
+    }
+    if !shared_in_sub_or_static.is_empty() {
+        out.push_str(
+            "SHARED-in-SUB or STATIC (explicit, but which one is not tracked —\n\
+             both lower to the same AST node by this point):\n");
+        for n in &shared_in_sub_or_static {
+            out.push_str(&format!("  {:<20} {}\n", n, ty_str(n)));
+        }
+        out.push('\n');
+    }
+    if !cross_scalar.is_empty() {
+        out.push_str(
+            "Cross-GOSUB scalar promotion (IMPLICIT — nothing in the .bas source\n\
+             marks these; inferred because the name is used in more than one\n\
+             scope below):\n");
+        for n in &cross_scalar {
+            let empty = Vec::new();
+            let used_in = scalar_scopes.get(n).unwrap_or(&empty);
+            out.push_str(&format!("  {:<20} {:<8} used in: {}\n",
+                n, ty_str(n), used_in.join(", ")));
+        }
+        out.push('\n');
+    }
+    if !cross_array.is_empty() {
+        out.push_str(
+            "Cross-GOSUB array promotion (IMPLICIT — same reasoning as above,\n\
+             applied to arrays):\n");
+        for n in &cross_array {
+            let empty = Vec::new();
+            let used_in = array_scopes.get(n).unwrap_or(&empty);
+            out.push_str(&format!("  {:<20} {:<8} used in: {}\n",
+                n, ty_str(n), used_in.join(", ")));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+#[cfg(test)]
+mod explain_tests {
+    use super::*;
+
+    /// Run the full pipeline (lex → parse → analyze → emit_explained) on an
+    /// embedded `.bas` source string. Panics with the pipeline error on
+    /// failure — fine for tests, where a pipeline failure IS the test failure.
+    fn explain(src: &str) -> String {
+        let tokens = crate::lexer::tokenize(src).expect("lex");
+        let ast    = crate::parser::parse(tokens).expect("parse");
+        let prog   = crate::analyzer::analyze(ast).expect("analyze");
+        let (_, report) = emit_explained(&prog).expect("emit");
+        report
+    }
+
+    #[test]
+    fn dim_shared_bucket() {
+        let r = explain("DIM SHARED X\nX = 1\nPRINT X\n");
+        assert!(r.contains("DIM SHARED (module-level"));
+        assert!(r.contains("  x "));
+        assert!(!r.contains("Cross-GOSUB"));
+    }
+
+    #[test]
+    fn shared_in_sub_bucket() {
+        let r = explain(
+            "DECLARE SUB Foo ()\nCALL Foo\nPRINT X\nSUB Foo\n    SHARED X\n    X = 1\nEND SUB\n"
+        );
+        assert!(r.contains("SHARED-in-SUB or STATIC"));
+        assert!(r.contains("  x "));
+    }
+
+    #[test]
+    fn cross_gosub_scalar_bucket_reports_both_scopes() {
+        let r = explain(
+            "X = 1\nGOSUB Tail\nPRINT X\nEND\nTail:\nX = X + 1\nRETURN\n"
+        );
+        assert!(r.contains("Cross-GOSUB scalar promotion"));
+        assert!(r.contains("used in: main, GOSUB Tail"));
+    }
+
+    #[test]
+    fn cross_gosub_array_bucket_finds_sprite_only_uses() {
+        // arr is DIM'd in main and used ONLY as a GET sprite buffer inside the
+        // GOSUB body (never subscripted) — the exact gorilla GorD/GorL/GorR
+        // shape that the narrower subscript-only collector used to miss.
+        let r = explain(
+            "SCREEN 9\nDIM arr(100)\nGOSUB Cap\nEND\nCap:\nGET (0,0)-(9,9), arr\nRETURN\n"
+        );
+        assert!(r.contains("Cross-GOSUB array promotion"));
+        assert!(r.contains("used in: main, GOSUB Cap"));
+    }
+
+    #[test]
+    fn zero_shared_fields_does_not_panic() {
+        let r = explain("X = 1\nPRINT X\n");
+        assert!(r.contains("0 field(s)"));
+    }
+
+    #[test]
+    fn explain_does_not_change_emitted_rust() {
+        let src = "DIM SHARED X\nX = 1\nGOSUB Tail\nPRINT X\nEND\nTail:\nX = X + 1\nRETURN\n";
+        let tokens = crate::lexer::tokenize(src).unwrap();
+        let ast    = crate::parser::parse(tokens).unwrap();
+        let prog   = crate::analyzer::analyze(ast).unwrap();
+        let plain    = emit(&prog).unwrap();
+        let (explained, _) = emit_explained(&prog).unwrap();
+        assert_eq!(plain, explained, "--explain must never alter the emitted Rust");
+    }
 }
 
 

@@ -252,7 +252,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full description of the pipeli
 ## CLI
 
 ```
-qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
+qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 ```
 
 | Flag | Effect |
@@ -261,6 +261,34 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
 | `--emit-only` | Write `.rs` only; skip rustc |
 | `--dump-ast` | Print the parsed AST and exit |
 | `--verbose` | Print per-stage timing and stats |
+| `--explain` | Print why each `GameState` field exists — see below |
+
+### `--explain`: why is this variable a GameState field?
+
+Every `.bas` variable that ends up living in the emitted `GameState` struct
+got there for one of four reasons, and two of those reasons are *implicit* —
+nothing in the source marks the variable as shared, the emitter inferred it
+from usage crossing a GOSUB-extracted function boundary. `--explain` prints
+which bucket each field came from, and for the implicit ones, exactly which
+scopes (`main` / which `GOSUB` blocks) reference it — that scope list *is*
+the evidence the promotion pass acted on:
+
+```
+$ qbc basic-src/farkle.bas --emit-only --explain
+── qbc --explain: GameState field origins ──────────────────────────
+23 field(s): 9 DIM SHARED · 0 SHARED-in-SUB/STATIC · 9 cross-GOSUB scalar · 5 cross-GOSUB array
+
+Cross-GOSUB scalar promotion (IMPLICIT — nothing in the .bas source
+marks these; inferred because the name is used in more than one
+scope below):
+  k                    String   used in: main, GOSUB SelectDicePhase, GOSUB BankOrRoll
+  ...
+```
+
+Combine freely with `--verbose`; it compiles normally in addition to
+printing the report (nothing about `--explain` changes the emitted Rust).
+`basic-src/explain.sh <file.bas>` is a one-liner wrapper (mirrors
+`show-asm.sh`) if you don't want to remember the flags.
 
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 

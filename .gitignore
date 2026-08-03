@@ -37,3 +37,5 @@ CLAUDE.md
 .DS_Store
 tools/fuzz/tmp/
 tools/fuzz/failures/
+tools/fuzz/tmp-gfx/
+tools/fuzz/gfx-failures/

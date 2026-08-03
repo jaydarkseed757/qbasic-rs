@@ -226,6 +226,17 @@ transpile/compile/run failure or output mismatch is a finding saved to
 `tools/fuzz/failures/`. The harness has found 13 real bugs to date; 500/500
 seeds currently pass.
 
+There's no independent renderer to diff *graphics* output against, so
+`tools/fuzz/run-fuzz-gfx.sh [count] [start-seed]` checks a narrower but real
+property instead: random SCREEN 13 drawing programs (`genfuzz_gfx.py` — PSET,
+LINE/LINE B/LINE BF, CIRCLE, PAINT bounded inside a drawn box, GET/PUT sprite
+round-trips, and the `WAIT &H3DA` vsync pair) are compiled once and run
+headless **twice**; the two `QBC_CHECKSUM` values must match bit-for-bit. This
+is exactly the property the old wall-clock-paced headless timing violated
+(see "Graphics golden tests" above) — before the simulated headless clock,
+this harness would have failed almost every seed. 300/300 seeds currently
+pass.
+
 ---
 
 ## Project layout

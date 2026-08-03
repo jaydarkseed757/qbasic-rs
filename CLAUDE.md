@@ -2091,6 +2091,45 @@ case + the byte-identical-output invariant) exercise the whole pipeline
 Verified: 153 unit, 47/47 integration, 54/54 build-all, 10/10 goldens,
 80-seed fuzz spot-check.
 
+### Graphics-program fuzzing by determinism (`tools/fuzz/run-fuzz-gfx.sh`)
+
+The text-mode fuzzer (`genfuzz.py`/`qbref.py`) works by diffing qbc's output
+against an independent reference interpreter — but there's no independent
+*renderer* to diff pixel output against, so graphics programs were entirely
+outside the fuzzer's reach. This closes that gap with a narrower, honest
+property instead of a false oracle: **the SAME program, run headless TWICE
+with identical env, must produce a BIT-IDENTICAL framebuffer checksum.**
+That's precisely the property real-wall-clock headless timing violated
+before the simulated headless clock (see that changelog entry above) — this
+harness is the regression net making sure it stays fixed.
+
+- **`genfuzz_gfx.py`**: generates a random `SCREEN 13` program from `PSET`,
+  `LINE`/`LINE B`/`LINE BF`, `CIRCLE`, `PAINT` (bounded — always fired inside
+  a box whose border was just redrawn via `LINE B`, so the fill region is
+  provably closed and small, never the whole screen), `GET`/`PUT` sprite
+  round-trips (all four verbs), `COLOR`, and — with real weight, since this
+  is exactly where a wall-clock regression would resurface — the
+  `WAIT &H3DA, 8[, 8]` vsync double-wait pair and `SLEEP`. Every parameter
+  is Python-random, not QB `RND`: there's deliberately no QB-RNG-fidelity
+  question here, this is a pure engine-determinism check. Coordinates/colors
+  are bounded to the SCREEN 13 canvas so no generated program can error.
+- **`run-fuzz-gfx.sh [count] [start-seed]`**: transpiles + compiles ONCE per
+  seed (opt-level is irrelevant here — both runs below share one binary, so
+  there's no golden-style cross-build pinning concern), then runs headless
+  twice via `QBC_HEADLESS=1 QBC_CHECKSUM=1` and diffs the two
+  `QBC_CHECKSUM=` lines. A crash/hang on either run, or a checksum mismatch,
+  is a finding saved to `tools/fuzz/gfx-failures/`. `END` alone triggers
+  `headless_finish()` (checksum print + exit) — no `QBC_EXIT_AFTER` needed
+  since these are pure batch-draw-then-END programs.
+- **Verified manually before the batch run**: one generated program's PNG
+  dump was inspected by eye (boxes, a painted fill, a circle, a sprite blit
+  — all present and geometrically sane, confirming the generator produces
+  real drawing, not just statements that happen to not crash).
+
+**300/300 seeds pass** (two independent runs, seeds 1–300) — the simulated
+clock holds up under vsync/SLEEP-heavy random programs, not just the 10
+hand-picked goldens.
+
 ## Known Issues / TODO
 
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see

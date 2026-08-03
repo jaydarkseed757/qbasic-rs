@@ -83,7 +83,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
 - **47/47** integration (`tests/run-tests.sh`, stdout-based)
-- **147** runtime+transpiler unit tests (`cargo test --workspace`)
+- **153** runtime+transpiler unit tests (`cargo test --workspace`)
 - **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2039,6 +2039,57 @@ precedence levels below XOR, `MID$(` statement dispatch in both executors.
 After the fixes: **500/500 seeds pass** on the round-3 subset. Verified:
 147 unit, 47/47 integration, 54/54 build-all, 10/10 goldens ×2
 (bit-identical under the simulated clock).
+
+### `qbc --explain` — diagnose why a variable became a GameState field
+
+A new CLI flag closes the promotion-debugging gap that the farkle/torus
+incidents both fell into: nothing in the `.bas` source marks a cross-GOSUB-
+promoted variable as shared, so when the promotion logic surprises you
+(wrong type, missed promotion, unexpected field) there was previously no
+way to ask the transpiler "why did/didn't this happen" short of reading
+`emitter/scan.rs`.
+
+- **Design**: `--explain` behaves like `--verbose` (prints a report, still
+  compiles normally — the two combine freely) rather than like `--dump-ast`
+  (which exits early). There's no natural "stop early" point for promotion
+  data anyway — it only exists after the full emit pass.
+- **The four field-origin buckets** (see docs/ARCHITECTURE.md's "GameState
+  field promotion" section for the full writeup): `DIM SHARED` (explicit,
+  module-level), `SHARED`-in-SUB or `STATIC` (explicit, but the two are
+  indistinguishable by emit time — both lower to the same `Stmt::SharedDecl`
+  node, and the report says so plainly rather than guessing), cross-GOSUB
+  scalar promotion (implicit), cross-GOSUB array promotion (implicit). For
+  the two implicit buckets the report also prints which scopes (`main` /
+  which `GOSUB` blocks) reference the name — that scope list literally IS
+  the promotion evidence.
+- **Implementation** (`emitter/mod.rs`): `Emitter::set_want_explain(true)`
+  gates a new report-building pass that runs once, right after the
+  cross-boundary detection loops finish (so it reads their already-finalized
+  output — no duplicate analysis). New `pub fn emit_explained()` wraps
+  `emit()` and returns `(rust_source, report)`; the plain `emit()` path is
+  completely untouched, so a normal build's output is provably unaffected
+  (locked by `explain_does_not_change_emitted_rust`).
+- **Bug caught during testing**: the first draft's "used in" scope detector
+  for arrays only checked subscript-form uses (`Expr::Call` with args) and
+  silently printed an empty scope list for gorilla's `GorD`/`GorL`/`GorR` —
+  sprite buffers that are DIM'd once and only ever passed bare to
+  `GET`/`PUT`, never subscripted. Fixed by reusing
+  `collect_array_names_stmts` (the SAME wider signal
+  `detect_cross_boundary_arrays` itself uses — DIM + GET/PUT sprite refs +
+  bare CALL args, not just subscripts) instead of a narrower one-off scan.
+  A reminder that when you're explaining a decision another function made,
+  you have to replicate exactly what it looked at, not what looks
+  equivalent.
+- **CLI**: `qbc file.bas --emit-only --explain` (see README's `--explain`
+  section for a worked farkle.bas example, including its historically
+  tricky sigil-less `k` correctly reporting as `String`, not the naive
+  `f64`).
+
+6 new unit tests (`explain_tests`, one per bucket + the zero-fields edge
+case + the byte-identical-output invariant) exercise the whole pipeline
+(lex→parse→analyze→emit_explained) on small embedded `.bas` sources.
+Verified: 153 unit, 47/47 integration, 54/54 build-all, 10/10 goldens,
+80-seed fuzz spot-check.
 
 ## Known Issues / TODO
 

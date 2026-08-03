@@ -31,6 +31,13 @@ struct Args {
     /// Print transpilation stats
     #[arg(short, long)]
     verbose: bool,
+
+    /// Print a report explaining why each GameState field exists (DIM SHARED /
+    /// SHARED-in-SUB or STATIC / cross-GOSUB scalar promotion / cross-GOSUB
+    /// array promotion). Compiles normally in addition — combine freely with
+    /// --verbose.
+    #[arg(long)]
+    explain: bool,
 }
 
 fn fmt_dur(d: Duration) -> String {
@@ -113,7 +120,11 @@ fn main() -> Result<()> {
 
     // 5. Emit Rust source
     let t0 = Instant::now();
-    let rust_source = emitter::emit(&program)?;
+    let (rust_source, explain_report) = if args.explain {
+        emitter::emit_explained(&program)?
+    } else {
+        (emitter::emit(&program)?, String::new())
+    };
     let emit_dur = t0.elapsed();
 
     let out_lines = rust_source.lines().count();
@@ -125,6 +136,10 @@ fn main() -> Result<()> {
 
     if !args.verbose {
         eprintln!("Emitted: {}", out_path.display());
+    }
+
+    if args.explain {
+        println!("{explain_report}");
     }
 
     // 7. Optionally invoke rustc

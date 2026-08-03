@@ -99,7 +99,7 @@ file.bas
 ## CLI — `qbc`
 
 ```
-qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
+qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 ```
 
 | Flag | Effect |
@@ -108,6 +108,7 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose]
 | `--emit-only` | Write `.rs` only; skip the `rustc` invocation |
 | `--dump-ast` | Print parsed AST to stdout and exit |
 | `--verbose` / `-v` | Print per-stage timing and stats after transpilation |
+| `--explain` | Print a report of why each `GameState` field exists (see below) |
 
 `--verbose` output covers:
 - Source line/byte/blank/comment counts
@@ -406,6 +407,38 @@ fn main() {
     // main body
 }
 ```
+
+### GameState field promotion — why a variable becomes shared
+
+A `.bas` variable ends up as a `GameState` field for exactly one of four
+reasons — two explicit (visible in the source), two implicit (inferred by
+the emitter from usage):
+
+1. **`DIM SHARED name`** at module level — explicit.
+2. **`SHARED name`** inside a SUB/FUNCTION body, or a **`STATIC name`** local
+   (which parses to the same `Stmt::SharedDecl` AST node as `SHARED` — see
+   `parse_static`'s doc comment in `src/parser.rs`; the two are
+   indistinguishable by the time `emit()` runs) — explicit, but which of the
+   two is not tracked.
+3. **Cross-GOSUB scalar promotion** (`detect_cross_boundary_scalars`,
+   `emitter/scan.rs`) — IMPLICIT. GOSUB-target blocks are extracted into
+   separate Rust functions, breaking QB's flat-namespace assumption; a
+   scalar referenced in both `main` and an extracted GOSUB function is
+   promoted so both sides see the same storage.
+4. **Cross-GOSUB array promotion** (`detect_cross_boundary_arrays`) —
+   IMPLICIT, same reasoning as #3, applied to arrays. The detector's usage
+   signal is wider than a plain subscript scan: an array counts as "used in
+   this scope" if it's DIM'd there, referenced as a `GET`/`PUT` sprite
+   buffer, passed bare to a `CALL`, or subscripted — sprite-only arrays
+   (never subscripted) are a real case this covers (see gorilla's
+   `GorD`/`GorL`/`GorR`).
+
+Buckets #3 and #4 are where the debugging-difficulty class lives (the
+farkle/torus incidents in the changelog below both trace to promotion
+surprises) since nothing in the `.bas` source marks the variable as shared —
+**`qbc --explain`** prints every field's bucket, and for #3/#4 the exact
+scopes that triggered the promotion. See the CLI table above and README's
+`--explain` section for a worked example.
 
 ### REM QBC directives
 

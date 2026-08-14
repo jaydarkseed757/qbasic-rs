@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
 - **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **165** runtime+transpiler unit tests (`cargo test --workspace`)
+- **179** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2413,6 +2413,78 @@ confirmed against the source: line 659 is exactly `SCREEN 0`) and
 `kingdom.bas` (a line-numbered, GOTO-heavy program — correctly produces
 **zero** annotations, the safe fallback, rather than a misleading one).
 `--annotated` output compiles to a working binary, confirmed on gorilla.bas.
+
+### `qbc --opt-report` — source-level findings, deliberately NOT compiler optimizations
+
+Standalone analysis mode (`src/optreport.rs`), but — unlike `--compatibility`
+— runs AFTER `analyzer::analyze()`, since it needs the resolved global
+symbol table and folded `CONST` values that only exist on `AnalyzedProgram`.
+
+**The scoping decision, stated up front in the report's own header**: qbc
+emits straightforward Rust and hands it to `rustc`/LLVM, which already does
+constant folding, dead-branch elimination, and the like on every build
+regardless of whether this report exists. Reporting those back would be
+trivia qbc itself does nothing with — not an actionable lever, since the
+binary's already exactly as fast either way. What's genuinely additive is
+anything about the ORIGINAL `.bas` SOURCE that rustc never sees at all:
+
+- **Unreachable named labels** — defined but never targeted by `GOTO`/
+  `GOSUB`/`ON…GOTO`/`ON…GOSUB`/`ON ERROR GOTO`/`ON KEY|TIMER GOSUB`/
+  `RESUME <label>`/`RESTORE <label>` (all seven target kinds share one
+  label namespace in QB, so all seven count as "used" — a label solely
+  used for `RESTORE`'s DATA positioning is a legitimate, intentional use,
+  not dead code). Purely-numeric line-number labels are deliberately
+  EXCLUDED: a line-numbered GOTO-heavy program can reach a label by
+  ordinary fallthrough from the statement above with no explicit jump
+  anywhere, and real reachability there needs control-flow analysis this
+  report doesn't attempt — flagging them would risk false positives on
+  completely normal code. Named labels don't have that ambiguity; they
+  exist specifically to be jump targets.
+- **Arrays `DIM`'d but never `REDIM`'d** — a whole-program scan for `DIM`
+  names (with at least one dimension) that never appear as a `REDIM`
+  target. Deduped by name: the same array name legally exists in multiple
+  SUB/FUNCTION-local scopes (mario.bas has two unrelated `DIM rw$(15)`
+  locals in different SUBs), and repeating the identical finding once per
+  occurrence with no scope context isn't useful to a reader.
+- **Constant-condition `IF`/`ELSEIF` branches** — conditions built entirely
+  from literals/CONSTs (any real variable or function call makes it
+  non-constant and the fold bails to `None`). A NEW, self-contained
+  constant folder (`fold_const_local`), not a reuse of the analyzer's own
+  private `fold_const` — that one only needs to support `CONST` *declarations*
+  and deliberately skips every comparison operator; this one also folds
+  `Eq`/`Ne`/`Lt`/`Le`/`Gt`/`Ge`/`Xor`/`Eqv`/`Imp` using the same −1.0/0.0 QB
+  boolean convention the runtime's `qb_from_bool` uses, since a condition
+  needs comparisons to be worth folding at all.
+- **`DATA` table size** and **shared/global variable → type table** — the
+  latter reads directly from the analyzer's existing symbol table
+  (`AnalyzedProgram.global_scope`), so it's honestly labeled "shared/global"
+  only — it does NOT cover every local inside every SUB/FUNCTION the way a
+  full symbol table would.
+
+Each rule is self-contained in `optreport.rs` (its own `walk_stmts`/
+`walk_program`, deliberately not reusing `compat.rs`'s or `emitter/scan.rs`'s
+private walkers — same "keep each report module independent" rationale as
+`compat.rs` itself).
+
+**Verified against the full 55-program bundle, not just hand-picked cases**:
+zero crashes/panics across all of `basic-src/`; zero constant-branch or
+unreachable-label false positives on the 52 programs that don't trip either
+rule (all real, working, already-debugged code — an actual reassuring
+signal, not a gap); three programs DID trip real findings, each confirmed
+against the source by hand:
+- `qmaze.bas`: `IF DEFAULTSHOWMAZE THEN` correctly detected as always-TRUE
+  (`CONST DEFAULTSHOWMAZE = -1`).
+- `reversi.bas`: label `SLEEP:` (line 239, `SLEEP: a$ = INKEY$`) correctly
+  flagged — reached only by fallthrough from the line above, never a real
+  jump target despite the name suggesting an intentional target.
+- `mario.bas`: three unreachable `*Data:` labels (leftover from an earlier
+  design, dead code) plus ~60 never-`REDIM`'d arrays (its whole large
+  fixed-layout sprite/platform/enemy state) — the `DIM rw$(15)`-in-two-SUBs
+  dedup case above was found here.
+
+14 new unit tests (`optreport_tests`). Verified: 179 unit, 48/48
+integration, 55/55 build-all, 11/11 goldens (checksums unchanged — the
+report is read-only over `AnalyzedProgram` and never reaches the emitter).
 
 ## Known Issues / TODO
 

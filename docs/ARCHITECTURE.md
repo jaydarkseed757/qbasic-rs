@@ -100,6 +100,7 @@ file.bas
 
 ```
 qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
+    [--annotated] [--compatibility] [--opt-report]
 ```
 
 | Flag | Effect |
@@ -109,6 +110,9 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 | `--dump-ast` | Print parsed AST to stdout and exit |
 | `--verbose` / `-v` | Print per-stage timing and stats after transpilation |
 | `--explain` | Print a report of why each `GameState` field exists (see below) |
+| `--annotated` | Interleave `// QB: <line>` source-mapping comments in the emitted Rust (best-effort — see M26) |
+| `--compatibility` | Print a QBasic 1.1/QuickBASIC 4.5/GW-BASIC dialect-fidelity report and exit, without transpiling (see M26) |
+| `--opt-report` | Print a source-level findings report (dead labels, never-resized arrays, constant branches, …) and exit, without transpiling (see M26) |
 
 `--verbose` output covers:
 - Source line/byte/blank/comment counts
@@ -1057,6 +1061,74 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M26 — QoL batch: incremental build-all + doctor.sh, `--compatibility`, `--annotated`, `--opt-report` ✅
+
+Four developer-experience additions, no transpiler/runtime behavior changes
+(every golden checksum is unchanged across all four).
+
+- **Incremental `basic-src/build-all.sh` + `tools/doctor.sh`**: build-all
+  previously `rm -rf`'d and rebuilt all 55 bundled programs on every run;
+  now caches per-program on `.bas` mtime + qbc binary hash + runtime rlib
+  hash, skipping unchanged ones (`--clean` forces a full rebuild). `doctor.sh`
+  runs unit + integration + build-all + graphics goldens in one command with
+  a single pass/fail summary table, replacing four commands run and
+  reconciled by hand.
+- **`qbc --compatibility`**: a standalone analysis mode (like `--dump-ast`
+  — exits right after parsing) estimating how well a `.bas` file, AS
+  WRITTEN, would load unmodified in QBasic 1.1, QuickBASIC 4.5, and
+  GW-BASIC. The rule engine (`src/compat.rs`) is grounded entirely in
+  incidents this project already hit and fixed by hand while porting
+  `basic-src/` programs to real DOS QBasic — no invented heuristics.
+  Needed one small additive AST field, `FuncDef.ret_ty_written:
+  RetTySyntax` (mirrors `VarDecl.str_sigil`), to distinguish `FUNCTION
+  Foo%()` from the QB1.1-illegal `FUNCTION Foo() AS INTEGER`. Verified
+  against real bundled programs: gorilla/donkey report 100% (matching
+  their documented full-verification status); kingdom.bas correctly flags
+  its still-LF-only line endings; invaders.bas correctly flags two genuine
+  `DIM`s inside its `LoadSprites:` GOSUB routine.
+- **`qbc --annotated`**: interleaves `// QB: <line>` comments above emitted
+  statements. Deliberately best-effort rather than full-fidelity — `Stmt`
+  carries no source line anywhere in the AST, and covering every nesting
+  depth would mean either restructuring `Stmt` itself (the exact bug class
+  that's repeatedly bitten this project's scan passes) or a side-table
+  that silently desyncs wherever the emitter extracts GOSUB blocks or
+  builds the GOTO `__pc` state machine before emitting. Scoped instead to
+  the one case that's structurally guaranteed correct — top-level
+  statements in `main`/SUB/FUNCTION bodies outside those two restructuring
+  paths — falling back to zero annotations (never a guess) everywhere
+  else. New parallel `body_lines`/`main_body_lines: Vec<u32>` fields
+  threaded through `parse_block_until` (the single function building every
+  `Vec<Stmt>` in the AST); every NESTED caller discards the line vec, only
+  the three top-level callers keep it — zero change to `Stmt`'s own shape,
+  zero ripple into the analyzer's or emitter's dozens of `Stmt`-matching
+  scan passes. Confirmed against gorilla.bas (line 659 → `SCREEN 0` →
+  `__rt.screen(0.0f64);`, exact match) and kingdom.bas (a GOTO-heavy
+  program — correctly produces zero annotations, the safe fallback).
+- **`qbc --opt-report`**: a source-level findings report, deliberately NOT
+  a classical compiler-optimization report — `rustc`/LLVM already does
+  constant folding and dead-branch elimination on every build regardless
+  of whether this report exists, so reporting those back would be trivia
+  qbc itself acts on nothing. What's genuinely additive is anything about
+  the *original* `.bas` source rustc never sees: unreachable named labels
+  (never a `GOTO`/`GOSUB`/`ON…GOTO`/`ON ERROR GOTO`/`ON KEY|TIMER
+  GOSUB`/`RESUME`/`RESTORE` target — all seven share one label namespace),
+  arrays `DIM`'d but never `REDIM`'d (deduped by name — the same name
+  legally exists in multiple SUB-local scopes), `IF`/`ELSEIF` conditions
+  that fold to a constant from literals/CONSTs alone (a new, more complete
+  constant folder than the analyzer's own `fold_const` — that one only
+  needs `CONST`-declaration folding and skips comparison operators
+  entirely; this one folds them too, since a condition needs comparisons
+  to be worth folding), `DATA` table size, and the shared/global variable
+  type table. Verified across the FULL 55-program bundle (not just
+  hand-picked cases): zero crashes, zero false positives on the 52 clean
+  programs, three real findings confirmed by hand against source
+  (qmaze.bas's `IF DEFAULTSHOWMAZE THEN` correctly always-TRUE;
+  reversi.bas's `SLEEP:` label correctly flagged as fallthrough-only;
+  mario.bas's three leftover `*Data:` labels).
+
+Verified: 179 unit (27 new tests across `compat.rs`/`optreport.rs`), 48/48
+integration, 55/55 build-all, 11/11 goldens (checksums unchanged throughout).
+
 ### M25 — `--explain`, graphics-determinism fuzzing, orbits.bas (genuine TYPE-in-TYPE nesting) + a param/CONST collision fix ✅
 
 - **`qbc --explain`**: a new CLI flag prints, for every `GameState` field,
@@ -1619,7 +1691,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **48/48**, with 153 unit tests and 11 graphics golden
+The integration suite is **48/48**, with 179 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

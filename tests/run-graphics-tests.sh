@@ -79,6 +79,11 @@ TESTS=(
     # continues past the title.  presents:10 captures road + car + donkey all
     # visible in their seed-42 positions.
     "donkey|42|DRAIN,SPACE|presents:10"
+    # orbits: fully deterministic two-body-per-planet gravity sim (no RND, no
+    # input) — 900 WAIT-vsync-paced simulation steps then END on its own; the
+    # ms cap is just a safety net (runs near-instantly under the simulated
+    # clock, real wall time is irrelevant to the virtual-time step count).
+    "orbits|1||ms:5000"
 )
 
 echo "Building runtime + transpiler (release)..."

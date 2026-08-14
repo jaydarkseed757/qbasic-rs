@@ -75,19 +75,19 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **54/54** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **55/55** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
-deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario). Test suites:
-- **47/47** integration (`tests/run-tests.sh`, stdout-based)
+deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
+- **48/48** integration (`tests/run-tests.sh`, stdout-based)
 - **153** runtime+transpiler unit tests (`cargo test --workspace`)
-- **10/10** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
+- **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
-  torus, hangman-gfx, duck, gorilla, donkey)
+  torus, hangman-gfx, duck, gorilla, donkey, orbits)
 
 gorilla.bas is **fully verified** — headless golden for the banana-throw frame,
 and audio (PLAY explosion/victory fanfares), victory animations, and multi-round
@@ -2129,6 +2129,102 @@ harness is the regression net making sure it stays fixed.
 **300/300 seeds pass** (two independent runs, seeds 1–300) — the simulated
 clock holds up under vsync/SLEEP-heavy random programs, not just the 10
 hand-picked goldens.
+
+### orbits.bas — genuine TYPE-in-TYPE nesting + a real param/CONST naming collision bug (build-all 55/55)
+
+A deterministic orbital-mechanics demo (`basic-src/orbits.bas`), picked
+specifically to stress-test a documented-but-never-exercised code path:
+`flatten_type_fields` (`emitter/scan.rs`) recurses through nested
+`UserType` fields, but every bundled TYPE up to this point had only flat,
+primitive fields — no program had ever declared one `TYPE` field `AS`
+another `TYPE`. `orbits.bas` has `TYPE Body { Pos AS Vec2, Vel AS Vec2, … }`
+(genuine TYPE-in-TYPE) AND `DIM Bodies(N) AS Body` (an ARRAY of the nested
+TYPE), exercised through two-level dotted field chains on array elements
+(`Bodies(i).Pos.X`). Physics: each planet orbits a fixed, dominant sun
+under real Newtonian gravity, with initial velocity set to the exact
+circular-orbit speed (`v = SQR(G*Msun/r)`) so every orbit is a stable
+circle by construction — deterministic, no RND, added as the 11th graphics
+golden.
+
+**The nesting itself transpiled and ran correctly on the first try.** What
+broke was something unrelated it incidentally exercised: a helper SUB's
+parameters (`cx AS SINGLE, cy AS SINGLE`) happened to share their names
+with module-level `CONST CX`/`CONST CY`. That's legal QB — a parameter
+simply shadows a same-named CONST within its own procedure, like any other
+local — but naively emitted Rust doesn't compile:
+
+```
+error[E0308]: mismatched types
+fn drawfilledcircle(..., cx: &mut f64, ...) {
+    `cx` is interpreted as a constant, not a new binding
+```
+
+Rust's pattern grammar treats a bare identifier PATTERN (a fn parameter or
+`let` binding) that names a visible `const` item as a refutable pattern
+MATCHING that constant, not a fresh binding — a genuine Rust language
+gotcha, not a QB-fidelity question. Ordinary expression-position READS of
+the name are completely unambiguous; the quirk only bites the binding
+position itself.
+
+- **Fix — `disambig()`** (`emitter/mod.rs`): a small helper that suffixes a
+  colliding identifier with `_p`, backed by `const_names` (the Rust
+  identifiers of every module CONST + SUB/FUNCTION name, populated once
+  near the top of `emit()`, reusing what was already being computed for the
+  main-body locals exclude set). Applied at every declaration and lookup
+  site for byref numeric/string/UserType-field SUB parameters:
+  `setup_param_sets` (the `numeric_params`/`str_params` insertion keys) and
+  `emit_params` (the signature text) both call it, and the ~9 scattered
+  read/write sites throughout `emit_lvalue` and the TYPE-copy helpers
+  (`emit_scalar_type_copy`, `emit_typed_array_copy`, etc.) each apply it to
+  the SAME derived name used for their `numeric_params.contains()` check,
+  so the `.contains()` key and the emitted text always agree.
+- **A second, more dangerous bug surfaced while verifying the first fix**:
+  a FUNCTION's scalar parameter is pass-by-value, so it never enters
+  `numeric_params` at all (`setup_param_sets`'s `byref_numerics` flag gates
+  that). The disambiguated signature (`fn doubled(..., mut cx_p: f64)`)
+  compiled fine, but every READ of that parameter inside the function body
+  fell through to `emit_lvalue`'s generic fallback (`local_scalar_name`),
+  which had no idea about the disambiguation and kept emitting the bare
+  `cx` — which happens to be a perfectly valid Rust identifier (the
+  outer `const cx`), so the program COMPILED and ran, just silently
+  computing the wrong answer (`Doubled%(21)` returned `320` — `CX * 2`,
+  160 being the constant — instead of `42`). Worse than a compile error.
+  Fixed with a new `value_params` set (mirrors `numeric_params`, but for
+  FUNCTION-only pass-by-value scalar params) checked in `emit_lvalue`
+  BEFORE falling through to the generic fallback — necessary because that
+  fallback is ALSO how a genuine CONST reference resolves, and the two are
+  textually indistinguishable (`LValue::Scalar{name,..}` with the same
+  text) without a positive, scope-local confirmation. Blanket-disambiguating
+  inside the generic fallback (the first attempt) was WRONG — it also
+  renamed genuine CONST references wherever they appeared, breaking `PRINT
+  CX` itself.
+- **A third bug, caught by the same test**: `value_params` (like its
+  sibling `numeric_params`/`str_params`/`array_params`) is scoped per-SUB/
+  FUNCTION by `setup_param_sets`, but nothing clears it when emission moves
+  on to `main()` (which calls no `setup_param_sets` of its own, having no
+  params) — so a `main()`-body read of a CONST whose name happened to match
+  the LAST-processed FUNCTION's disambiguated param leaked that stale
+  match. Fixed by adding `self.value_params.clear();` to `emit_main` /
+  `emit_gosub_fn` / `emit_def_fns`, alongside their existing clears of the
+  sibling sets (a pattern already established for exactly this class of
+  per-scope-bookkeeping gap in an earlier session, applied here to a field
+  that was new this session).
+- **Deliberately NOT fixed**: a plain LOCAL variable (not a parameter)
+  colliding with a CONST still fails to compile
+  (`E0530: let bindings cannot shadow constants`) — confirmed real (found
+  via this same test file before the test was narrowed to isolate the
+  parameter case), but rarer, still a hard compile-time failure rather than
+  a silent wrong value, and fixing it would mean auditing every `let`-
+  declaration site (`emit_locals`/`emit_dim`) rather than the bounded set
+  of parameter-declaration sites this fix covers.
+
+Regression test `tests/programs/param_const_collision.bas` (numeric SUB
+param, numeric FUNCTION param, and a scalar TYPE param whose flattened
+field name collides — all four confirmed compiling AND producing correct
+values, not just compiling). Verified: 153 unit, 48/48 integration, 55/55
+build-all, 11/11 goldens, 100-seed text fuzz + 60-seed graphics fuzz
+spot-check (this touched core parameter-resolution logic used by every
+emitted SUB/FUNCTION).
 
 ## Known Issues / TODO
 

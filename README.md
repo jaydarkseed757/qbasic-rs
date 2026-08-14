@@ -259,7 +259,8 @@ qbasic-rust/
 │   ├── analyzer.rs        # AST → symbol table + AnalyzedProgram
 │   ├── emitter/           # AnalyzedProgram → Rust source  (~6,300 lines total)
 │   ├── compat.rs          # --compatibility: dialect-fidelity audit
-│   └── optreport.rs       # --opt-report: source-level findings report
+│   ├── optreport.rs       # --opt-report: source-level findings report
+│   └── archaeology.rs     # --analyze: BASIC source archaeology
 │
 ├── runtime/src/
 │   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3875 lines)
@@ -280,7 +281,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full description of the pipeli
 
 ```
 qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
-    [--annotated] [--compatibility] [--opt-report]
+    [--annotated] [--compatibility] [--opt-report] [--analyze]
 ```
 
 | Flag | Effect |
@@ -293,6 +294,7 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 | `--annotated` | Interleave `// QB: <line>` source-mapping comments in the emitted Rust — see below |
 | `--compatibility` | Print a QBasic 1.1 / QuickBASIC 4.5 / GW-BASIC dialect-fidelity report and exit — see below |
 | `--opt-report` | Print a source-level findings report (dead labels, never-resized arrays, …) and exit — see below |
+| `--analyze` | Print a "source archaeology" report (era/dialect/hardware/style estimate) and exit — see below |
 
 ### `--explain`: why is this variable a GameState field?
 
@@ -398,6 +400,43 @@ but never `REDIM`'d, `IF`/`ELSEIF` conditions that fold to a constant
 value from literals/CONSTs alone, `DATA` table size, and the shared/global
 variable type table. Standalone analysis mode, same family as
 `--compatibility`.
+
+### `--analyze`: BASIC source archaeology
+
+For a `.bas` file of unknown provenance — the kind found on a DOS-archive
+site with no metadata attached:
+
+```
+$ qbc basic-src/gorilla.bas --analyze
+Source Archaeology
+==================
+Likely era:          1991 (heuristic estimate)
+Likely dialect:      QBasic 1.1
+Graphics:            EGA 640x350, CGA, text mode
+Sound:               PC speaker (PLAY/SOUND/BEEP)
+Storage:             none
+Programming style:   structured (SUB/FUNCTION, no GOTO)
+...
+Estimated portability: MEDIUM
+
+Hardware Dependencies
+---------------------
+VGA DAC        █████████████████ (11)
+PC speaker     ████████████████████ (13)
+Direct memory  ███████████ (7)
+```
+
+Reuses `--compatibility`'s dialect detection directly (`archaeology.rs`
+calls `compat::audit()`) rather than re-deriving it, then layers on
+program-structure counts, graphics/sound/storage/style inference from
+which statement kinds appear, and a hardware-dependency breakdown. "Likely
+era" is explicitly labeled a heuristic estimate — grounded in real
+hardware/dialect release timelines (GW-BASIC 1981, CGA 1981, EGA 1984,
+VGA mainstream ~1990, QBasic bundled with MS-DOS 5 in 1991), not a
+scientific dating method. `SCREEN` mode resolution follows simple variable
+assignment (`Mode = 9` ... `SCREEN Mode`) so real programs that negotiate
+their graphics mode at runtime are still identified correctly. Standalone
+analysis mode, same family as `--compatibility`/`--opt-report`.
 
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 

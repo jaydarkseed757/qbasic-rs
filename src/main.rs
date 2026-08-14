@@ -5,6 +5,7 @@ mod emitter;
 mod error;
 mod compat;
 mod optreport;
+mod archaeology;
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -45,6 +46,14 @@ struct Args {
     /// Standalone analysis mode — does not transpile or compile.
     #[arg(long)]
     opt_report: bool,
+
+    /// Print a "source archaeology" report for a .bas file of unknown
+    /// provenance: likely era/dialect/hardware target, programming style,
+    /// program-structure counts, and a hardware-dependency breakdown.
+    /// Reuses --compatibility's dialect detection internally. Standalone
+    /// analysis mode — does not transpile or compile.
+    #[arg(long)]
+    analyze: bool,
 
     /// Print transpilation stats
     #[arg(short, long)]
@@ -129,6 +138,12 @@ fn main() -> Result<()> {
     if args.compatibility {
         let report = compat::audit(&source, &raw_bytes, &tokens, &ast);
         println!("{}", compat::render(&report));
+        return Ok(());
+    }
+
+    if args.analyze {
+        let report = archaeology::analyze(&source, &raw_bytes, &tokens, &ast);
+        println!("{}", archaeology::render(&report));
         return Ok(());
     }
 

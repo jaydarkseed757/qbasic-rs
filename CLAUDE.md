@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
 - **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **179** runtime+transpiler unit tests (`cargo test --workspace`)
+- **194** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2485,6 +2485,77 @@ against the source by hand:
 14 new unit tests (`optreport_tests`). Verified: 179 unit, 48/48
 integration, 55/55 build-all, 11/11 goldens (checksums unchanged — the
 report is read-only over `AnalyzedProgram` and never reaches the emitter).
+
+### `qbc --analyze` — BASIC source archaeology
+
+Given a `.bas` file of unknown provenance (the kind found on a DOS-archive
+site with no metadata), estimates its likely era, dialect, target
+hardware, programming style, and portability. Standalone analysis mode,
+same family as `--compatibility` — and rather than re-deriving dialect
+detection from scratch, `archaeology.rs` calls `compat::audit()` directly
+and reuses its `detected`/`detected_score` fields. This is the first of
+the new report modules to deliberately cross-reuse another rather than
+staying fully independent — justified because the layering here is
+natural (archaeology genuinely builds ON TOP of compatibility analysis,
+unlike `compat.rs`/`optreport.rs`, which are siblings with no logical
+dependency on each other).
+
+- **Program-structure counts** (SUBs, FUNCTIONs, GOSUB/GOTO targets, DATA
+  element count, TYPE definitions) — all directly countable from the
+  parsed `Program`, no new machinery needed.
+- **Graphics/sound/storage/style inference** — derived from which
+  statement kinds appear (`SCREEN`, `PLAY`/`SOUND`/`BEEP`, `OPEN` mode).
+  **`SCREEN` mode resolution needed one refinement past a literal check**:
+  gorilla.bas (and other real programs) negotiate the mode into a
+  variable first (`Mode = 9` ... `SCREEN Mode`, falling back to `Mode = 1`
+  on error) rather than writing `SCREEN 9` directly — a naive
+  literal-only check reported gorilla.bas as "text-only" even though it's
+  an EGA/CGA program. Fixed by resolving `SCREEN <var>` against every
+  literal ever assigned to that variable name anywhere in the program.
+- **Hardware-dependency counts**, a different axis than `compat.rs`'s
+  advisory list (that one's scoped to dialect-legality reporting; this one
+  to relative-intensity display): VGA DAC (`OUT`/`PALETTE`), Direct memory
+  (`POKE`/`DEF SEG`/`PEEK`), DOS filesystem (the whole file-I/O statement
+  family), PC speaker (`PLAY`/`SOUND`/`BEEP`), Hardware ports (`WAIT`/
+  `INP`). `PEEK`/`INP` are expressions, not statements, so they can't be
+  caught by the statement walker used everywhere else: `INP` has a
+  dedicated lexer token (cheap token-stream scan); `PEEK` isn't a qbc
+  keyword at all (lexes as a plain identifier followed by a call), so it's
+  matched by token text instead — no expression walker needed for either.
+- **Portability rating** (LOW/MEDIUM/HIGH): buckets `compat`'s
+  `detected_score` (≥90/≥70/below), then downgrades one tier when total
+  hardware-dependency count exceeds 10 — dialect-legality alone doesn't
+  capture that heavy direct-port/memory access is fragile in ways static
+  analysis can't fully judge (real VGA timing, real hardware).
+- **"Likely era" — a heuristic estimate, stated as such in the report's
+  own header, not a hard claim.** Grounded in real, well-known
+  hardware/dialect release timelines (GW-BASIC 1981, CGA 1981, EGA 1984,
+  QuickBASIC 1985–1990, VGA 1987/mainstream ~1990, QBasic bundled free
+  with MS-DOS 5 in 1991), combining a dialect-driven range with a
+  graphics-mode-driven range (intersected when both are available). **A
+  real gap found and fixed while verifying against the bundle**:
+  `compat::audit`'s "detected" dialect is itself a best-fit heuristic that
+  ties QB1.1 > QB4.5 > GW-BASIC when scores are exactly equal (e.g. a
+  program that's dialect-clean except for LF line endings, which docks
+  all three identically) — `kingdom.bas`, a genuine GW-BASIC program, hit
+  exactly this tie and "detected" as QBasic 1.1, giving a nonsensically
+  wide 1981–1995 era estimate. Fixed with an independent signal specific
+  to era estimation: line-numbered code with ZERO `SUB`/`FUNCTION`
+  anywhere is strong evidence of GW-BASIC heritage regardless of how the
+  dialect tie-break landed, narrowing kingdom.bas correctly to 1981–1991.
+  The underlying `compat.rs` "detected" field itself is unchanged (other
+  callers may still want the tie-broken value) — this is a local
+  refinement in `archaeology.rs` only.
+
+14 new unit tests (`archaeology_tests`). Verified against the full
+55-program bundle: zero crashes. Spot-checked: `gorilla.bas` → EGA
+640×350/CGA/text mode (era 1991, matching its real 1990 Microsoft
+authorship / 1991 MS-DOS 5 bundling), MEDIUM portability (11 VGA DAC + 13
+PC-speaker + 7 direct-memory hits); `kingdom.bas` → line-numbered + GOTO,
+1981–1991 era; `demo.bas`/`mario.bas`/`invaders.bas` → VGA MCGA 256-color,
+1991–1995 era. 194 unit, 48/48 integration, 55/55 build-all, 11/11
+goldens (checksums unchanged — read-only over the parsed `Program`, never
+reaches the emitter).
 
 ## Known Issues / TODO
 

@@ -100,7 +100,7 @@ file.bas
 
 ```
 qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
-    [--annotated] [--compatibility] [--opt-report]
+    [--annotated] [--compatibility] [--opt-report] [--analyze]
 ```
 
 | Flag | Effect |
@@ -113,6 +113,7 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 | `--annotated` | Interleave `// QB: <line>` source-mapping comments in the emitted Rust (best-effort — see M26) |
 | `--compatibility` | Print a QBasic 1.1/QuickBASIC 4.5/GW-BASIC dialect-fidelity report and exit, without transpiling (see M26) |
 | `--opt-report` | Print a source-level findings report (dead labels, never-resized arrays, constant branches, …) and exit, without transpiling (see M26) |
+| `--analyze` | Print a "source archaeology" report (era/dialect/hardware/style estimate for a provenance-unknown file) and exit, without transpiling (see M27) |
 
 `--verbose` output covers:
 - Source line/byte/blank/comment counts
@@ -1061,6 +1062,53 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M27 — `qbc --analyze`: BASIC source archaeology ✅
+
+Given a `.bas` file of unknown provenance (the kind found on a DOS-archive
+site with no metadata), `src/archaeology.rs` estimates likely era, dialect,
+target hardware, programming style, and portability. Standalone analysis
+mode, same family as `--compatibility` — but unlike `compat.rs`/
+`optreport.rs` (siblings with no logical dependency on each other), this
+one deliberately calls `compat::audit()` directly and reuses its
+`detected`/`detected_score` fields rather than re-deriving dialect
+detection, since archaeology genuinely builds on top of compatibility
+analysis.
+
+- **Program-structure counts** (SUBs, FUNCTIONs, GOSUB/GOTO targets, DATA
+  element count, TYPE definitions) read straight off the parsed `Program`.
+- **`SCREEN` mode resolution needed one refinement past a literal check**:
+  gorilla.bas negotiates its mode into a variable first (`Mode = 9` ...
+  `SCREEN Mode`, falling back to `Mode = 1` on error) rather than writing
+  `SCREEN 9` directly — a naive literal-only check reported it as
+  "text-only" despite being an EGA/CGA program. Fixed by resolving
+  `SCREEN <var>` against every literal ever assigned to that variable name
+  anywhere in the program.
+- **Hardware-dependency counts** (a different axis than `compat.rs`'s
+  advisory list — that one's for dialect-legality reporting, this one for
+  relative-intensity display): VGA DAC, Direct memory, DOS filesystem, PC
+  speaker, Hardware ports. `PEEK`/`INP` are expressions, not statements,
+  so the usual statement walker can't catch them — `INP` has a dedicated
+  lexer token (cheap token-stream scan); `PEEK` isn't a qbc keyword at all
+  (lexes as a plain identifier), so it's matched by token text instead.
+- **A real gap found and fixed while verifying against the bundle**:
+  `compat::audit`'s "detected" dialect ties QB1.1 > QB4.5 > GW-BASIC when
+  scores are exactly equal — `kingdom.bas` (a genuine GW-BASIC program,
+  clean except for LF line endings, which docks all three identically)
+  hit that tie, "detected" as QBasic 1.1, and produced a nonsensical
+  1981–1995 era estimate. Fixed with an era-estimation-specific signal:
+  line-numbered code with ZERO `SUB`/`FUNCTION` anywhere is independent
+  evidence of GW-BASIC heritage regardless of the tie-break, correctly
+  narrowing kingdom.bas to 1981–1991. `compat.rs`'s own "detected" field
+  is unchanged — this is a local refinement in `archaeology.rs` only.
+
+14 new unit tests. Verified against the full 55-program bundle: zero
+crashes. Spot-checked: gorilla.bas → EGA 640×350/CGA/text mode, era 1991
+(matching its real 1990 Microsoft authorship / 1991 MS-DOS 5 bundling),
+MEDIUM portability; kingdom.bas → line-numbered + GOTO, 1981–1991;
+demo.bas/mario.bas/invaders.bas → VGA MCGA 256-color, 1991–1995. 194 unit,
+48/48 integration, 55/55 build-all, 11/11 goldens (checksums unchanged —
+read-only over the parsed `Program`, never reaches the emitter).
+
 ### M26 — QoL batch: incremental build-all + doctor.sh, `--compatibility`, `--annotated`, `--opt-report` ✅
 
 Four developer-experience additions, no transpiler/runtime behavior changes
@@ -1691,7 +1739,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **48/48**, with 179 unit tests and 11 graphics golden
+The integration suite is **48/48**, with 194 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

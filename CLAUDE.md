@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
 - **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **153** runtime+transpiler unit tests (`cargo test --workspace`)
+- **165** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2250,6 +2250,169 @@ values, not just compiling). Verified: 153 unit, 48/48 integration, 55/55
 build-all, 11/11 goldens, 100-seed text fuzz + 60-seed graphics fuzz
 spot-check (this touched core parameter-resolution logic used by every
 emitted SUB/FUNCTION).
+
+### `qbc --compatibility` — dialect-fidelity audit report
+
+A new standalone analysis mode (architecturally like `--dump-ast`, not
+additive like `--explain`: it only needs the raw source, the token stream,
+and the parser's `Program` AST, so it exits right after parsing — never
+touches the analyzer or emitter, and its result can never depend on qbc's
+own, much more permissive, internals). `qbc --compatibility file.bas`
+estimates how well a `.bas` file, AS WRITTEN, would load unmodified in
+three real DOS-era interpreters: QBasic 1.1, QuickBASIC 4.5, GW-BASIC.
+
+This automates an audit that had previously only ever been done by hand —
+every one of this project's "QB1.1 DOS compatibility" changelog sections
+(invaders.bas, farkle.bas, kingdom.bas, donkey.bas, …) documents exactly
+this kind of manual pre-port fixup. The new `src/compat.rs` rule engine is
+grounded ONLY in incidents already documented there — no invented generic
+heuristics:
+
+- **Rule 1 — underscore inside an identifier** (illegal in QB1.1, legal in
+  QB4.5/GW-BASIC). Detected from the token stream (dedup'd by name).
+- **Rule 2 — a variable/param name collides with a real reserved
+  word/builtin** (`POS`, `TIMER`, `NAME`, `SEEK`, `FLUSH`, `LOCK`,
+  `UNLOCK`, `MKDIR`, `RMDIR`, `CHDIR`, `KILL`, or an `FN`-prefixed name) —
+  scored against all three dialects, since these are real interpreter
+  reserved words everywhere even though every documented incident happened
+  to surface under QB1.1. (`STEP` is deliberately excluded — it's a qbc
+  lexer keyword, so using it as an identifier fails to parse before
+  `--compatibility` ever runs; the collision is structurally unreachable
+  here.)
+- **Rule 3 — `FUNCTION Foo() AS <type>`** instead of the QB1.1-required
+  sigil form. Needed a small, purely-additive AST addition: `FuncDef`
+  previously only stored `ret_ty: QbType`, losing whether it came from a
+  sigil or an `AS` clause. Added `ret_ty_written: RetTySyntax` (mirrors the
+  existing `VarDecl.str_sigil` pattern exactly), populated in
+  `parse_function` by peeking for `Token::As` before the existing
+  consume-to-EOL. No emission path reads the new field — confirmed
+  emission-neutral by an unchanged full `--clean` build-all + goldens run.
+- **Rule 4 — `_` end-of-line continuation** (a QB4.5-only feature; illegal
+  in QB1.1/GW-BASIC). The lexer fully consumes this construct with zero
+  tokens emitted, so it's invisible in the token stream — detected instead
+  by a raw-source per-line scan for a standalone trailing `_` "word"
+  (mirroring the lexer's own `word == "_"` check). Documented limitation:
+  doesn't try to detect a same-line open string literal, an acceptable
+  false-positive risk for an advisory-adjacent tool.
+- **Rule 5 — `ON ERROR GOTO` targeting a label defined inside a SUB/
+  FUNCTION** from module-level code (illegal in QB1.1 — "Label not
+  defined"; legal in QB4.5's per-procedure trapping; N/A for GW-BASIC,
+  which has no SUB/FUNCTION). Only module-level `ON ERROR GOTO` statements
+  are checked against sub/function-local label sets — a SUB's own local
+  `ON ERROR GOTO` to its own local label is normal QB4.5 usage and has no
+  documented QB1.1 incident, so it's deliberately not flagged.
+- **Rule 6 — `DIM` inside a GOSUB-target routine that can re-execute**
+  (real interpreters raise "Duplicate definition" on re-entry, all three
+  dialects). Matches the farkle.bas fix's scope exactly: flags ANY `DIM`
+  found inside a GOSUB routine's statement run, not just provably
+  multiply-invoked ones. Confirmed as a genuine true positive against the
+  bundled `invaders.bas`, which has a real `LoadSprites:` GOSUB routine
+  with two `DIM`s inside it.
+- **Rule 7 — LF-only line endings** (DOS requires CRLF). A whole-file
+  property, so at most one violation instance per file, not one per line.
+  Raw-byte scan; also catches a partially-converted file that mixes CRLF
+  and bare LF.
+- **Rule 8 — hardware/timing-dependent constructs** (`WAIT`, `OUT`,
+  `DEF SEG`, `POKE`, `PALETTE USING`) — advisory only, deliberately NEVER
+  scored against any target: these are legitimate QBasic statements in all
+  three dialects, just fragile in ways a static audit can't judge (real
+  VGA timing, real hardware ports).
+
+**Confirmed design decisions** (each was a real judgment call, resolved
+with the user before implementation): scoring is flat per-*violation-
+instance* (each occurrence, not each rule, deducts 3 points, floored at
+0 — chosen for fine-grained scores without any single issue being
+catastrophic); the "Dialect detected" header is a genuine best-fit
+heuristic (highest-scoring target wins, ties broken QB1.1 > QB4.5 >
+GW-BASIC — a file using only a QB4.5-only construct like rule 4 can
+genuinely detect as "QuickBASIC 4.5"); rule 2 scores against all three
+dialects, not just QB1.1; exit code is always 0 (informational only, no
+CI-gating threshold in v1).
+
+**Explicit omissions** (traceable reasoning, not silent gaps): no
+SUB/FUNCTION-existence rule for GW-BASIC (no documented incident — the
+only bundled GW-BASIC program, kingdom.bas, doesn't use SUB/FUNCTION); the
+still-open NAME/SEEK/etc. parser bug is NOT audited here (that's a qbc-side
+parsing gap, not a real-dialect fact — this feature only judges the source
+as written against real interpreters); no 40-character-identifier-
+truncation rule (no documented incident); GW-BASIC's own line-continuation
+syntax isn't a violation (it's a supported feature there, not a hazard).
+
+11 new unit tests in `src/compat.rs` (`compat_tests`), one per rule plus a
+clean-QB1.1-legal baseline and a rendering smoke test. Spot-checked against
+real bundled programs: `gorilla.bas` and `donkey.bas` both report 100%
+across all three targets (matching their documented full-verification
+status); `kingdom.bas` correctly flags its still-LF-only line endings;
+`invaders.bas` correctly flags the two genuine `DIM`-inside-GOSUB
+occurrences in `LoadSprites`. Verified: 165 unit, 48/48 integration, 55/55
+build-all (`--clean`), 11/11 goldens (checksums unchanged — confirms the
+`FuncDef` addition is emission-neutral).
+
+### `qbc --annotated` — source-mapping comments in the emitted Rust
+
+Interleaves `// QB: <line>` comments above emitted statements, so the
+generated Rust can be read alongside the original `.bas` (`if
+qb_gt(x,100.0) { … } // ← // QB: 120` sitting right above it). Compiles
+normally in addition (like `--explain`) — the comments are inert; combine
+freely with `--verbose`/`--explain`.
+
+**Deliberately best-effort, not full-fidelity** — and the scope limit is
+load-bearing, not laziness. `Stmt` carries no source line anywhere in the
+AST today, and it's threaded through virtually the entire pipeline
+(parser, analyzer, ~6,300 lines across `emitter/mod.rs` + `scan.rs`).
+Retrofitting a line onto every statement at every nesting depth would mean
+either restructuring `Stmt` itself (the exact bug class that has bitten
+this project repeatedly — a new `Stmt` shape landing and some scan pass
+silently missing an arm for it, e.g. `OnGoto`/`Swap`/`MidAssign` each did
+this once) or a position-indexed side-table that silently desyncs the
+moment the emitter reorders or extracts statements before emitting them —
+which happens more often than it looks: `body` passed to `emit_main` isn't
+literally `Program.main_body` (GOSUB targets are extracted into separate
+`fn`s first, via `extract_gosub_blocks`; GOTO-heavy programs get flattened
+into a `__pc` state-machine `match`, not a linear statement list at all),
+and every SUB/FUNCTION body goes through the same GOSUB-block extraction.
+A wrong annotation is worse than no annotation — it actively misleads.
+
+So the implementation is scoped to the ONE case where correctness is
+structurally guaranteed, and silently (safely) produces zero annotations
+everywhere else rather than guessing:
+
+- **Parser** (`src/parser.rs`): `parse_block_until` — the single function
+  building every `Vec<Stmt>` in the AST, nested bodies included — now also
+  returns a parallel `Vec<u32>` of each statement's source line. Every
+  NESTED caller (If/For/While/Do/Select bodies — 9 call sites) discards it
+  immediately (`let (body, _) = …`); only the THREE top-level callers
+  (`parse_sub`, `parse_function`, multi-line `DEF FN`) keep it, stored as a
+  new `body_lines: Vec<u32>` field on `SubDef`/`FuncDef` (parallel to
+  `body`, mirroring the `str_sigil`/`ret_ty_written` additive-field
+  pattern). `main_body`'s own top-level loop (in `parse_program`, a
+  separate code path from `parse_block_until`) got the same treatment,
+  landing in a new `Program.main_body_lines` field. Zero change to `Stmt`
+  itself, zero ripple into `analyzer.rs`'s or `scan.rs`'s dozens of
+  `Stmt`-matching passes.
+- **Emitter** (`emitter/mod.rs`): a new `emit_stmts_annotated` sits
+  alongside the existing `emit_stmts`, used ONLY at the three top-level
+  call sites (`emit_main`, `emit_subs`, `emit_functions`), gated by a
+  positive, structural check that the correspondence is actually intact
+  for THIS specific body: `main_body_lines.len() == main_stmts.len()` and
+  no numeric GOTO (state machine) for `emit_main`; `body_lines.len() ==
+  inline_body.len()` and zero GOSUB blocks extracted for `emit_subs`/
+  `emit_functions`. Any mismatch silently falls back to the plain,
+  unannotated `emit_stmts` — never a guess. Nested bodies (inside an
+  annotated top-level `IF`/`FOR`/etc.) are emitted by the ordinary
+  recursive `emit_stmt` underneath, unannotated — this is a top-level-only
+  feature.
+- Off by default (`want_annotated: bool` on `Emitter`, mirrors
+  `want_explain`), so a normal build's output — and every golden checksum
+  — is byte-identical whether or not this code exists. Confirmed by an
+  unchanged full `--clean` build-all + 11/11 goldens run.
+
+Spot-checked against `gorilla.bas` (190 annotations emitted, `// QB: 659`
+sitting directly above the `SCREEN 0` line's `__rt.screen(0.0f64);` —
+confirmed against the source: line 659 is exactly `SCREEN 0`) and
+`kingdom.bas` (a line-numbered, GOTO-heavy program — correctly produces
+**zero** annotations, the safe fallback, rather than a misleading one).
+`--annotated` output compiles to a working binary, confirmed on gorilla.bas.
 
 ## Known Issues / TODO
 

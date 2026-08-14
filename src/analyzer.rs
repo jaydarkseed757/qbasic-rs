@@ -37,6 +37,9 @@ pub struct AnalyzedProgram {
     pub subs:         Vec<SubDef>,
     pub functions:    Vec<FuncDef>,
     pub main_body:    Vec<Stmt>,
+    /// Parallel to `main_body`: each statement's originating source line.
+    /// Used only by `qbc --annotated`; empty/unused otherwise.
+    pub main_body_lines: Vec<u32>,
     #[allow(dead_code)]
     pub labels:       Vec<String>,
     pub data_store:   Vec<String>,
@@ -116,6 +119,7 @@ impl Analyzer {
             subs:         program.subs,
             functions:    program.functions,
             main_body:    program.main_body,
+            main_body_lines: program.main_body_lines,
             labels:       std::mem::take(&mut self.labels),
             data_store:   std::mem::take(&mut self.data_store),
             data_labels:  std::mem::take(&mut self.data_labels),

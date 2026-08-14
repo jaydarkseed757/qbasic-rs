@@ -3,6 +3,7 @@ mod parser;
 mod analyzer;
 mod emitter;
 mod error;
+mod compat;
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -28,6 +29,13 @@ struct Args {
     #[arg(long)]
     dump_ast: bool,
 
+    /// Print a dialect-fidelity report (QBasic 1.1 / QuickBASIC 4.5 /
+    /// GW-BASIC) estimating how well this file, as written, would load
+    /// unmodified in each real DOS interpreter. Standalone analysis mode —
+    /// does not transpile or compile.
+    #[arg(long)]
+    compatibility: bool,
+
     /// Print transpilation stats
     #[arg(short, long)]
     verbose: bool,
@@ -38,6 +46,14 @@ struct Args {
     /// --verbose.
     #[arg(long)]
     explain: bool,
+
+    /// Interleave `// QB: <line>` comments above emitted statements, mapping
+    /// generated Rust back to the original .bas source line. Best-effort:
+    /// covers main-body/SUB/FUNCTION top-level statements outside the GOTO
+    /// state machine and GOSUB-block extraction (see CLAUDE.md). Compiles
+    /// normally in addition — combine freely with --verbose/--explain.
+    #[arg(long)]
+    annotated: bool,
 }
 
 fn fmt_dur(d: Duration) -> String {
@@ -92,11 +108,17 @@ fn main() -> Result<()> {
 
     // 3. Parse → AST
     let t0 = Instant::now();
-    let ast = parser::parse(tokens)?;
+    let ast = parser::parse(tokens.clone())?;
     let parse_dur = t0.elapsed();
 
     if args.dump_ast {
         println!("{ast:#?}");
+        return Ok(());
+    }
+
+    if args.compatibility {
+        let report = compat::audit(&source, &raw_bytes, &tokens, &ast);
+        println!("{}", compat::render(&report));
         return Ok(());
     }
 
@@ -120,10 +142,19 @@ fn main() -> Result<()> {
 
     // 5. Emit Rust source
     let t0 = Instant::now();
-    let (rust_source, explain_report) = if args.explain {
-        emitter::emit_explained(&program)?
-    } else {
-        (emitter::emit(&program)?, String::new())
+    let (rust_source, explain_report) = match (args.explain, args.annotated) {
+        (false, false) => (emitter::emit(&program)?, String::new()),
+        (true, false)  => emitter::emit_explained(&program)?,
+        (false, true)  => (emitter::emit_annotated(&program)?, String::new()),
+        (true, true)   => {
+            // Both flags combine freely — neither wrapper alone covers this,
+            // so build one Emitter with both turned on directly.
+            let mut e = emitter::Emitter::new();
+            e.set_want_explain(true);
+            e.set_want_annotated(true);
+            let rust = e.emit(&program)?;
+            (rust, e.explain_report().to_string())
+        }
     };
     let emit_dur = t0.elapsed();
 

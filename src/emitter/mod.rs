@@ -107,6 +107,20 @@ pub struct Emitter {
     want_explain: bool,
     /// Populated by `emit()` iff `want_explain` — see `qbc --explain`.
     explain_report: String,
+    /// When true, `emit_main`/`emit_subs`/`emit_functions` interleave
+    /// `// QB: <line>` comments above top-level body statements, for the
+    /// `qbc --annotated` CLI flag. Best-effort: only covers the common,
+    /// unambiguous case — main-body statements that don't go through the
+    /// GOTO state machine, and SUB/FUNCTION bodies that don't have any
+    /// internal GOSUB blocks extracted (both of which would otherwise
+    /// desync the statement↔line correspondence). Off by default, so a
+    /// normal build never pays for it and emits byte-identical output.
+    want_annotated: bool,
+    /// Parallel to the `main_stmts` passed to `emit_main`: each statement's
+    /// originating source line, EXCEPT set to empty (meaning "don't
+    /// annotate") whenever GOSUB-block extraction changed the main body's
+    /// shape — see `want_annotated`. Populated once near the top of `emit()`.
+    main_body_lines: Vec<u32>,
     /// Track which REDIM'd local arrays have already been declared (`let mut name: Vec<T>`)
     /// so we don't emit duplicate declarations on the second REDIM in the same sub.
     redim_declared: HashSet<String>,
@@ -239,6 +253,8 @@ impl Emitter {
             const_names: HashSet::new(),
             want_explain: false,
             explain_report: String::new(),
+            want_annotated: false,
+            main_body_lines: Vec::new(),
             redim_declared: HashSet::new(),
             data_labels:  HashMap::new(),
             sub_params:   HashMap::new(),
@@ -536,6 +552,11 @@ impl Emitter {
     /// `set_want_explain(true)` was called first; empty otherwise.
     pub fn explain_report(&self) -> &str { &self.explain_report }
 
+    /// Enable `// QB: <line>` annotation comments (see `want_annotated`'s
+    /// doc comment for the best-effort scope). Must be called before
+    /// `emit()`.
+    pub fn set_want_annotated(&mut self, want: bool) { self.want_annotated = want; }
+
     pub fn emit(&mut self, prog: &AnalyzedProgram) -> Result<String> {
         // Populate name sets used throughout the emitter
         for sym in prog.global_scope.symbols.values() {
@@ -638,6 +659,13 @@ impl Emitter {
 
         // Extract GOSUB-target label blocks from main body
         let (main_stmts, gosub_fns) = extract_gosub_blocks(&prog.main_body, &event_gosub_targets);
+        // `--annotated`: only trustworthy when extraction left the main body's
+        // shape unchanged (no GOSUB blocks pulled out) — otherwise `main_stmts`
+        // no longer lines up 1:1 with `prog.main_body_lines` by index, and a
+        // wrong annotation is worse than none. See `main_body_lines`'s doc.
+        if self.want_annotated && gosub_fns.is_empty() && prog.main_body_lines.len() == main_stmts.len() {
+            self.main_body_lines = prog.main_body_lines.clone();
+        }
 
         // Detect arrays that cross GOSUB function boundaries (declared in one scope,
         // used in another) and promote them to GameState so both scopes can access them.
@@ -1035,6 +1063,12 @@ impl Emitter {
             // Extract GOSUB blocks from sub body so they can be inlined at call sites.
             // This gives GOSUB targets access to all the sub's local variables.
             let (inline_body, gosub_blocks) = extract_gosub_blocks(&sub.body, &HashSet::new());
+            // `--annotated`: only trustworthy when there are no GOSUB blocks
+            // to extract — otherwise `inline_body` no longer lines up 1:1
+            // with `sub.body_lines` by index. See `main_body_lines`'s doc
+            // for the same reasoning at module scope.
+            let annotate_body = self.want_annotated && gosub_blocks.is_empty()
+                && sub.body_lines.len() == inline_body.len();
             self.current_sub_gosubs.clear();
             for (label, body) in gosub_blocks {
                 self.current_sub_gosubs.insert(label.to_lowercase(), body);
@@ -1077,7 +1111,11 @@ impl Emitter {
             }
             // emit_locals on full body so it sees variables in gosub blocks too
             self.emit_locals(&sub.body, &exclude)?;
-            self.emit_stmts(&inline_body)?;
+            if annotate_body {
+                self.emit_stmts_annotated(&inline_body, &sub.body_lines.clone())?;
+            } else {
+                self.emit_stmts(&inline_body)?;
+            }
             self.current_sub_gosubs.clear();
             self.current_gosub_label = None;
             self.dedent();
@@ -1203,6 +1241,9 @@ impl Emitter {
 
             // Extract GOSUB blocks from function body for inline emission
             let (inline_body, gosub_blocks) = extract_gosub_blocks(&f.body, &HashSet::new());
+            // `--annotated`: same guard as emit_subs — see its comment.
+            let annotate_body = self.want_annotated && gosub_blocks.is_empty()
+                && f.body_lines.len() == inline_body.len();
             self.current_sub_gosubs.clear();
             for (label, body) in gosub_blocks {
                 self.current_sub_gosubs.insert(label.to_lowercase(), body);
@@ -1236,7 +1277,11 @@ impl Emitter {
                 }
             }
             self.emit_locals(&inline_body, &exclude)?;
-            self.emit_stmts(&inline_body)?;
+            if annotate_body {
+                self.emit_stmts_annotated(&inline_body, &f.body_lines.clone())?;
+            } else {
+                self.emit_stmts(&inline_body)?;
+            }
             self.current_sub_gosubs.clear();
             self.current_gosub_label = None;
             self.current_fn_retvar = None;
@@ -1408,6 +1453,8 @@ impl Emitter {
         let has_goto = body.iter().any(|s| stmt_has_numeric_goto(s));
         if has_goto {
             self.emit_state_machine(body)?;
+        } else if self.want_annotated && self.main_body_lines.len() == body.len() {
+            self.emit_stmts_annotated(body, &self.main_body_lines.clone())?;
         } else {
             self.emit_stmts(body)?;
         }
@@ -1579,6 +1626,21 @@ impl Emitter {
 
     fn emit_stmts(&mut self, stmts: &[Stmt]) -> Result<()> {
         for stmt in stmts { self.emit_stmt(stmt)?; }
+        Ok(())
+    }
+
+    /// Like `emit_stmts`, but interleaves a `// QB: <line>` comment above
+    /// each top-level statement — `qbc --annotated`. Only ever called with
+    /// `lines.len() == stmts.len()` (callers fall back to plain
+    /// `emit_stmts` otherwise); nested bodies (If/For/While/Do/Select) are
+    /// emitted by the ordinary recursive `emit_stmt` path underneath each
+    /// annotated statement and are NOT themselves annotated — this is a
+    /// top-level-only, best-effort feature (see `want_annotated`).
+    fn emit_stmts_annotated(&mut self, stmts: &[Stmt], lines: &[u32]) -> Result<()> {
+        for (stmt, line) in stmts.iter().zip(lines.iter()) {
+            self.line(&format!("// QB: {line}"));
+            self.emit_stmt(stmt)?;
+        }
         Ok(())
     }
 
@@ -5556,6 +5618,17 @@ pub fn emit_explained(prog: &AnalyzedProgram) -> Result<(String, String)> {
     e.set_want_explain(true);
     let rust = e.emit(prog)?;
     Ok((rust, e.explain_report().to_string()))
+}
+
+/// Transpile with `// QB: <line>` source-mapping comments — `qbc --annotated`.
+/// Best-effort (see `Emitter::want_annotated`'s doc comment): covers main-
+/// body statements outside the GOTO state machine, and SUB/FUNCTION bodies
+/// with no internal GOSUB blocks. Compiles identically to a normal build —
+/// the comments are inert.
+pub fn emit_annotated(prog: &AnalyzedProgram) -> Result<String> {
+    let mut e = Emitter::new();
+    e.set_want_annotated(true);
+    e.emit(prog)
 }
 
 /// Build the `--explain` report: every `GameState` field, tagged with WHY it

@@ -90,6 +90,9 @@ pub struct Program {
     pub directives: Vec<String>,
     /// COMMON variables in declaration order (for CHAIN's positional passing).
     pub common_decls: Vec<VarDecl>,
+    /// Parallel to `main_body`: each statement's originating source line.
+    /// Used only by `qbc --annotated`; empty/unused otherwise.
+    pub main_body_lines: Vec<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +100,9 @@ pub struct SubDef {
     pub name:   String,
     pub params: Vec<VarDecl>,
     pub body:   Vec<Stmt>,
+    /// Parallel to `body`: each statement's originating source line. Used
+    /// only by `qbc --annotated`; empty/unused otherwise.
+    pub body_lines: Vec<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -105,7 +111,18 @@ pub struct FuncDef {
     pub params:  Vec<VarDecl>,
     pub ret_ty:  QbType,
     pub body:    Vec<Stmt>,
+    /// How the return type was written on the FUNCTION header line — a
+    /// sigil (`FUNCTION Foo%()`, legal in QB1.1) or an `AS <type>` clause
+    /// (`FUNCTION Foo() AS INTEGER`, QB4.5-only). Purely informational —
+    /// no emission path reads this; it exists for `qbc --compatibility`.
+    pub ret_ty_written: RetTySyntax,
+    /// Parallel to `body`: each statement's originating source line. Used
+    /// only by `qbc --annotated`; empty/unused otherwise.
+    pub body_lines: Vec<u32>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetTySyntax { Sigil, AsClause }
 
 // ── Statements ────────────────────────────────────────────────────────────────
 
@@ -424,6 +441,7 @@ impl Parser {
 
     pub fn parse_program(&mut self) -> Result<Program> {
         let mut main_body = Vec::new();
+        let mut main_body_lines = Vec::new();
         let mut subs      = Vec::new();
         let mut functions = Vec::new();
 
@@ -435,8 +453,10 @@ impl Parser {
                 Token::Function => functions.push(self.parse_function()?),
                 Token::Declare  => { self.parse_declare()?; }
                 _ => {
+                    let line = self.line();
                     if let Some(s) = self.parse_stmt()? {
                         main_body.push(s);
+                        main_body_lines.push(line);
                     }
                 }
             }
@@ -447,7 +467,7 @@ impl Parser {
         functions.extend(std::mem::take(&mut self.pending_funcs));
 
         Ok(Program {
-            subs, functions, main_body,
+            subs, functions, main_body, main_body_lines,
             type_defs:       self.type_defs.clone(),
             type_layouts:    self.type_layouts.clone(),
             type_field_dims: self.type_field_dims.clone(),
@@ -463,23 +483,31 @@ impl Parser {
         // Consume any trailing modifier on the header line (e.g. STATIC)
         while !self.at_eol() { self.advance(); }
         self.skip_newlines();
-        let body   = self.parse_block_until(|t| matches!(t, Token::Eof))?;
+        let (body, body_lines) = self.parse_block_until(|t| matches!(t, Token::Eof))?;
         self.expect(&Token::End)?;
         self.expect(&Token::Sub)?;
-        Ok(SubDef { name, params, body })
+        Ok(SubDef { name, params, body, body_lines })
     }
 
     fn parse_function(&mut self) -> Result<FuncDef> {
         self.expect(&Token::Function)?;
         let (name, ret_ty) = self.parse_ident_with_sigil()?;
         let params = self.parse_param_list()?;
+        // An `AS <type>` clause on the header line (QB4.5-only syntax;
+        // QB1.1 requires the sigil form) — checked before the trailing
+        // modifier discard loop below swallows it.
+        let ret_ty_written = if self.peek() == &Token::As {
+            RetTySyntax::AsClause
+        } else {
+            RetTySyntax::Sigil
+        };
         // Consume any trailing modifier on the header line (e.g. STATIC)
         while !self.at_eol() { self.advance(); }
         self.skip_newlines();
-        let body   = self.parse_block_until(|t| matches!(t, Token::Eof))?;
+        let (body, body_lines) = self.parse_block_until(|t| matches!(t, Token::Eof))?;
         self.expect(&Token::End)?;
         self.expect(&Token::Function)?;
-        Ok(FuncDef { name, params, ret_ty, body })
+        Ok(FuncDef { name, params, ret_ty, body, ret_ty_written, body_lines })
     }
 
     fn parse_declare(&mut self) -> Result<()> {
@@ -1153,10 +1181,10 @@ impl Parser {
         // Convert to a FuncDef so it rides the existing FUNCTION emission path
         // (locals, __fn_ret, return type, EXIT DEF, recursion, call-site resolution).
         self.skip_newlines();
-        let body = self.parse_block_until(|t| matches!(t, Token::Eof))?;
+        let (body, body_lines) = self.parse_block_until(|t| matches!(t, Token::Eof))?;
         self.expect(&Token::End)?;   // END DEF terminator (is_block_end stops the block)
         self.expect(&Token::Def)?;
-        self.pending_funcs.push(FuncDef { name, params, ret_ty, body });
+        self.pending_funcs.push(FuncDef { name, params, ret_ty, body, ret_ty_written: RetTySyntax::Sigil, body_lines });
         Ok(Stmt::Block(vec![]))  // nothing lands in main_body
     }
 
@@ -1429,7 +1457,7 @@ impl Parser {
         if self.at_eol() {
             // Multi-line IF
             self.skip_newlines();
-            let then_body = self.parse_block_until(|t| {
+            let (then_body, _) = self.parse_block_until(|t| {
                 matches!(t, Token::ElseIf | Token::Else | Token::Eof)
             })?;
 
@@ -1443,7 +1471,7 @@ impl Parser {
                         let ec = self.parse_expr()?;
                         self.expect(&Token::Then)?;
                         self.skip_newlines();
-                        let eb = self.parse_block_until(|t| {
+                        let (eb, _) = self.parse_block_until(|t| {
                             matches!(t, Token::ElseIf | Token::Else | Token::Eof)
                         })?;
                         elseif_branches.push((ec, eb));
@@ -1456,13 +1484,13 @@ impl Parser {
                             let ec = self.parse_expr()?;
                             self.expect(&Token::Then)?;
                             self.skip_newlines();
-                            let eb = self.parse_block_until(|t| {
+                            let (eb, _) = self.parse_block_until(|t| {
                                 matches!(t, Token::ElseIf | Token::Else | Token::Eof)
                             })?;
                             elseif_branches.push((ec, eb));
                         } else {
                             self.skip_newlines();
-                            let eb = self.parse_block_until(|t| matches!(t, Token::Eof))?;
+                            let (eb, _) = self.parse_block_until(|t| matches!(t, Token::Eof))?;
                             else_body = Some(eb);
                             break;
                         }
@@ -1530,7 +1558,7 @@ impl Parser {
             Some(self.parse_expr()?)
         } else { None };
         self.skip_newlines();
-        let body = self.parse_block_until(|t| matches!(t, Token::Next))?;
+        let (body, _) = self.parse_block_until(|t| matches!(t, Token::Next))?;
         if self.pending_nexts > 0 {
             // An inner `NEXT i, j, …` already closed this loop.
             self.pending_nexts -= 1;
@@ -1558,7 +1586,7 @@ impl Parser {
         self.expect(&Token::While)?;
         let cond = self.parse_expr()?;
         self.skip_newlines();
-        let body = self.parse_block_until(|t| matches!(t, Token::Wend))?;
+        let (body, _) = self.parse_block_until(|t| matches!(t, Token::Wend))?;
         self.expect(&Token::Wend)?;
         Ok(Stmt::While { cond, body })
     }
@@ -1573,7 +1601,7 @@ impl Parser {
         };
 
         self.skip_newlines();
-        let body = self.parse_block_until(|t| matches!(t, Token::Loop))?;
+        let (body, _) = self.parse_block_until(|t| matches!(t, Token::Loop))?;
         self.expect(&Token::Loop)?;
 
         let (post_while, cond_post) = match self.peek().clone() {
@@ -1610,12 +1638,12 @@ impl Parser {
             if self.peek() == &Token::Else {
                 self.advance();
                 self.skip_newlines();
-                let body = self.parse_block_until(|t| matches!(t, Token::Case | Token::Eof))?;
+                let (body, _) = self.parse_block_until(|t| matches!(t, Token::Case | Token::Eof))?;
                 default = Some(body);
             } else {
                 let conditions = self.parse_case_conditions()?;
                 self.skip_newlines();
-                let body = self.parse_block_until(|t| matches!(t, Token::Case | Token::Eof))?;
+                let (body, _) = self.parse_block_until(|t| matches!(t, Token::Case | Token::Eof))?;
                 cases.push(CaseBranch { conditions, body });
             }
         }
@@ -2722,10 +2750,17 @@ impl Parser {
         Ok(params)
     }
 
-    fn parse_block_until<F>(&mut self, end: F) -> Result<Vec<Stmt>>
+    /// Returns the parsed statements alongside a parallel `Vec<u32>` of each
+    /// statement's originating source line — used by `qbc --annotated` to
+    /// emit `// QB: <line>` comments above top-level SUB/FUNCTION-body
+    /// statements. Most callers (nested If/For/While/Do/Select bodies)
+    /// don't need this and discard it; only the SUB/FUNCTION body callers
+    /// keep it.
+    fn parse_block_until<F>(&mut self, end: F) -> Result<(Vec<Stmt>, Vec<u32>)>
     where F: Fn(&Token) -> bool
     {
         let mut stmts = Vec::new();
+        let mut lines = Vec::new();
         loop {
             // A multi-counter NEXT closed an enclosing FOR — unwind to it.
             if self.pending_nexts > 0 { break; }
@@ -2735,9 +2770,10 @@ impl Parser {
             // from being consumed by parse_stmt inside a nested block.
             if self.is_block_end() { break; }
             if end(self.peek()) || self.peek() == &Token::Eof { break; }
-            if let Some(s) = self.parse_stmt()? { stmts.push(s); }
+            let line = self.line();
+            if let Some(s) = self.parse_stmt()? { stmts.push(s); lines.push(line); }
         }
-        Ok(stmts)
+        Ok((stmts, lines))
     }
 }
 

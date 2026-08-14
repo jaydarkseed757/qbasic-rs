@@ -44,7 +44,13 @@ qbasic-rust/
 │       └── sound.rs            # PLAY / SOUND / BEEP via rodio (~300 lines)
 │
 ├── basic-src/                  # Real DOS QBasic programs used for manual testing
-│   └── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (52 programs total)
+│   ├── gorilla.bas, nibbles.bas, mandel.bas, donkey.bas, …  (55 programs total)
+│   └── build-all.sh            # Transpile+compile every program; incremental (see tools/doctor.sh)
+│
+├── tools/
+│   ├── doctor.sh                # One command: unit + integration + build-all + goldens
+│   ├── fuzz/                    # Differential + graphics-determinism fuzzers
+│   └── ppm2png.py               # Headless-dump PPM → PNG (for docs/screenshots/)
 │
 └── tests/
     ├── programs/               # .bas source files for the integration test suite
@@ -327,14 +333,33 @@ fn main() {
 ## Testing
 
 ```bash
-cargo build --release          # build transpiler + runtime
-bash tests/run-tests.sh        # 27 integration tests — must all pass
-bash tests/run-tests.sh -v     # verbose: show actual vs expected on failure
-cargo test --workspace         # unit tests (lexer, print_using, draw)
+bash tools/doctor.sh           # ALL of the below in one command + summary table
 ```
 
-Never break the integration tests. Before any PR run the full suite.
-The bundled programs in `basic-src/` are for manual/visual verification only.
+Runs unit tests, integration tests, the full `basic-src/` build, and the
+graphics goldens in sequence — every stage always runs (a failure in one
+doesn't skip the rest), ending in a single PASS/FAIL table and exit code.
+`--full` forces a from-scratch `build-all.sh` (bypasses its incremental
+cache); `-v`/`--verbose` shows each sub-script's full output instead of
+just its tail. This is the recommended single entrypoint; the individual
+commands remain available for targeted runs:
+
+```bash
+cargo build --release          # build transpiler + runtime
+bash tests/run-tests.sh        # 48 integration tests — must all pass
+bash tests/run-tests.sh -v     # verbose: show actual vs expected on failure
+cargo test --workspace         # unit tests (lexer, print_using, draw)
+bash basic-src/build-all.sh    # transpile+compile all 55 bundled programs
+                                #   (incremental: skips a program whose .bas
+                                #   mtime + qbc binary + runtime rlib are all
+                                #   unchanged since its last successful build;
+                                #   `--clean` forces a full rebuild)
+bash tests/run-graphics-tests.sh   # 11 framebuffer-checksum goldens
+```
+
+Never break the integration tests. Before any PR run the full suite
+(`bash tools/doctor.sh`). The bundled programs in `basic-src/` are for
+manual/visual verification only.
 
 ---
 

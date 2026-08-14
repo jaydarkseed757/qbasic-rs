@@ -75,6 +75,18 @@ pub struct Emitter {
     array_params: HashSet<String>,
     /// Names of numeric scalar parameters for current function (passed as &mut f64)
     numeric_params: HashSet<String>,
+    /// Names of numeric scalar parameters for the current FUNCTION (plain
+    /// pass-by-value `f64`, not `&mut f64` — QB FUNCTIONs return their result
+    /// via the fn value rather than mutating a byref param, so these never
+    /// enter `numeric_params`). Populated by `setup_param_sets` alongside it.
+    /// Needed so a read of such a param can be distinguished from a genuine
+    /// CONST read when the two names collide (see `disambig()`) — without a
+    /// POSITIVE confirmation like this, emit_lvalue's generic scalar fallback
+    /// has no way to tell "this identifier IS the const" apart from "this
+    /// local/param's name merely COLLIDES with the const's name," since both
+    /// look identical (`LValue::Scalar{name,..}` with the same text) by the
+    /// time execution reaches that fallback.
+    value_params: HashSet<String>,
     /// Arrays promoted to GameState because they cross GOSUB function boundaries.
     /// These get a `name: Vec<f64>` field in GameState even if not DIM SHARED.
     promoted_arrays: HashSet<String>,
@@ -82,6 +94,11 @@ pub struct Emitter {
     /// Each entry is (rust_field_name, QbType). The shared_names key is the
     /// lowercase original name (already inserted into shared_names separately).
     promoted_scalars: Vec<(String, QbType)>,
+    /// Rust identifiers of every module-level CONST (and SUB/FUNCTION name,
+    /// harmless to include — a superset is always safe here), for `disambig()`.
+    /// Populated once near the top of `emit()`, before any SUB/FUNCTION body
+    /// is processed.
+    const_names: HashSet<String>,
     /// When true, `emit()` additionally builds `explain_report` — a plain-text
     /// breakdown of every `GameState` field's origin (DIM SHARED / SHARED-in-SUB
     /// or STATIC / cross-GOSUB scalar promotion / cross-GOSUB array promotion),
@@ -216,8 +233,10 @@ impl Emitter {
             var_type_name: HashMap::new(),
             array_params: HashSet::new(),
             numeric_params: HashSet::new(),
+            value_params: HashSet::new(),
             promoted_arrays: HashSet::new(),
             promoted_scalars: Vec::new(),
+            const_names: HashSet::new(),
             want_explain: false,
             explain_report: String::new(),
             redim_declared: HashSet::new(),
@@ -563,6 +582,9 @@ impl Emitter {
             const_globals.insert(rust_ident(&f.name));
             const_globals.insert(rust_ident_typed(&f.name, &f.ret_ty));
         }
+        // For disambig(): SUB/FUNCTION parameter names that collide with a
+        // module-level CONST (or, harmlessly, a sub/fn name) get suffixed.
+        self.const_names = const_globals.clone();
 
         // Store parsed TYPE definitions (field names + types)
         self.type_defs       = prog.type_defs.clone();
@@ -758,6 +780,7 @@ impl Emitter {
         self.str_params.clear();
         self.array_params.clear();
         self.numeric_params.clear();
+        self.value_params.clear();
         self.local_arrays = collect_local_array_names(body);
         // Same per-scope DIM bookkeeping reset as emit_main (previously these
         // three inherited whatever the last SUB/FUNCTION left behind). GOSUB
@@ -794,6 +817,8 @@ impl Emitter {
                 self.in_main = false;
                 self.str_params.clear();
                 self.array_params.clear();
+                self.numeric_params.clear();
+                self.value_params.clear();
                 self.local_arrays = collect_local_array_names(&[]);
                 let e = self.emit_expr(expr)?;
                 self.line(&format!("{e}"));
@@ -1065,12 +1090,45 @@ impl Emitter {
 
     /// `byref_numerics`: true for SUBs (QB passes scalars by ref), false for FUNCTIONs
     /// (which return a value; callers pass args through emit_expr_inner by value).
+    /// Disambiguate an identifier that collides with a module-level CONST (or
+    /// SUB/FUNCTION name — same underlying hazard, included for safety) by
+    /// appending `_p` ("parameter"). Rust's pattern grammar treats a bare
+    /// identifier PATTERN — a fn parameter or `let` binding — that names a
+    /// visible `const` item as a refutable pattern MATCHING that constant,
+    /// not a fresh binding: `fn f(cx: &mut f64)` fails to compile
+    /// ("`cx` is interpreted as a constant, not a new binding") when a
+    /// `const cx: f64` is also in scope, even though QB itself allows a SUB
+    /// parameter to simply (and legally) shadow a module CONST by name, and
+    /// even though ordinary expression-position READS of that name are
+    /// completely unambiguous — the quirk only bites the binding position.
+    /// Found via basic-src/orbits.bas's `DrawFilledCircle(cx AS SINGLE, ...)`
+    /// alongside a module-level `CONST CX`. Applied uniformly everywhere a
+    /// byref numeric/string SUB parameter's identifier is looked up in
+    /// `numeric_params`/`str_params` or emitted, so the declaration and
+    /// every use inside that one function agree. A no-op (returns the input
+    /// unchanged) for the overwhelming majority of names that never collide.
+    fn disambig(&self, name: &str) -> String {
+        if self.const_names.contains(name) {
+            format!("{name}_p")
+        } else {
+            name.to_string()
+        }
+    }
+
     fn setup_param_sets(&mut self, params: &[VarDecl], byref_numerics: bool) {
         self.str_params.clear();
         self.array_params.clear();
         self.numeric_params.clear();
+        self.value_params.clear();
         for p in params {
-            let lower = rust_ident_typed(&p.name, &p.ty);
+            let raw_lower = rust_ident_typed(&p.name, &p.ty);
+            // disambig(): a SCALAR param is emitted as a plain identifier
+            // PATTERN in the fn signature (see disambig's doc comment) — must
+            // agree with every later lookup/emission for this same param.
+            // Array params are `&mut Vec<...>` bindings too, but naming
+            // parity for arrays is untouched here — no concrete case has
+            // ever hit that collision, unlike the scalar one this fixes.
+            let lower = self.disambig(&raw_lower);
             if p.ty == QbType::String {
                 // Both SUBs and FUNCTIONs pass string scalars as &mut String
                 self.str_params.insert(lower.clone());
@@ -1084,16 +1142,24 @@ impl Emitter {
                     let flat = flatten_type_fields(&tn_lc, &self.type_defs.clone());
                     let base = rust_ident(&p.name);
                     for (fname, _) in &flat {
-                        self.numeric_params.insert(format!("{base}__{fname}"));
+                        let d = self.disambig(&format!("{base}__{fname}"));
+                        self.numeric_params.insert(d);
                     }
                 } else if byref_numerics {
                     // Plain numeric scalar — QB SUB passes by reference. FUNCTIONs
                     // keep pass-by-value (return their result via the fn value), which
                     // is observationally identical unless they mutate-and-read-back.
                     self.numeric_params.insert(lower.clone());
+                } else {
+                    // FUNCTION scalar param — pass-by-value. Tracked separately
+                    // (see value_params' doc comment) purely so a colliding read
+                    // can be positively identified as "this param" rather than
+                    // falling through to the generic scalar fallback, which
+                    // can't distinguish that from a genuine CONST read.
+                    self.value_params.insert(lower.clone());
                 }
             }
-            if !p.dims.is_empty() { self.array_params.insert(lower); }
+            if !p.dims.is_empty() { self.array_params.insert(raw_lower); }
         }
     }
 
@@ -1270,6 +1336,7 @@ impl Emitter {
         self.str_params.clear();
         self.array_params.clear();
         self.numeric_params.clear();
+        self.value_params.clear();
         self.line("fn main() {");
         self.indent();
 
@@ -3703,13 +3770,15 @@ impl Emitter {
                 // Stmt::Let can prepend `*` (→ `*name_s = …`); for reads, emit_expr_inner
                 // handles dereferencing separately.
                 let rn_s = rust_ident_typed(name, &QbType::String);
-                if self.str_params.contains(&rn_s) {
-                    return rn_s;
+                let rn_s_p = self.disambig(&rn_s); // see disambig() doc comment
+                if self.str_params.contains(&rn_s_p) {
+                    return rn_s_p;
                 }
-                if self.numeric_params.contains(&rn) {
+                let rn_p = self.disambig(&rn);
+                if self.numeric_params.contains(&rn_p) {
                     // Byref numeric param — parameters shadow any shared var with the same
                     // base name (e.g. SUB DrawPlayer(Player%) shadows DIM SHARED Player(1 TO 2)).
-                    format!("(*{rn})")
+                    format!("(*{rn_p})")
                 } else if self.shared_names.contains(&lower) && type_matches {
                     // For shared scalars, use the bare rust_ident (no sigil suffix).
                     // The GameState field was generated from the DIM declaration name,
@@ -3722,6 +3791,13 @@ impl Emitter {
                     // Assignment to the function name inside a FUNCTION body →
                     // redirect to the "__fn_ret" local so recursive calls aren't shadowed.
                     "__fn_ret".to_string()
+                } else if self.value_params.contains(&rn_p) {
+                    // FUNCTION pass-by-value scalar param — positively confirmed
+                    // (see value_params' doc comment for why this can't be folded
+                    // into the generic fallback below: that fallback is ALSO how
+                    // a genuine CONST read reaches this point, and the two are
+                    // textually indistinguishable without this separate set).
+                    rn_p
                 } else {
                     // QB allows a scalar `A$` and an array `A$()` to coexist — they
                     // are distinct variables. Disambiguate the scalar binding.
@@ -3782,11 +3858,12 @@ impl Emitter {
                     LValue::Scalar { name, .. } => {
                         let name_lc = name.to_lowercase();
                         let flat    = format!("{}__{field_suffix}", rust_ident(name));
+                        let flat_p  = self.disambig(&flat); // see disambig() doc comment
                         if self.shared_names.contains(&name_lc) {
                             format!("__gs.{flat}")
-                        } else if self.numeric_params.contains(&flat) {
+                        } else if self.numeric_params.contains(&flat_p) {
                             // Scalar TYPE param — individual field is a &mut f64 param
-                            format!("(*{flat})")
+                            format!("(*{flat_p})")
                         } else {
                             flat
                         }
@@ -3973,14 +4050,16 @@ impl Emitter {
     fn emit_scalar_type_copy(&mut self, lhs: &str, rhs: &str, fields: &[String]) {
         for f in fields {
             let lf = format!("{lhs}__{f}");
-            let l = if self.numeric_params.contains(&lf) {
-                format!("*{lf}")
+            let lf_p = self.disambig(&lf); // see disambig() doc comment
+            let l = if self.numeric_params.contains(&lf_p) {
+                format!("*{lf_p}")
             } else if self.shared_names.contains(lhs) {
                 format!("__gs.{lf}")
             } else { lf };
             let rf = format!("{rhs}__{f}");
-            let r = if self.numeric_params.contains(&rf) {
-                format!("(*{rf})")
+            let rf_p = self.disambig(&rf);
+            let r = if self.numeric_params.contains(&rf_p) {
+                format!("(*{rf_p})")
             } else if self.shared_names.contains(rhs) {
                 format!("__gs.{rf}")
             } else { rf };
@@ -4019,8 +4098,9 @@ impl Emitter {
                 format!("__gs.{arr}__{field}")
             } else { format!("{arr}__{field}") };
             let sf = format!("{scalar}__{field}");
-            let lhs = if self.numeric_params.contains(&sf) {
-                format!("*{sf}")
+            let sf_p = self.disambig(&sf); // see disambig() doc comment
+            let lhs = if self.numeric_params.contains(&sf_p) {
+                format!("*{sf_p}")
             } else if self.shared_names.contains(scalar) {
                 format!("__gs.{sf}")
             } else { sf };
@@ -4038,8 +4118,9 @@ impl Emitter {
                 format!("__gs.{arr}__{field}")
             } else { format!("{arr}__{field}") };
             let sf = format!("{scalar}__{field}");
-            let rhs = if self.numeric_params.contains(&sf) {
-                format!("(*{sf})")
+            let sf_p = self.disambig(&sf); // see disambig() doc comment
+            let rhs = if self.numeric_params.contains(&sf_p) {
+                format!("(*{sf_p})")
             } else if self.shared_names.contains(scalar) {
                 format!("__gs.{sf}")
             } else { sf };
@@ -4432,6 +4513,7 @@ impl Emitter {
                     if !flat.is_empty() {
                         for (fname, _) in &flat {
                             let field_var = format!("{base_name}__{fname}");
+                            let field_var_p = self.disambig(&field_var); // see disambig() doc comment
                             // Field might itself be a byref param (when passing a SUB param onward)
                             let arg = if self.shared_names.contains(&name_lc) {
                                 // Shared TYPE field lives in __gs; passing both __gs
@@ -4444,9 +4526,9 @@ impl Emitter {
                                 self.line(&format!("let mut {tmp} = {gs_field}.clone();"));
                                 writebacks.push((gs_field, tmp.clone()));
                                 format!("&mut {tmp}")
-                            } else if self.numeric_params.contains(&field_var) {
+                            } else if self.numeric_params.contains(&field_var_p) {
                                 // Already &mut — reborrow
-                                format!("&mut *{field_var}")
+                                format!("&mut *{field_var_p}")
                             } else {
                                 format!("&mut {field_var}")
                             };
@@ -4489,9 +4571,9 @@ impl Emitter {
                         self.line(&format!("let mut {tmp}: f64 = {gs_field};"));
                         writebacks.push((gs_field, tmp.clone()));
                         format!("&mut {tmp}")
-                    } else if self.numeric_params.contains(&rn) {
+                    } else if self.numeric_params.contains(&self.disambig(&rn)) {
                         // Already a &mut f64 in caller — reborrow
-                        rn
+                        self.disambig(&rn) // see disambig() doc comment
                     } else {
                         format!("&mut {rn}")
                     };
@@ -4966,7 +5048,10 @@ impl Emitter {
     fn emit_params(&self, params: &[VarDecl], _body: &[Stmt]) -> String {
         let mut parts = Vec::new();
         for p in params {
-            let name = rust_ident_typed(&p.name, &p.ty);
+            // disambig(): a scalar/UserType-field param name is a plain
+            // identifier PATTERN in this signature — see disambig's doc
+            // comment for why that must never collide with a module CONST.
+            let name = self.disambig(&rust_ident_typed(&p.name, &p.ty));
             if !p.dims.is_empty() {
                 // Array parameter — use base rust_ident (no _s, arrays aren't strings)
                 let arr_name = rust_ident(&p.name);
@@ -5001,7 +5086,7 @@ impl Emitter {
                 let arr_name = rust_ident(&p.name);
                 for (fname, fty) in &flat {
                     let field_rust_ty = qb_type_to_rust(fty);
-                    let param_name = format!("{arr_name}__{fname}");
+                    let param_name = self.disambig(&format!("{arr_name}__{fname}"));
                     if self.numeric_params.contains(&param_name) {
                         parts.push(format!("{param_name}: &mut {field_rust_ty}"));
                     } else {
@@ -5289,10 +5374,11 @@ impl Emitter {
                                 if !flat.is_empty() {
                                     return flat.into_iter().map(|(fname, fty)| {
                                         let field = format!("{base}__{fname}");
+                                        let field_p = self.disambig(&field); // see disambig() doc comment
                                         // Compute the by-ref accessor for this field.
-                                        let acc = if self.numeric_params.contains(&field) {
+                                        let acc = if self.numeric_params.contains(&field_p) {
                                             // caller holds &mut f64 — reborrow
-                                            format!("&mut *{field}")
+                                            format!("&mut *{field_p}")
                                         } else if self.shared_names.contains(&base) {
                                             format!("&mut __gs.{field}")
                                         } else {

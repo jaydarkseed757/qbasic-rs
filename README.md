@@ -28,6 +28,9 @@ Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
 <td align="center"><img src="docs/screenshots/mario-title.png" width="420"><br><b>mario.bas</b> — MEGA WORLD title screen (SCREEN 13, masked GET/PUT sprites)</td>
 <td align="center"><img src="docs/screenshots/mario.png" width="420"><br><b>mario.bas</b> — World 1-1 in-game (raw <code>INP(&amp;H60)</code> scancode input, quarter-pixel physics)</td>
 </tr>
+<tr>
+<td align="center"><img src="docs/screenshots/orbits.png" width="420"><br><b>orbits.bas</b> — deterministic orbital mechanics (SCREEN 13, TYPE-in-TYPE nesting)</td>
+</tr>
 </table>
 
 ---
@@ -126,9 +129,10 @@ cargo run -- basic-src/gorilla.bas --emit-only
 | `mario.bas` | MEGA WORLD platformer (SCREEN 13, 3 worlds from `WORLD<n>.TXT`, masked GET/PUT sprites, raw `INP(&H60)` scancode input, quarter-pixel physics, boss fight, persistent high score) — [walkthrough](docs/mario.md) | ✅ |
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
+| `orbits.bas` | Deterministic orbital-mechanics demo (SCREEN 13) — genuine `TYPE`-in-`TYPE` nesting (`Vec2` nested inside `Body`) and an array of the nested TYPE, real Newtonian gravity, exact circular-orbit initial velocities | ✅ |
 
-All **54 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 54/54). The full set also includes `nibbles`,
+All **55 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 55/55). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
 `towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.

@@ -1057,6 +1057,55 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M25 — `--explain`, graphics-determinism fuzzing, orbits.bas (genuine TYPE-in-TYPE nesting) + a param/CONST collision fix ✅
+
+- **`qbc --explain`**: a new CLI flag prints, for every `GameState` field,
+  which of the four possible origins produced it (`DIM SHARED`,
+  `SHARED`-in-SUB/`STATIC`, cross-GOSUB scalar promotion, cross-GOSUB array
+  promotion) — and for the two IMPLICIT promotion cases, exactly which
+  scopes (`main` / which `GOSUB` blocks) reference the name, which is the
+  literal evidence the promotion pass acted on. Compiles normally in
+  addition to printing the report (behaves like `--verbose`, not
+  `--dump-ast`); byte-identical emitted Rust with or without the flag
+  (locked by a dedicated invariant test). 6 new unit tests.
+- **Graphics-determinism fuzzing** (`tools/fuzz/run-fuzz-gfx.sh`): since
+  there's no independent renderer to diff pixel output against, this checks
+  a narrower but real property instead — the SAME randomly-generated SCREEN
+  13 program, run headless TWICE, must produce a BIT-IDENTICAL framebuffer
+  checksum. 300/300 seeds pass, proving the simulated headless clock holds
+  up under vsync/SLEEP-heavy random programs, not just the 10 hand-picked
+  goldens.
+- **`basic-src/orbits.bas`**: a deterministic orbital-mechanics demo — the
+  first bundled program with genuine `TYPE`-in-`TYPE` nesting (`Vec2`
+  nested inside `Body`) and an ARRAY of that nested TYPE (`DIM Bodies(N) AS
+  Body`), exercising two-level dotted field chains on array elements
+  (`Bodies(i).Pos.X`). `flatten_type_fields`'s recursive nesting support had
+  existed since early milestones but no bundled program had ever forced
+  that recursion to actually run. Real Newtonian gravity (each planet's
+  initial velocity set to the exact circular-orbit speed, so every orbit is
+  a stable circle by construction); fully deterministic, added as an 11th
+  graphics golden.
+- **Bug found building it, fixed**: a SUB/FUNCTION parameter sharing its
+  name (case-insensitively) with a module `CONST` is legal QB — it simply
+  shadows the CONST within that one procedure — but naively emitted Rust,
+  it fails to compile: a plain identifier PATTERN (a fn parameter or `let`
+  binding) that names a visible `const` item is treated by rustc as a
+  refutable pattern MATCHING that constant, not a fresh binding. Fixed via
+  a new `disambig()` helper (suffixes the colliding identifier with `_p`)
+  applied at every declaration and lookup site for byref numeric/string/
+  UserType-field SUB parameters, plus a new `value_params` set to
+  positively identify FUNCTION pass-by-value scalar params (needed because,
+  once a byref fix was in place, a *by-value* collision compiled clean but
+  silently read the wrong value — the fallback path used for by-value
+  params is the SAME generic path a genuine CONST reference falls through,
+  so the two are textually indistinguishable without a positive-membership
+  check). Regression: `tests/programs/param_const_collision.bas`.
+- **Known, deliberately unfixed, narrower sibling bug**: a plain LOCAL
+  variable (not a parameter) colliding with a CONST still fails to compile
+  (`E0530: let bindings cannot shadow constants`) — a real but rarer case
+  than the parameter collision; left as a documented gap rather than
+  chasing an open-ended rename of every `let`-declaration site.
+
 ### M24 — Differential fuzzing (3 rounds) + simulated headless clock ✅
 
 - **`tools/fuzz/`**: seeded random-program generator + independent Python
@@ -1563,14 +1612,14 @@ Tests: `type_nested`, `type_complex`.
 ## What's Left
 
 **Every bundled DOS QBasic program in `basic-src/` now transpiles, compiles, and
-renders** — `build-all.sh` is **54/54** (gorilla, torus, reversi, mandel, donkey,
+renders** — `build-all.sh` is **55/55** (gorilla, torus, reversi, mandel, donkey,
 nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx, hangman-gw,
 q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite, 256c,
 palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
-vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario).
-The integration suite is **47/47**, with 147 unit tests and 10 graphics golden
+vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
+The integration suite is **48/48**, with 153 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

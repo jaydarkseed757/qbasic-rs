@@ -92,6 +92,9 @@ bin/gorilla
 
 # Or just inspect the emitted Rust
 cargo run -- basic-src/gorilla.bas --emit-only
+
+# Verify everything at once (unit + integration + build-all + graphics goldens)
+bash tools/doctor.sh
 ```
 
 ---
@@ -136,6 +139,9 @@ All **55 bundled programs** in `basic-src/` transpile and run
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
 `towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
+`build-all.sh` is incremental — it skips a program whose `.bas` mtime, the
+`qbc` binary, and the runtime rlib are all unchanged since its last
+successful build (`--clean` forces a full rebuild).
 
 ---
 
@@ -251,11 +257,17 @@ qbasic-rust/
 │   ├── lexer.rs           # Source text → tokens
 │   ├── parser.rs          # Tokens → AST
 │   ├── analyzer.rs        # AST → symbol table + AnalyzedProgram
-│   └── emitter.rs         # AnalyzedProgram → Rust source  (~5370 lines)
+│   ├── emitter/           # AnalyzedProgram → Rust source  (~6,300 lines total)
+│   ├── compat.rs          # --compatibility: dialect-fidelity audit
+│   └── optreport.rs       # --opt-report: source-level findings report
 │
 ├── runtime/src/
 │   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3875 lines)
 │   └── sound.rs           # PLAY/SOUND/BEEP via rodio  (~300 lines)
+│
+├── tools/
+│   ├── doctor.sh          # One command: unit + integration + build-all + goldens
+│   └── fuzz/              # Differential + graphics-determinism fuzzers
 │
 └── basic-src/             # .bas source files
 ```
@@ -268,6 +280,7 @@ See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full description of the pipeli
 
 ```
 qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
+    [--annotated] [--compatibility] [--opt-report]
 ```
 
 | Flag | Effect |
@@ -277,6 +290,9 @@ qbc <INPUT> [-o OUTPUT] [--emit-only] [--dump-ast] [--verbose] [--explain]
 | `--dump-ast` | Print the parsed AST and exit |
 | `--verbose` | Print per-stage timing and stats |
 | `--explain` | Print why each `GameState` field exists — see below |
+| `--annotated` | Interleave `// QB: <line>` source-mapping comments in the emitted Rust — see below |
+| `--compatibility` | Print a QBasic 1.1 / QuickBASIC 4.5 / GW-BASIC dialect-fidelity report and exit — see below |
+| `--opt-report` | Print a source-level findings report (dead labels, never-resized arrays, …) and exit — see below |
 
 ### `--explain`: why is this variable a GameState field?
 
@@ -304,6 +320,84 @@ Combine freely with `--verbose`; it compiles normally in addition to
 printing the report (nothing about `--explain` changes the emitted Rust).
 `basic-src/explain.sh <file.bas>` is a one-liner wrapper (mirrors
 `show-asm.sh`) if you don't want to remember the flags.
+
+### `--annotated`: map the emitted Rust back to the original source
+
+Interleaves a `// QB: <line>` comment above each emitted statement, so the
+generated Rust reads alongside the `.bas` it came from:
+
+```
+$ qbc basic-src/gorilla.bas --annotated --emit-only
+...
+    // QB: 659
+    __rt.screen(0.0f64);
+    // QB: 661
+    __gs.maxcol = 80.0f64;
+```
+
+Deliberately **best-effort, not full-fidelity**: `Stmt` carries no source
+line anywhere in the AST, and covering every nesting depth would mean
+either restructuring the AST (the exact bug class that's bitten this
+project's scan passes repeatedly) or a side-table that silently desyncs
+wherever the emitter restructures statements before emitting them — which
+happens whenever GOSUB blocks get extracted into their own `fn`s, or a
+GOTO-heavy body gets flattened into the `__pc` state machine. So it's
+scoped to the one case that's structurally guaranteed correct — top-level
+statements in `main`/SUB/FUNCTION bodies outside those two paths — and
+falls back to zero annotations everywhere else, since a wrong annotation
+is worse than none. Compiles normally in addition; combine freely with
+`--verbose`/`--explain`.
+
+### `--compatibility`: would this load in real DOS QBasic?
+
+```
+$ qbc basic-src/kingdom.bas --compatibility
+QBasic Compatibility Report
+===========================
+Dialect detected: QBasic 1.1
+...
+Compatibility score: 97.0%
+Target:
+  QBasic 1.1       97.0%
+    - File uses LF-only line endings (DOS QBasic/GW-BASIC require CRLF)
+  QuickBASIC 4.5   97.0%
+  GW-BASIC         97.0%
+```
+
+Estimates how well a `.bas` file, AS WRITTEN, would load unmodified in
+QBasic 1.1, QuickBASIC 4.5, and GW-BASIC — qbc itself already accepts a
+broad superset of all three, so this is deliberately not about qbc's own
+support. The rule engine (`src/compat.rs`) is grounded entirely in
+incidents this project has already hit and fixed by hand while porting
+`basic-src/` programs to run on real DOS QBasic (underscore identifiers,
+reserved-word collisions, `FUNCTION AS type`, `_` line continuation,
+`ON ERROR GOTO` scoping, `DIM` inside a re-entrant `GOSUB`, CRLF line
+endings) plus an advisory-only category for legitimate but
+hardware/timing-fragile statements (`WAIT`, `OUT`, `DEF SEG`, `POKE`,
+`PALETTE USING`) that are never scored. Standalone analysis mode — exits
+right after parsing, doesn't transpile or compile.
+
+### `--opt-report`: source-level findings, not a compiler-optimization report
+
+```
+$ qbc basic-src/reversi.bas --opt-report
+...
+Findings:
+  - Label SLEEP is never GOTO'd/GOSUB'd/RESTOREd (dead code)
+  - Array GG() is DIM'd but never REDIM'd
+  - Array GP() is DIM'd but never REDIM'd
+```
+
+Deliberately does **not** report constant folding, dead-branch elimination,
+or similar — `rustc`/LLVM already does all of that on every build
+regardless, so surfacing it back would be trivia qbc itself acts on
+nothing. What's actually additive is anything about the *original* `.bas`
+source that `rustc` never sees at all: unreachable named labels (never a
+`GOTO`/`GOSUB`/`ON…GOTO`/`ON ERROR GOTO`/`RESTORE` target), arrays `DIM`'d
+but never `REDIM`'d, `IF`/`ELSEIF` conditions that fold to a constant
+value from literals/CONSTs alone, `DATA` table size, and the shared/global
+variable type table. Standalone analysis mode, same family as
+`--compatibility`.
 
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 

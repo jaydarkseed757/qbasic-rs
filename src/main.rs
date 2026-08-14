@@ -4,6 +4,7 @@ mod analyzer;
 mod emitter;
 mod error;
 mod compat;
+mod optreport;
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -35,6 +36,15 @@ struct Args {
     /// does not transpile or compile.
     #[arg(long)]
     compatibility: bool,
+
+    /// Print a source-level findings report: unreachable labels, arrays
+    /// never REDIM'd, constant-condition dead branches, DATA table size,
+    /// and the shared/global variable type table. Deliberately does NOT
+    /// report classical compiler optimizations (constant folding, dead
+    /// code, etc.) — rustc already does those on every build regardless.
+    /// Standalone analysis mode — does not transpile or compile.
+    #[arg(long)]
+    opt_report: bool,
 
     /// Print transpilation stats
     #[arg(short, long)]
@@ -139,6 +149,12 @@ fn main() -> Result<()> {
     let shared_syms = program.global_scope.symbols.values().filter(|s| s.shared).count();
     let data_items  = program.data_store.len();
     let const_count = program.consts.len();
+
+    if args.opt_report {
+        let report = optreport::analyze(&program);
+        println!("{}", optreport::render(&report));
+        return Ok(());
+    }
 
     // 5. Emit Rust source
     let t0 = Instant::now();

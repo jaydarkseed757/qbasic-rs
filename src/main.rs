@@ -120,15 +120,27 @@ fn main() -> Result<()> {
         t.starts_with('\'') || t.to_uppercase().starts_with("REM")
     }).count();
 
+    // Lex/parse failures are re-rendered with a source snippet (the failing
+    // line plus a caret) instead of the bare one-line summary — see
+    // `error::render_error`. Non-QbError failures pass through untouched.
+    let src_for_err = source.clone();
+    let path_for_err = args.input.to_string_lossy().to_string();
+    let snippet = move |e: anyhow::Error| -> anyhow::Error {
+        match e.downcast_ref::<error::QbError>() {
+            Some(qb) => anyhow::anyhow!("{}", error::render_error(qb, &path_for_err, &src_for_err)),
+            None => e,
+        }
+    };
+
     // 2. Lex
     let t0 = Instant::now();
-    let tokens = lexer::tokenize(&source)?;
+    let tokens = lexer::tokenize(&source).map_err(snippet.clone())?;
     let lex_dur = t0.elapsed();
     let token_count = tokens.len();
 
     // 3. Parse → AST
     let t0 = Instant::now();
-    let ast = parser::parse(tokens.clone())?;
+    let ast = parser::parse(tokens.clone()).map_err(snippet)?;
     let parse_dur = t0.elapsed();
 
     if args.dump_ast {

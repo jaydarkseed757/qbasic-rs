@@ -1062,6 +1062,34 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M29 — Source-snippet lex/parse errors ✅
+
+A lex or parse failure now prints the offending source line with a caret
+(rustc-style) rather than only a line number — `src/error.rs`.
+
+- `QbError::Lex`/`Parse` gained `near: Option<String>`, the source text of
+  the offending lexeme, threaded through all 15 construction sites (each
+  already had the token in hand for its message). `Token::source_text()`
+  derives it; structural tokens return `None`.
+- **The caret is drawn only when placement is unambiguous** — exactly one
+  occurrence of the lexeme on the line, with identifier-boundary matching
+  for word-like needles so `A` in `DIM A AS INTEGER` doesn't also match
+  the `A` inside `AS`. Ambiguous → line shown, caret omitted. The line
+  itself is always exact.
+- **Root-cause fix found while building it**: a `Newline` token was
+  recorded with the line it OPENS, not the one it TERMINATES (`line += 1`
+  ran before the push), so any "expected …, got Newline" error — a
+  truncated statement — reported the FOLLOWING line. Pre-existing, but
+  snippets made it visibly wrong. Safe to fix because statement-start
+  lines (what `--annotated`'s map and `skip_warn` read) are taken after
+  `skip_newlines()` and so never come from a `Newline`; gorilla's 190
+  annotations are unchanged.
+
+12 new unit tests, weighted toward the refusals (ambiguous → no caret,
+absent lexeme → no caret, out-of-range line → no snippet, CRLF must not
+leak `\r`). Verified: 217 unit, 48/48 integration, 55/55 build-all, 11/11
+goldens.
+
 ### M28 — rustc-error → QBasic-line translation ✅
 
 When emitted Rust fails to compile, `src/errmap.rs` appends a section
@@ -1773,7 +1801,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **48/48**, with 205 unit tests and 11 graphics golden
+The integration suite is **48/48**, with 217 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

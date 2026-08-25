@@ -400,6 +400,7 @@ impl Parser {
             Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected {expected:?}, got {:?}", self.peek()),
+                near: self.peek().source_text(),
             }.into())
         }
     }
@@ -1017,6 +1018,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("unexpected token in statement: {other:?}"),
+                near: other.source_text(),
             }.into()),
         }?;
 
@@ -1230,6 +1232,7 @@ impl Parser {
         Err(QbError::Parse {
             line: self.line(),
             msg: format!("expected type name, got {:?}", self.peek()),
+            near: self.peek().source_text(),
         }.into())
     }
 
@@ -1668,6 +1671,7 @@ impl Parser {
                     other => return Err(QbError::Parse {
                         line: self.line(),
                         msg: format!("expected comparison op after IS, got {other:?}"),
+                        near: other.source_text(),
                     }.into()),
                 };
                 CaseCond::Is(op, self.parse_expr()?)
@@ -1699,6 +1703,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected FOR/DO/SUB/FUNCTION after EXIT, got {other:?}"),
+                near: other.source_text(),
             }.into()),
         }
     }
@@ -2653,6 +2658,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected expression, got {other:?}"),
+                near: other.source_text(),
             }.into()),
         }
     }
@@ -2665,6 +2671,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected identifier, got {other:?}"),
+                near: other.source_text(),
             }.into())
         }
     }
@@ -2710,6 +2717,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected identifier, got {other:?}"),
+                near: other.source_text(),
             }.into())
         }
     }
@@ -2721,6 +2729,7 @@ impl Parser {
             other => Err(QbError::Parse {
                 line: self.line(),
                 msg: format!("expected label, got {other:?}"),
+                near: other.source_text(),
             }.into())
         }
     }

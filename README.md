@@ -441,6 +441,24 @@ their graphics mode at runtime are still identified correctly. Standalone
 analysis mode, same family as `--compatibility`/`--opt-report`.
 `basic-src/analyze.sh <file.bas>` is a one-liner wrapper.
 
+### Lex/parse errors show the source line
+
+A syntax error points at the offending line with a caret, rather than
+leaving you to go find line 46:
+
+```
+Error: Parse error at line 2: expected identifier, got Step
+ --> prog.bas:2
+  |
+2 | DIM step AS INTEGER
+  |     ^^^^
+```
+
+(`step` collides with the `STEP` keyword — one of the QB1.1 gotchas
+`--compatibility` audits for.) The caret is drawn only when the offending
+lexeme occurs exactly once on the line; if it's ambiguous, the line is
+shown without one rather than risk pointing at the wrong occurrence.
+
 ### rustc errors, mapped back to your `.bas`
 
 When the generated Rust fails to compile, rustc's diagnostics point at the

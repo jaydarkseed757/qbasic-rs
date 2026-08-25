@@ -132,6 +132,23 @@ impl Token {
             _ => format!("{self:?}"),
         }
     }
+
+    /// The token's text as it likely appears in the source, for placing an
+    /// error caret (`error::render_snippet`). Keywords fall back to their
+    /// Debug name, which matches the source word case-insensitively for
+    /// nearly all of them (`Token::Step` → `STEP`); the few that don't
+    /// (`ErrorKw`, `End_`, `Option_`) simply fail to match and the caret is
+    /// skipped, which is the safe outcome. Structural tokens return `None`
+    /// — they have no source text a caret could sit under, and their Debug
+    /// names ("Newline", "Eof") could otherwise match unrelated prose.
+    pub fn source_text(&self) -> Option<String> {
+        match self {
+            Token::Newline | Token::Eof | Token::QbcDirective(_) => None,
+            // A string literal's quotes are part of its source text.
+            Token::StrLit(s) => Some(format!("\"{s}\"")),
+            _ => Some(self.to_data_string()),
+        }
+    }
 }
 
 /// Normalise one raw DATA element. Quoted elements keep their interior verbatim;
@@ -280,6 +297,15 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                     .map(|s: &Spanned| s.token == Token::Newline)
                     .unwrap_or(true);
                 chars.next();
+                // A Newline token TERMINATES the line it follows, so it is
+                // attributed to that line — not the one it opens. Without
+                // this, an error whose offending token is the end-of-line
+                // (`expected expression, got Newline`, i.e. a truncated
+                // statement) reported — and, once snippets existed, printed
+                // the source of — the FOLLOWING line. `line` itself is
+                // still bumped here so every subsequent token is numbered
+                // correctly.
+                let nl_line = line;
                 line += 1;
 
                 if in_line_numbered_mode {
@@ -292,14 +318,14 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                         None | Some(&'\n') | Some(&('0'..='9'))
                     );
                     if is_new_logical_line && !last_is_newline {
-                        push!(Token::Newline);
+                        out.push(Spanned::new(Token::Newline, nl_line));
                     }
                     // Continuation: emit nothing; leading whitespace is consumed
                     // by the outer loop's whitespace arm on the next iteration.
                 } else {
                     // Non-line-numbered program: every \n is a statement separator.
                     if !last_is_newline {
-                        push!(Token::Newline);
+                        out.push(Spanned::new(Token::Newline, nl_line));
                     }
                 }
             }
@@ -384,6 +410,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                         let n = i32::from_str_radix(&hex, 16).map_err(|_| QbError::Lex {
                             line,
                             msg: format!("bad hex literal &H{hex}"),
+                            near: Some(format!("&H{hex}")),
                         })?;
                         push!(Token::IntLit(n));
                     }
@@ -397,6 +424,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                         let n = i32::from_str_radix(&oct, 8).map_err(|_| QbError::Lex {
                             line,
                             msg: format!("bad octal literal &O{oct}"),
+                            near: Some(format!("&O{oct}")),
                         })?;
                         push!(Token::IntLit(n));
                     }
@@ -615,6 +643,7 @@ pub fn tokenize(source: &str) -> Result<Vec<Spanned>> {
                 return Err(QbError::Lex {
                     line,
                     msg: format!("unexpected character: {other:?}"),
+                    near: Some(other.to_string()),
                 }.into());
             }
         }
@@ -700,6 +729,7 @@ fn lex_number(
             let n = s.parse::<i32>().map_err(|_| QbError::Lex {
                 line,
                 msg: format!("integer literal out of range: {s}"),
+                near: Some(s.clone()),
             })?;
             return Ok(Token::IntLit(n));
         }
@@ -710,6 +740,7 @@ fn lex_number(
         let v = s.parse::<f64>().map_err(|_| QbError::Lex {
             line,
             msg: format!("bad float literal: {s}"),
+            near: Some(s.clone()),
         })?;
         Ok(Token::FloatLit(v))
     } else {
@@ -720,6 +751,7 @@ fn lex_number(
                 let v = s.parse::<f64>().map_err(|_| QbError::Lex {
                     line,
                     msg: format!("numeric literal out of range: {s}"),
+                    near: Some(s.clone()),
                 })?;
                 Ok(Token::FloatLit(v))
             }
@@ -745,6 +777,26 @@ mod tests {
     fn keywords_are_case_insensitive() {
         let t = toks("print PRINT Print");
         assert!(t.iter().all(|t| *t == Token::Print));
+    }
+
+    #[test]
+    fn newline_token_is_attributed_to_the_line_it_terminates() {
+        // A Newline ends the line it follows; it must NOT carry the line
+        // number of the line it opens. Errors whose offending token is the
+        // end-of-line ("expected expression, got Newline" — a truncated
+        // statement) otherwise report, and print a snippet of, the FOLLOWING
+        // line. Every non-Newline token still gets its own correct line.
+        let spans = tokenize("PRINT 1\nPRINT 2\n").unwrap();
+        let nl_lines: Vec<u32> = spans.iter()
+            .filter(|s| s.token == Token::Newline)
+            .map(|s| s.line)
+            .collect();
+        assert_eq!(nl_lines, vec![1, 2]);
+
+        let second_print = spans.iter()
+            .filter(|s| s.token == Token::Print)
+            .nth(1).expect("two PRINTs");
+        assert_eq!(second_print.line, 2, "real tokens keep their own line");
     }
 
     #[test]

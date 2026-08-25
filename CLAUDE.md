@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
 - **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **205** runtime+transpiler unit tests (`cargo test --workspace`)
+- **217** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2630,6 +2630,62 @@ unfixed local-variable-vs-CONST `E0530` collision (see Known Issues) —
 in single-error, multi-error, and unannotated-region forms. Verified: 205
 unit, 48/48 integration, 55/55 build-all (`--clean`), 11/11 goldens
 (checksums unchanged — the success path is untouched).
+
+### Source-snippet lex/parse errors (`src/error.rs`)
+
+A lex or parse failure now prints the offending source line with a caret,
+rustc-style, instead of only a line number:
+
+```
+Error: Parse error at line 2: expected identifier, got Step
+ --> snip1.bas:2
+  |
+2 | DIM step AS INTEGER
+  |     ^^^^
+```
+
+- **`QbError::Lex`/`Parse` gained `near: Option<String>`** — the *source
+  text* of the offending lexeme, threaded through all 15 construction
+  sites (9 parser, 6 lexer). Each site already had the token or lexeme in
+  hand for its message, so this is purely additive.
+- **`Token::source_text()`** (`lexer.rs`) derives that text. Keywords fall
+  back to the Debug name, which matches the source word case-insensitively
+  for nearly all of them (`Token::Step` → `STEP`); the few that don't
+  (`ErrorKw`, `End_`, `Option_`) simply fail to match and the caret is
+  skipped. `Newline`/`Eof`/`QbcDirective` return `None` — they have no
+  source text a caret could sit under, and their Debug names could
+  otherwise match unrelated prose in the line.
+- **The caret is drawn only when placement is unambiguous.** `unique_match`
+  requires exactly ONE occurrence of the lexeme on the line; a second match
+  means a caret could land under the wrong one, so it's omitted. Word-like
+  needles additionally require identifier boundaries, so searching `A` in
+  `DIM A AS INTEGER` finds the standalone `A` and not the one inside `AS`
+  (making that case unambiguous, and therefore caret-able). Operators skip
+  the boundary test. The line itself is always shown regardless — that's
+  the bulk of the value, and it's exact.
+
+**Root-cause fix found while building this** (`lexer.rs`): a `Newline`
+token was recorded with the line it OPENS rather than the one it
+TERMINATES, because `line += 1` ran before the token was pushed. So any
+error whose offending token is the end-of-line — `expected expression, got
+Newline`, i.e. a truncated statement — reported the FOLLOWING line. This
+was a pre-existing wrong line number in the message; snippets made it
+visibly wrong (printing the next line's source), which is exactly the
+"confidently misleading" failure mode this project avoids elsewhere. Fixed
+by capturing the pre-increment line for the pushed `Newline` (`line`
+itself still advances, so every other token keeps its correct number).
+Safe because statement-start lines — the ones `--annotated`'s map and
+`skip_warn` use — are read after `skip_newlines()`, so they never come
+from a `Newline` token; gorilla's 190 annotations and their QB line
+numbers are unchanged. Locked by
+`newline_token_is_attributed_to_the_line_it_terminates`.
+
+12 new unit tests (10 `error_tests` + the lexer regression + a snippet
+case), weighted toward the refusals: ambiguous match → no caret, lexeme
+absent from the line → no caret, out-of-range line → no snippet at all,
+CRLF sources must not leak a `\r` into the quoted line. Verified: 217
+unit, 48/48 integration, 55/55 build-all (`--clean`), 11/11 goldens
+(checksums unchanged).
 
 ## Known Issues / TODO
 

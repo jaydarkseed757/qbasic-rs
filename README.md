@@ -378,6 +378,7 @@ endings) plus an advisory-only category for legitimate but
 hardware/timing-fragile statements (`WAIT`, `OUT`, `DEF SEG`, `POKE`,
 `PALETTE USING`) that are never scored. Standalone analysis mode — exits
 right after parsing, doesn't transpile or compile.
+`basic-src/compatibility.sh <file.bas>` is a one-liner wrapper.
 
 ### `--opt-report`: source-level findings, not a compiler-optimization report
 
@@ -399,7 +400,7 @@ source that `rustc` never sees at all: unreachable named labels (never a
 but never `REDIM`'d, `IF`/`ELSEIF` conditions that fold to a constant
 value from literals/CONSTs alone, `DATA` table size, and the shared/global
 variable type table. Standalone analysis mode, same family as
-`--compatibility`.
+`--compatibility`. `basic-src/opt-report.sh <file.bas>` is a one-liner wrapper.
 
 ### `--analyze`: BASIC source archaeology
 
@@ -437,6 +438,7 @@ scientific dating method. `SCREEN` mode resolution follows simple variable
 assignment (`Mode = 9` ... `SCREEN Mode`) so real programs that negotiate
 their graphics mode at runtime are still identified correctly. Standalone
 analysis mode, same family as `--compatibility`/`--opt-report`.
+`basic-src/analyze.sh <file.bas>` is a one-liner wrapper.
 
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 

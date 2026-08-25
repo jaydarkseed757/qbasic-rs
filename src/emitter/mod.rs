@@ -4971,7 +4971,7 @@ impl Emitter {
                     return format!("qb_instr(1.0, {a0}, {a1})");
                 }
                 // MID$ optional len
-                if fn_name == "qb_mid" {
+                if fn_name == "qb_mid" && args.len() >= 2 {
                     let a0 = if matches!(&args[0], Expr::StrLit(_)) { a[0].clone() } else { format!("&({})", a[0]) };
                     let a2 = if a.len() >= 3 { format!("Some({})", a[2]) } else { "None".into() };
                     return format!("qb_mid({a0}, {}, {a2})", a[1]);
@@ -5552,7 +5552,7 @@ impl Emitter {
                 }
 
                 // ── MID$: 2-arg → None, 3-arg → Some(len) ───────────────────
-                if fn_name == "qb_mid" {
+                if fn_name == "qb_mid" && args.len() >= 2 {
                     let s0 = self.emit_expr_inner(&args[0]).unwrap_or_default();
                     let a0 = if matches!(&args[0], Expr::StrLit(_)) { s0 } else { format!("&({s0})") };
                     let a1 = self.emit_expr_inner(&args[1]).unwrap_or_default();

@@ -1355,7 +1355,169 @@ pub(super) fn collect_scalar_names_stmt(stmt: &Stmt, out: &mut HashMap<String, Q
             for a in args { collect_scalar_names_expr(a, out); }
         }
         Stmt::Block(inner) => collect_scalar_names_inner(inner, out),
-        _ => {}
+
+        // ── Graphics / console ────────────────────────────────────────────
+        // A scalar whose ONLY use in a scope is a graphics or file-I/O
+        // argument still has to count for cross-GOSUB promotion. Before
+        // these arms existed, `X = 5` in main + `PSET (X, 10)` in a GOSUB
+        // body compiled cleanly and drew at x=0, because the extracted fn
+        // declared its own zero-valued local. Silent wrong output, which is
+        // the worst failure mode this pass can produce.
+        Stmt::Screen(e) | Stmt::Play(e) | Stmt::PaletteUsing(e) => {
+            collect_scalar_names_expr(e, out);
+        }
+        Stmt::Cls(e) | Stmt::DefSeg(e) | Stmt::Randomize(e) => {
+            if let Some(e) = e { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Locate { row, col, cursor } => {
+            for e in [row, col, cursor].into_iter().flatten() {
+                collect_scalar_names_expr(e, out);
+            }
+        }
+        Stmt::Color { fg, bg } => {
+            for e in [fg, bg].into_iter().flatten() { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::ViewPrint { top, bot } => {
+            for e in [top, bot].into_iter().flatten() { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Circle { x, y, r, color, .. } => {
+            for e in [x, y, r] { collect_scalar_names_expr(e, out); }
+            if let Some(e) = color { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Line { x1, y1, x2, y2, color, .. } => {
+            for e in [x1, y1, color].into_iter().flatten() {
+                collect_scalar_names_expr(e, out);
+            }
+            for e in [x2, y2] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Pset { x, y, color, .. } => {
+            for e in [x, y] { collect_scalar_names_expr(e, out); }
+            if let Some(e) = color { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Paint { x, y, fill, border, .. } => {
+            for e in [x, y, fill] { collect_scalar_names_expr(e, out); }
+            if let Some(e) = border { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::View { x1, y1, x2, y2, fill, border } => {
+            for e in [x1, y1, x2, y2] { collect_scalar_names_expr(e, out); }
+            for e in [fill, border].into_iter().flatten() {
+                collect_scalar_names_expr(e, out);
+            }
+        }
+        Stmt::Window { x1, y1, x2, y2, .. } => {
+            for e in [x1, y1, x2, y2] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::PutSprite { x, y, arr, .. } => {
+            for e in [x, y] { collect_scalar_names_expr(e, out); }
+            collect_scalar_names_lvalue(arr, out);
+        }
+        Stmt::GetSprite { x1, y1, x2, y2, arr, .. } => {
+            for e in [x1, y1, x2, y2] { collect_scalar_names_expr(e, out); }
+            collect_scalar_names_lvalue(arr, out);
+        }
+        Stmt::Palette { attr, color64 } => {
+            for e in [attr, color64] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Sound { freq, duration } => {
+            for e in [freq, duration] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Poke { addr, val } => {
+            for e in [addr, val] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Out { port, val } => {
+            for e in [port, val] { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Wait { port, mask, xormask } => {
+            for e in [port, mask] { collect_scalar_names_expr(e, out); }
+            if let Some(e) = xormask { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::OnGoto { expr, .. } => collect_scalar_names_expr(expr, out),
+        Stmt::Read(vars) => {
+            for lv in vars { collect_scalar_names_lvalue(lv, out); }
+        }
+        Stmt::ReDim(decl) => {
+            for e in &decl.dims { collect_scalar_names_expr(e, out); }
+            for e in &decl.dim_lower { collect_scalar_names_expr(e, out); }
+        }
+
+        // ── File I/O ──────────────────────────────────────────────────────
+        Stmt::Open { path, file_num, rec_len, .. } => {
+            for e in [path, file_num] { collect_scalar_names_expr(e, out); }
+            if let Some(e) = rec_len { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Close { file_nums } => {
+            for e in file_nums { collect_scalar_names_expr(e, out); }
+        }
+        Stmt::Field { file_num, fields } => {
+            collect_scalar_names_expr(file_num, out);
+            for (len, lv) in fields {
+                collect_scalar_names_expr(len, out);
+                collect_scalar_names_lvalue(lv, out);
+            }
+        }
+        Stmt::FileGet { file_num, record, record_var } |
+        Stmt::FilePut { file_num, record, record_var } => {
+            collect_scalar_names_expr(file_num, out);
+            if let Some(e) = record { collect_scalar_names_expr(e, out); }
+            if let Some(lv) = record_var { collect_scalar_names_lvalue(lv, out); }
+        }
+        Stmt::LSet { var, expr } | Stmt::RSet { var, expr } => {
+            collect_scalar_names_lvalue(var, out);
+            collect_scalar_names_expr(expr, out);
+        }
+        Stmt::PrintFile { file_num, args, .. } => {
+            collect_scalar_names_expr(file_num, out);
+            for a in args {
+                if let PrintArg::Expr(e) = a { collect_scalar_names_expr(e, out); }
+            }
+        }
+        Stmt::InputFile { file_num, vars } => {
+            collect_scalar_names_expr(file_num, out);
+            for lv in vars { collect_scalar_names_lvalue(lv, out); }
+        }
+        Stmt::LineInputFile { file_num, var } => {
+            collect_scalar_names_expr(file_num, out);
+            collect_scalar_names_lvalue(var, out);
+        }
+        Stmt::WriteFile { file_num, args } => {
+            collect_scalar_names_expr(file_num, out);
+            for e in args { collect_scalar_names_expr(e, out); }
+        }
+
+        // ── Statements with no scalar-bearing expressions ─────────────────
+        // Listed EXPLICITLY rather than swept up by a `_ => {}` catch-all:
+        // that catch-all is precisely what let PSET/LINE/file-I/O silently
+        // go unscanned for years. With the match exhaustive, adding a new
+        // `Stmt` variant fails to compile until it is classified here — the
+        // recurring "scan pass missing an arm" bug class becomes impossible
+        // in this pass.
+        //   Dim(shared or array)  — handled by the guarded arm above; a
+        //     shared/array DIM is not a promotable local scalar.
+        //   Const / DefFn         — compile-time; deliberately never promoted
+        //     (a CONST promoted to GameState would shadow the emitted const).
+        //   Data                  — literal elements, never variable reads.
+        //   Erase / SharedDecl    — array names, not scalars.
+        Stmt::Dim(_) | Stmt::Const { .. } | Stmt::DefFn { .. } | Stmt::Data(_) |
+        Stmt::Erase(_) | Stmt::SharedDecl(_) | Stmt::Goto(_) | Stmt::Gosub(_) |
+        Stmt::Return | Stmt::Exit(_) | Stmt::Label(_) | Stmt::Beep |
+        Stmt::PaletteReset | Stmt::End | Stmt::Stop | Stmt::Restore(_) |
+        Stmt::OnKeyGosub { .. } | Stmt::OnTimerGosub { .. } |
+        Stmt::OnError { .. } | Stmt::Resume { .. } => {}
+    }
+}
+
+/// Scan an LValue used as a statement target (READ, INPUT #, GET/PUT sprite
+/// buffer, FIELD, LSET/RSET). A bare scalar target counts as a use; index
+/// expressions are reads in their own right.
+pub(super) fn collect_scalar_names_lvalue(lv: &LValue, out: &mut HashMap<String, QbType>) {
+    match lv {
+        LValue::Scalar { name, ty } => {
+            out.entry(name.to_lowercase()).or_insert_with(|| ty.clone());
+        }
+        LValue::Index { indices, .. } | LValue::FieldIndex { indices, .. } => {
+            for e in indices { collect_scalar_names_expr(e, out); }
+        }
+        LValue::Field { base, .. } => collect_scalar_names_lvalue(base, out),
     }
 }
 

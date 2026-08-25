@@ -39,3 +39,4 @@ tools/fuzz/tmp/
 tools/fuzz/failures/
 tools/fuzz/tmp-gfx/
 tools/fuzz/gfx-failures/
+FLUSHTST.TXT

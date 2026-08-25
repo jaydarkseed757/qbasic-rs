@@ -116,9 +116,15 @@ fn find_unreachable_labels(prog: &AnalyzedProgram) -> Vec<String> {
     // completely normal line-numbered code. Named labels don't have that
     // fallthrough ambiguity in practice — they exist specifically to be
     // jump targets, so "defined, never targeted" is a reliable signal.
+    // Dedup by name, for the same reason the never-resized-array rule does:
+    // one label name can legally be defined in several SUB/FUNCTION scopes,
+    // and printing the identical finding once per scope — with no scope
+    // shown to tell them apart — is noise, not information.
+    let mut seen: HashSet<String> = HashSet::new();
     defined.into_iter()
         .filter(|n| !n.chars().all(|c| c.is_ascii_digit()))
         .filter(|n| !used.contains(&n.to_lowercase()))
+        .filter(|n| seen.insert(n.to_lowercase()))
         .collect()
 }
 
@@ -158,9 +164,13 @@ fn find_constant_branches(prog: &AnalyzedProgram) -> Vec<(String, bool)> {
 
     let mut out = Vec::new();
     walk_program(prog, &mut |s| {
-        if let Stmt::If { cond, .. } = s {
-            if let Some(v) = fold_const_local(cond, &mut consts) {
-                out.push((describe_cond(cond), v != 0.0));
+        if let Stmt::If { cond, elseif_branches, .. } = s {
+            // Both the IF condition AND every ELSEIF condition — the report
+            // has always claimed to cover ELSEIF, but only IF was folded.
+            for c in std::iter::once(cond).chain(elseif_branches.iter().map(|(c, _)| c)) {
+                if let Some(v) = fold_const_local(c, &mut consts) {
+                    out.push((describe_cond(c), v != 0.0));
+                }
             }
         }
     });
@@ -377,6 +387,25 @@ mod optreport_tests {
         let r = run("IF 1 = 2 THEN\r\nPRINT \"never\"\r\nEND IF\r\n");
         assert_eq!(r.constant_branches.len(), 1);
         assert!(!r.constant_branches[0].1);
+    }
+
+    #[test]
+    fn constant_elseif_branch_is_flagged() {
+        let r = run(
+            "CONST N = 1\r\nIF N = 2 THEN\r\nPRINT \"a\"\r\nELSEIF N = 1 THEN\r\nPRINT \"b\"\r\nEND IF\r\n"
+        );
+        // Both the IF (always FALSE) and the ELSEIF (always TRUE) fold.
+        assert_eq!(r.constant_branches.len(), 2);
+        assert!(!r.constant_branches[0].1);
+        assert!(r.constant_branches[1].1);
+    }
+
+    #[test]
+    fn same_named_label_in_two_subs_is_reported_once() {
+        let r = run(
+            "CALL A\r\nCALL B\r\nSUB A\r\nDead:\r\nEND SUB\r\nSUB B\r\nDead:\r\nEND SUB\r\n"
+        );
+        assert_eq!(r.unreachable_labels, vec!["Dead".to_string()]);
     }
 
     #[test]

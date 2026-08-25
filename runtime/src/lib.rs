@@ -515,6 +515,8 @@ pub struct Runtime {
     /// Number of `present()`/`auto_present()` blits so far (headless exit policy).
     present_count: u64,
     /// Consecutive empty `inkey()` polls (headless `idle` exit threshold).
+    /// Consecutive headless INKEY$ polls with an empty scripted key queue;
+    /// drives `ExitAfter::Idle`. Reset whenever a scripted key is consumed.
     idle_polls: u32,
     /// Simulated byte memory for POKE/PEEK.  QB POKE stores a byte; PEEK reads it back.
     poke_mem: std::collections::HashMap<u32, u8>,
@@ -546,6 +548,12 @@ enum DumpAt { Exit, Present(u64), Ms(u64) }
 /// Guaranteed-termination policy for a headless run.
 #[derive(Clone, Copy)]
 enum ExitAfter { Idle, Ms(u64), Presents(u64) }
+
+/// Empty scripted INKEY$ polls before `QBC_EXIT_AFTER=idle` gives up. Each
+/// poll advances the virtual clock 1 ms, so this is ~20 virtual seconds of
+/// pure input-waiting — long enough not to truncate a legitimate busy-wait,
+/// far shorter than the 10 s REAL-time safety cap it complements.
+const IDLE_POLL_LIMIT: u32 = 20_000;
 
 /// Parsed `QBC_*` headless-driver configuration.
 /// One CHAIN'd COMMON value (QB passes COMMON positionally, typed).
@@ -1286,7 +1294,16 @@ impl Runtime {
         for ch in s.chars() {
             match ch {
                 '\r' => { self.cursor_col = 1; }
-                '\n' => { self.cursor_col = 1; self.cursor_row += 1; }
+                // An EMBEDDED newline (e.g. PRINT CHR$(10)) advances the row
+                // just like the trailing-newline path below, so it needs the
+                // same scroll check — without it, text printed after an
+                // embedded LF on the bottom row was written past the last
+                // row and silently clipped instead of scrolling the screen.
+                '\n' => {
+                    self.cursor_col = 1;
+                    self.cursor_row += 1;
+                    self.scroll_if_needed();
+                }
                 _ => {
                     self.wrap_cursor_if_pending();
                     self.draw_char_fb(ch);
@@ -1342,10 +1359,13 @@ impl Runtime {
             self.present();
 
             // ── Read keys ─────────────────────────────────────────────────────
-            let keys: Vec<Key> = match self.window.as_mut() {
-                Some(w) => { if !w.is_open() { std::process::exit(0); } w.get_keys_pressed(KeyRepeat::Yes) }
-                None    => vec![],
+            // The window-closed check must finish BEFORE flushing, since
+            // exit_flushed needs &mut self and the window borrow is live here.
+            let (closed, keys): (bool, Vec<Key>) = match self.window.as_mut() {
+                Some(w) => (!w.is_open(), w.get_keys_pressed(KeyRepeat::Yes)),
+                None    => (false, vec![]),
             };
+            if closed { self.exit_flushed(0); }
             let shift = self.window.as_ref()
                 .map(|w| w.is_key_down(Key::LeftShift) || w.is_key_down(Key::RightShift))
                 .unwrap_or(false);
@@ -1512,7 +1532,7 @@ impl Runtime {
                 .env("QBC_CHAIN_COMMON", &path)
                 .status()
             {
-                Ok(st) => std::process::exit(st.code().unwrap_or(0)),
+                Ok(st) => { let c = st.code().unwrap_or(0); self.exit_flushed(c) }
                 Err(e) => eprintln!("CHAIN: failed to run {}: {e}", target.display()),
             }
         }
@@ -1562,6 +1582,32 @@ impl Runtime {
     /// CLOSE (all)
     pub fn close_all(&mut self) {
         self.files.clear();
+    }
+
+    /// Flush every open sequential writer.
+    ///
+    /// Sequential output is buffered through a `BufWriter`, which normally
+    /// flushes when it is dropped — but EVERY program-termination path here
+    /// ends in `process::exit`, which does NOT run destructors. Without this,
+    /// a program that writes a file and ends with `END` (rather than an
+    /// explicit `CLOSE`) leaves a zero-byte file behind: silent data loss.
+    /// Call before any `process::exit`.
+    fn flush_files(&mut self) {
+        use std::io::Write;
+        for f in self.files.values_mut() {
+            match f {
+                QbFile::Sequential { writer: Some(w), .. } => { let _ = w.flush(); }
+                QbFile::Random { file, .. } => { let _ = file.flush(); }
+                _ => {}
+            }
+        }
+    }
+
+    /// Terminate the process the way every QB exit path should: flush any
+    /// buffered file output first, since `process::exit` skips `Drop`.
+    fn exit_flushed(&mut self, code: i32) -> ! {
+        self.flush_files();
+        std::process::exit(code)
     }
 
     /// For FIELD statement: just records how many bytes this file's records are.
@@ -1658,6 +1704,38 @@ impl Runtime {
     /// EOF(n) — QB boolean: -1.0 at end of a sequential input file (or when the
     /// handle isn't open for reading), 0.0 while data remains. Peeks the
     /// BufReader via `fill_buf` without consuming anything.
+    /// LOF(n) — length of the open file in bytes.
+    ///
+    /// Was a free function hardcoded to 0.0 with no access to the file
+    /// table, so EVERY `LOF` call returned 0. That silently broke the
+    /// standard "is there a saved file?" idiom — invaders.bas's
+    /// `IF LOF(fileN) < 90 THEN … DefaultScores` always took the reset
+    /// branch, so high scores never loaded.
+    ///
+    /// Flushes first: sequential writes are buffered, so a program that
+    /// writes and then asks for the length must not see a stale size.
+    pub fn qb_lof(&mut self, file_num: f64) -> f64 {
+        use std::io::{Seek, SeekFrom, Write};
+        match self.files.get_mut(&(file_num as u8)) {
+            Some(QbFile::Sequential { reader: Some(r), .. }) => {
+                r.get_ref().metadata().map(|m| m.len() as f64).unwrap_or(0.0)
+            }
+            Some(QbFile::Sequential { writer: Some(w), .. }) => {
+                let _ = w.flush();
+                w.get_ref().metadata().map(|m| m.len() as f64).unwrap_or(0.0)
+            }
+            Some(QbFile::Random { file, .. }) => {
+                let cur = file.stream_position().unwrap_or(0);
+                let len = file.seek(SeekFrom::End(0)).unwrap_or(0);
+                let _ = file.seek(SeekFrom::Start(cur));
+                len as f64
+            }
+            // Unopened handle — QB raises error 52; returning 0 keeps the
+            // common `IF LOF(n) = 0` first-run check working either way.
+            _ => 0.0,
+        }
+    }
+
     pub fn qb_eof(&mut self, file_num: f64) -> f64 {
         if let Some(QbFile::Sequential { reader: Some(r), .. }) =
             self.files.get_mut(&(file_num as u8))
@@ -1802,7 +1880,7 @@ impl Runtime {
             win.update();
             if !win.is_open() {
                 self.window = None;
-                std::process::exit(0);
+                self.exit_flushed(0);
             }
         }
     }
@@ -1813,12 +1891,14 @@ impl Runtime {
     /// `update()` does not sleep, and we skip the 2.3 MB alloc + full-frame
     /// rebuild that `present()` does. Used by `inkey()` between throttled blits.
     fn pump_events(&mut self) {
+        let mut closed = false;
         let (new_keys, down_keys): (Vec<Key>, Vec<Key>) = {
             let win = match self.window.as_mut() { Some(w) => w, None => return };
             win.update();
-            if !win.is_open() { std::process::exit(0); }
+            if !win.is_open() { closed = true; }
             (win.get_keys_pressed(KeyRepeat::No), win.get_keys())
         };
+        if closed { self.exit_flushed(0); }
         for key in new_keys {
             let s = minifb_key_to_qb(key);
             if !s.is_empty() { self.key_queue.push_back(s); }
@@ -1877,13 +1957,15 @@ impl Runtime {
         }
         // Borrow window in a nested block so it's released before we touch key_queue.
         // get_keys_pressed returns owned Vec<Key> so new_keys doesn't borrow the window.
+        let mut closed = false;
         let (new_keys, down_keys): (Vec<Key>, Vec<Key>) = {
             let out = &self.present_buf;
             let win = self.window.as_mut().unwrap();
             let _ = win.update_with_buffer(out, win_w, win_h);
-            if !win.is_open() { std::process::exit(0); }
+            if !win.is_open() { closed = true; }
             (win.get_keys_pressed(KeyRepeat::No), win.get_keys())
         }; // window borrow released here
+        if closed { self.exit_flushed(0); }
         // Harvest into key_queue so keys are never lost to intervening present() calls.
         for key in new_keys {
             let s = minifb_key_to_qb(key);
@@ -2353,7 +2435,7 @@ impl Runtime {
                 eprintln!("QBC_FBSTATS nonzero={nz} colors={nc}");
             }
         }
-        std::process::exit(0);
+        self.exit_flushed(0);
     }
 
     /// Headless bookkeeping called from present()/auto_present(): handles the
@@ -2383,7 +2465,13 @@ impl Runtime {
         let should_exit = elapsed_ms >= safety_ms || match exit_after {
             ExitAfter::Presents(n) => self.present_count >= n,
             ExitAfter::Ms(t)       => elapsed_ms >= t,
-            ExitAfter::Idle        => false,
+            // Idle = the scripted key queue has been exhausted and the
+            // program has done nothing since but poll for input. The
+            // threshold is deliberately generous: a program may legitimately
+            // spin thousands of empty INKEY$ polls inside one animation or
+            // Rest() loop before consuming the next scripted key, and cutting
+            // that short would truncate the very frame a golden wants.
+            ExitAfter::Idle        => self.idle_polls >= IDLE_POLL_LIMIT,
         };
         if should_exit { self.headless_finish(); }
     }
@@ -2624,6 +2712,17 @@ impl Runtime {
                 std::thread::sleep(std::time::Duration::from_millis(1));
             }
         }
+        // Track consecutive EMPTY scripted polls so QBC_EXIT_AFTER=idle (the
+        // documented default) can actually fire. `idle_polls` existed but was
+        // never incremented, so the idle policy was dead code and every idle
+        // headless run sat until the 10 s wall-clock safety cap.
+        if self.headless_cfg.is_some() {
+            if self.key_queue.is_empty() {
+                self.idle_polls = self.idle_polls.saturating_add(1);
+            } else {
+                self.idle_polls = 0;
+            }
+        }
         match self.key_queue.pop_front() {
             Some(k) if k == "\u{0}" => "".to_string(), // DRAIN sentinel → "" (stops drain loops)
             Some(k) => {
@@ -2677,16 +2776,32 @@ impl Runtime {
     /// MB prefix plays in background; MF (default) blocks until done.
     pub fn play(&mut self, mml: &str) {
         let events = sound::parse_mml(mml, &mut self.mml_state);
-        if self.mml_state.background {
-            // Don't stack a new play on top of one already running.
-            if self.bg_playing.load(std::sync::atomic::Ordering::Relaxed) {
-                return;
+        if events.is_empty() { return; }
+
+        // Dispatch by the mode each event was emitted UNDER, not by the
+        // mode left over at the end of the string. Reading only the final
+        // state made an `MB` late in a string retroactively push the
+        // earlier foreground notes into the background thread (and an `MF`
+        // late in one block the whole thing). Consecutive same-mode runs
+        // are played in order, so `MF C D MB E F` blocks on C-D and only
+        // then hands E-F to the background.
+        let mut i = 0usize;
+        while i < events.len() {
+            let bg = events[i].bg;
+            let mut j = i + 1;
+            while j < events.len() && events[j].bg == bg { j += 1; }
+            let run: Vec<_> = events[i..j].to_vec();
+            if bg {
+                // Don't stack a new background play on one already running.
+                if !self.bg_playing.load(std::sync::atomic::Ordering::Relaxed) {
+                    self.bg_playing.store(true, std::sync::atomic::Ordering::Relaxed);
+                    let flag = self.bg_playing.clone();
+                    sound::play_events_background_flagged(run, flag);
+                }
+            } else {
+                sound::play_events_blocking(&run);
             }
-            self.bg_playing.store(true, std::sync::atomic::Ordering::Relaxed);
-            let flag = self.bg_playing.clone();
-            sound::play_events_background_flagged(events, flag);
-        } else {
-            sound::play_events_blocking(&events);
+            i = j;
         }
     }
 
@@ -3049,7 +3164,7 @@ impl Runtime {
         // Drop will run after process::exit is NOT called here — we do the
         // wait ourselves so we can call process::exit cleanly afterward.
         self.wait_for_key();
-        std::process::exit(0);
+        self.exit_flushed(0);
     }
 
     /// SYSTEM — exit to DOS immediately. Unlike END (→ `quit()`), SYSTEM never
@@ -3347,7 +3462,11 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
             let formatted = if frac_digits > 0 {
                 format!("{:.prec$}", v.abs(), prec = frac_digits)
             } else {
-                format!("{}", v.abs() as i64)
+                // A fraction-less field ROUNDS, it does not truncate:
+                // `PRINT USING "###"; 9.6` is 10 in QB, and `as i64` gave 9.
+                // Uses qb_cint so the .5 case follows QB's banker's rounding
+                // (2.5 → 2, 3.5 → 4) rather than Rust's round-half-away.
+                format!("{}", qb_cint(v.abs()) as i64)
             };
             let (int_part, frac_part) = if let Some(pos) = formatted.find('.') {
                 (&formatted[..pos], &formatted[pos..])
@@ -4110,20 +4229,29 @@ pub fn qb_field_put(buf: &mut Vec<u8>, offset: usize, s: &str, len: usize) {
 
 /// Write a fixed-length string field: `n` raw bytes at `off`, space-padded.
 pub fn qb_rec_put_str(buf: &mut [u8], off: usize, s: &str, n: usize) {
-    let bytes = s.as_bytes();
+    // Latin-1, one char per byte — matching qb_field_put and every other
+    // binary-string helper here. Using `as_bytes()` (UTF-8) instead meant a
+    // char above 127 occupied TWO bytes, shifting the rest of the field and
+    // truncating it, so such records neither round-tripped nor matched the
+    // documented byte-exact-with-DOS-QBasic layout.
+    let chars: Vec<u8> = s.chars().map(|c| c as u32 as u8).collect();
     for i in 0..n {
         if off + i < buf.len() {
-            buf[off + i] = *bytes.get(i).unwrap_or(&b' ');
+            buf[off + i] = *chars.get(i).unwrap_or(&b' ');
         }
     }
 }
 
-/// Read a fixed-length string field: `n` bytes at `off`, space-padded if short.
+/// Read a fixed-length string field: `n` bytes at `off`, space-padded if
+/// short. Latin-1 (byte → char), the inverse of `qb_rec_put_str`; decoding
+/// as UTF-8 mangled every byte above 127 into U+FFFD.
 pub fn qb_rec_get_str(buf: &[u8], off: usize, n: usize) -> String {
-    let end = (off + n).min(buf.len());
-    let slice = if off < buf.len() { &buf[off..end] } else { &[][..] };
-    let s = String::from_utf8_lossy(slice).into_owned();
-    if s.len() < n { format!("{:<width$}", s, width = n) } else { s }
+    let mut s = String::with_capacity(n);
+    for i in 0..n {
+        let b = if off + i < buf.len() { buf[off + i] } else { b' ' };
+        s.push(char::from_u32(b as u32).unwrap());
+    }
+    s
 }
 
 fn rec_write(buf: &mut [u8], off: usize, bytes: &[u8]) {
@@ -4175,7 +4303,9 @@ pub fn qb_rec_get_f64(buf: &[u8], off: usize) -> f64 {
 /// Called as a QB function returning f64; the runtime's eof_check does the work.
 pub fn qb_eof_fn(_file_num: f64) -> f64 { 0.0 } // conservative: let read fail naturally
 
-/// LOF(n) — length of open file in bytes (returns 0 if not available).
+/// LOF(n) — legacy free-function stub. The real implementation is
+/// `Runtime::qb_lof`, which the emitter now routes to; this remains only so
+/// previously-generated `.rs` files still compile.
 pub fn qb_lof_fn(_file_num: f64) -> f64 { 0.0 }
 
 /// VARPTR — returns a fake memory address (stub: always 0)
@@ -4342,6 +4472,18 @@ mod print_using_tests {
     #[test]
     fn basic_integer_field() {
         assert_eq!(pu("###", 42.0), " 42");
+    }
+
+    /// A fraction-less field ROUNDS; it used to truncate via `as i64`, so
+    /// 9.6 printed as 9. The .5 cases must follow QB's banker's rounding
+    /// (via qb_cint), not Rust's round-half-away-from-zero.
+    #[test]
+    fn integer_field_rounds_not_truncates() {
+        assert_eq!(pu("###", 9.6),  " 10");
+        assert_eq!(pu("###", 9.4),  "  9");
+        assert_eq!(pu("###", 2.5),  "  2", "banker's: half to even");
+        assert_eq!(pu("###", 3.5),  "  4", "banker's: half to even");
+        assert_eq!(pu("###", -9.6), "-10");
     }
     #[test]
     fn basic_fixed_point() {
@@ -4790,6 +4932,28 @@ mod window_tests {
 #[cfg(test)]
 mod record_tests {
     use super::*;
+
+    /// Fixed-length string fields are Latin-1 (one char per byte), matching
+    /// qb_field_put/get and the documented byte-exact-with-DOS layout. They
+    /// used to go through UTF-8, so a char above 127 took two bytes, shifted
+    /// the field and failed to round-trip.
+    #[test]
+    fn rec_str_field_is_latin1_and_round_trips() {
+        let mut buf = vec![0u8; 8];
+        // U+00C9 (É) is one Latin-1 byte 0xC9 but TWO bytes in UTF-8.
+        qb_rec_put_str(&mut buf, 0, "A\u{00C9}B", 4);
+        assert_eq!(&buf[0..4], &[b'A', 0xC9, b'B', b' '], "one byte per char");
+        assert_eq!(qb_rec_get_str(&buf, 0, 4), "A\u{00C9}B ");
+    }
+
+    #[test]
+    fn rec_str_field_pads_and_truncates_to_width() {
+        let mut buf = vec![0u8; 8];
+        qb_rec_put_str(&mut buf, 0, "ABCDEF", 3);
+        assert_eq!(qb_rec_get_str(&buf, 0, 3), "ABC", "truncates to field width");
+        qb_rec_put_str(&mut buf, 4, "Z", 3);
+        assert_eq!(qb_rec_get_str(&buf, 4, 3), "Z  ", "space-pads short values");
+    }
 
     // Round-trip a HALLFAMEREC-shaped record (STRING*20, INTEGER, LONG = 26 bytes).
     #[test]

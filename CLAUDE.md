@@ -88,8 +88,8 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
-- **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **217** runtime+transpiler unit tests (`cargo test --workspace`)
+- **49/49** integration (`tests/run-tests.sh`, stdout-based)
+- **224** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2687,7 +2687,108 @@ CRLF sources must not leak a `\r` into the quoted line. Verified: 217
 unit, 48/48 integration, 55/55 build-all (`--clean`), 11/11 goldens
 (checksums unchanged).
 
+### Full-codebase bug audit — Tier 1 (ten silent-wrong-behavior bugs), all fixed
+
+A three-pass audit over all ~21,000 lines (`runtime/`, `src/emitter/`, and
+the parser/lexer/analyzer/report modules) surfaced 25 issues. The ten in
+Tier 1 all shared one property: **they produced wrong behavior with no
+error of any kind** — nothing in the test suites, the fuzzers, or a normal
+build would tell you. All ten are now fixed, each with a regression test.
+
+1. **Buffered file output was silently discarded.** Every termination path
+   ends in `process::exit`, which skips `Drop`, so sequential `BufWriter`s
+   never flushed and `close_all()` never ran. A program that wrote a file
+   and ended with `END` rather than an explicit `CLOSE` left a **zero-byte
+   file**. New `flush_files()`/`exit_flushed()`, with all seven exit paths
+   routed through it — three sat inside a live `self.window` borrow and
+   needed the `is_open()` check hoisted out first. (Nothing shipped was
+   broken: all three bundled programs that write files happen to `CLOSE`.)
+2. **Scalars used only in graphics/file-I/O statements never promoted
+   across a GOSUB boundary.** `collect_scalar_names_stmt` had no arms for
+   `PSET`/`LINE`/`CIRCLE`/`PAINT`/`LOCATE`/`READ`/file-I/O and a `_ => {}`
+   catch-all swallowed them, so `X = 5` in main with `PSET (X,10)` in a
+   GOSUB body compiled cleanly and drew at x=0. Rather than add the missing
+   arms and leave the trap armed, **the match is now exhaustive** — every
+   expression-free variant is listed explicitly, so adding a new `Stmt`
+   fails to compile until it is classified. This was the third instance of
+   the "scan pass missing an arm" class documented above; it can no longer
+   recur in this pass.
+3. **`LOF()` always returned 0** — a free function with no access to the
+   file table. That silently broke the standard "is there a saved file?"
+   idiom: `invaders.bas:1157`'s `IF LOF(fileN) < 90 THEN … DefaultScores`
+   always took the reset branch, so high scores never loaded. Now
+   `Runtime::qb_lof` (flushing first, so buffered writes count), routed
+   through `__rt` in both expression-emission paths exactly like `EOF`.
+4. **`PRINT USING` truncated instead of rounding**: `PRINT USING "###";
+   9.6` gave 9, QB gives 10. Now rounds via `qb_cint`, so the `.5` cases
+   keep QB's banker's rounding (2.5 → 2, 3.5 → 4).
+5. **`--annotated` silently disabled the rustc→QBasic mapping** (a
+   regression from the errmap work). The map aligned `rust_source` against
+   a fresh annotated emission, but under `--annotated` `rust_source` is
+   ALREADY annotated, so alignment diverged on the first comment line.
+   Under that flag the compiled file carries the annotations itself and its
+   diagnostics use ITS line numbers, so it's now read directly via
+   `build_line_map_from_annotated`.
+6. **`PLAY` dispatched by the mode left over at the END of the string**
+   rather than the mode each note was emitted under, so a late `MB`
+   retroactively pushed earlier foreground notes into the background
+   thread. `PlayEvent` now carries its emission-time mode and `play()`
+   walks consecutive same-mode runs in order.
+7. **Fixed-length string record fields used UTF-8** while every sibling
+   binary helper uses Latin-1, so a char above 127 took two bytes, shifted
+   and truncated the field, and broke the documented byte-exact-with-DOS
+   layout.
+8. **An embedded newline in `print_gfx`** (`PRINT CHR$(10)`) advanced the
+   row without the scroll check the trailing-newline path does, so text
+   after an embedded LF on the bottom row was silently clipped.
+9. **`QBC_EXIT_AFTER=idle` — the documented DEFAULT — was dead code**:
+   `idle_polls` was declared and initialized but never incremented, and the
+   policy arm was hardcoded `false`, so every idle headless run sat until
+   the 10 s wall-clock safety cap. `inkey()` now counts consecutive empty
+   scripted polls (reset when a key is consumed) with a deliberately
+   generous 20k threshold, so a legitimate busy-wait inside an animation
+   loop is never truncated. An idle graphics program now exits in ~1 s.
+10. **`--opt-report` never folded `ELSEIF`** despite the struct doc, README
+    and this file all claiming `IF`/`ELSEIF` coverage; and unreachable-label
+    findings repeated once per defining scope, which the never-resized-array
+    rule already dedups for the same reason.
+
+Verified: 224 unit, 49/49 integration (new `file_flush_on_end.bas` covers
+the flush and `LOF` end-to-end), 55/55 build-all (`--clean`), 11/11 goldens
+with **checksums unchanged** — which is the load-bearing check here, since
+#2 changes promotion and #6/#9 change headless timing; plus 25-seed
+graphics and 40-seed differential fuzz spot-checks.
+
+Tiers 2–4 (four panics, eight emitted-Rust compile errors, three
+reporting/cosmetic issues) are catalogued but not yet fixed — see the
+audit entry in Known Issues below.
+
 ## Known Issues / TODO
+
+- **Audit Tiers 2–4 — catalogued, not yet fixed.** The same full-codebase
+  audit that produced the Tier-1 fixes above also found 15 lower-severity
+  issues. Unlike Tier 1 these all announce themselves (a panic, or a
+  compile error in the emitted Rust), so none can silently corrupt a
+  result:
+  - **Panics (4)**: `x MOD 0` / `x \ 0` panics instead of raising QB error
+    11; `PRINT USING` `\...\` slices by BYTES so a CP437 string panics
+    mid-character; `GET`/`PUT #n, 0` computes `-1 as u64` → overflow panic
+    or a garbage far-past-EOF seek; `MID$(A$)` with one argument panics the
+    transpiler itself.
+  - **Emitted Rust won't compile (8)**: `remove_unnecessary_mut` strips
+    `mut` from a local only mutated via a method call (`push_str`) → E0596;
+    `REDIM` growing an INNER bound is a silent no-op → index panic; `UBOUND`
+    on a shared string array → E0425; `ERASE` on a local string array →
+    E0425+E0308; `REDIM` inside the `__pc` state machine → E0425;
+    `redim_declared` not reset for `main`/`emit_gosub_fn` → E0425; `ERASE`
+    on a SUB-local 2-D array → E0308; `emit_def_fns` doesn't reset the
+    string-scalar/dim sets. Two of these are further instances of the
+    "per-scope bookkeeping not reset" pattern.
+  - **Reporting/cosmetic (3)**: `--analyze` can print a reversed era range
+    (`1991–1988`) when the dialect floor exceeds the graphics ceiling;
+    `errmap`'s "N of M mapped" header counts before dedup so it can
+    overstate; (the third, `--opt-report` ELSEIF/label dedup, was fixed in
+    Tier 1).
 
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
   the changelog section above). Audit non-findings, recorded so nobody

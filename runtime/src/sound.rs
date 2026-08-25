@@ -31,6 +31,10 @@ impl Default for MmlState {
 pub struct PlayEvent {
     freq_hz: f32,   // 0 = rest
     dur_ms:  u64,
+    /// MB/MF mode in force when THIS event was emitted. Recorded per-event
+    /// because a single PLAY string may switch modes partway through, and
+    /// the switch must not apply retroactively to notes already emitted.
+    pub bg:  bool,
 }
 
 // ── MML parser ────────────────────────────────────────────────────────────────
@@ -125,7 +129,7 @@ pub fn parse_mml(mml: &str, state: &mut MmlState) -> Vec<PlayEvent> {
                 // Count dots
                 let mut dots = 0u32;
                 while i < len && chars[i] == '.' { dots += 1; i += 1; }
-                events.push(PlayEvent {
+                events.push(PlayEvent { bg: state.background,
                     freq_hz: 0.0,
                     dur_ms: note_dur_ms(length, dots, state.tempo),
                 });
@@ -136,16 +140,16 @@ pub fn parse_mml(mml: &str, state: &mut MmlState) -> Vec<PlayEvent> {
                 let (v, ni) = read_int(&chars, i); i = ni;
                 if v == 0 {
                     // N0 = rest for current length
-                    events.push(PlayEvent { freq_hz: 0.0,
+                    events.push(PlayEvent { bg: state.background, freq_hz: 0.0,
                         dur_ms: note_dur_ms(state.length, 0, state.tempo) });
                 } else {
                     // N1-N84: absolute note number
                     let total_ms = note_dur_ms(state.length, 0, state.tempo);
                     let sound_ms = (total_ms as f64 * style_frac(state.style)) as u64;
                     let rest_ms  = total_ms - sound_ms;
-                    events.push(PlayEvent { freq_hz: note_num_to_freq(v), dur_ms: sound_ms });
+                    events.push(PlayEvent { bg: state.background, freq_hz: note_num_to_freq(v), dur_ms: sound_ms });
                     if rest_ms > 0 {
-                        events.push(PlayEvent { freq_hz: 0.0, dur_ms: rest_ms });
+                        events.push(PlayEvent { bg: state.background, freq_hz: 0.0, dur_ms: rest_ms });
                     }
                 }
             }
@@ -178,9 +182,9 @@ pub fn parse_mml(mml: &str, state: &mut MmlState) -> Vec<PlayEvent> {
                 let sound_ms = (total_ms as f64 * style_frac(state.style)) as u64;
                 let rest_ms  = total_ms - sound_ms;
 
-                events.push(PlayEvent { freq_hz: freq, dur_ms: sound_ms.max(1) });
+                events.push(PlayEvent { bg: state.background, freq_hz: freq, dur_ms: sound_ms.max(1) });
                 if rest_ms > 0 {
-                    events.push(PlayEvent { freq_hz: 0.0, dur_ms: rest_ms });
+                    events.push(PlayEvent { bg: state.background, freq_hz: 0.0, dur_ms: rest_ms });
                 }
             }
 
@@ -298,7 +302,7 @@ pub fn play_events_background_flagged(
 pub fn play_sound(freq: f64, duration_ticks: f64) {
     if freq < 37.0 || freq > 32_767.0 || duration_ticks <= 0.0 { return; }
     let dur_ms = ((duration_ticks / 18.2) * 1000.0).min(60_000.0) as u64;
-    let events = vec![PlayEvent { freq_hz: freq as f32, dur_ms }];
+    let events = vec![PlayEvent { bg: false, freq_hz: freq as f32, dur_ms }];
     play_events_blocking(&events);
 }
 

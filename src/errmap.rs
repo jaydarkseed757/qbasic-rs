@@ -127,6 +127,26 @@ fn starts_top_level_item(line: &str) -> bool {
             .any(|k| line.starts_with(k))
 }
 
+/// Build a map for a compiled file that ALREADY carries `// QB:` comments
+/// (i.e. the program was transpiled with `--annotated`, so that is the file
+/// rustc saw and its diagnostics carry *annotated* line numbers). No
+/// alignment is needed here — the annotations are read straight out of the
+/// compiled text — but the same
+/// annotation-does-not-leak-past-a-top-level-item rule applies.
+pub fn build_line_map_from_annotated(annotated: &str) -> HashMap<usize, u32> {
+    let mut map = HashMap::new();
+    let mut cur_qb: Option<u32> = None;
+    for (i, line) in annotated.lines().enumerate() {
+        if let Some(n) = qb_annotation(line) {
+            cur_qb = Some(n);
+            continue;
+        }
+        if starts_top_level_item(line) { cur_qb = None; }
+        if let Some(n) = cur_qb { map.insert(i + 1, n); }
+    }
+    map
+}
+
 /// Build a `plain .rs line (1-based)` → `QB source line` map by aligning
 /// the plain and annotated emissions. Returns `None` if they diverge on
 /// any non-annotation line (the alignment assumption this whole module
@@ -262,6 +282,27 @@ mod errmap_tests {
         assert_eq!(map.get(&2), Some(&10));
         assert_eq!(map.get(&3), Some(&20));
         assert_eq!(map.get(&1), None, "fn signature line precedes any annotation");
+    }
+
+    #[test]
+    fn annotated_file_maps_by_its_own_line_numbers() {
+        // Under --annotated the compiled file IS the annotated one, so
+        // diagnostics carry annotated line numbers and must be looked up
+        // directly — aligning two annotated sources would diverge on the
+        // first comment line and silently disable mapping.
+        let annotated = "fn main() {\n    // QB: 10\n    let x = 1;\n}\n";
+        let map = build_line_map_from_annotated(annotated);
+        // Line 3 of the ANNOTATED file is `let x = 1;`.
+        assert_eq!(map.get(&3), Some(&10));
+        assert_eq!(map.get(&1), None);
+    }
+
+    #[test]
+    fn annotated_map_also_stops_at_top_level_items() {
+        let annotated = "fn a() {\n    // QB: 10\n    let x = 1;\n}\nfn b() {\n    let y = 2;\n}\n";
+        let map = build_line_map_from_annotated(annotated);
+        assert_eq!(map.get(&3), Some(&10));
+        assert_eq!(map.get(&6), None, "fn b must not inherit fn a's annotation");
     }
 
     #[test]

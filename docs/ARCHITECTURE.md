@@ -1062,6 +1062,47 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M30 — Full-codebase bug audit; all ten Tier-1 bugs fixed ✅
+
+A three-pass audit over ~21,000 lines found 25 issues. The ten in Tier 1
+shared one property — **wrong behavior with no error of any kind**, so
+neither the test suites nor the fuzzers would surface them. All ten fixed:
+
+- Buffered file output was silently discarded (`process::exit` skips
+  `Drop`), so a program writing a file and ending with `END` rather than
+  `CLOSE` left a **zero-byte file**. All seven exit paths now flush.
+- Scalars used only in graphics/file-I/O statements were never promoted
+  across a GOSUB boundary — `PSET (X,10)` in a GOSUB body drew at x=0 while
+  `X = 5` in main. Fixed by making `collect_scalar_names_stmt`'s match
+  **exhaustive**, so a new `Stmt` variant now fails to compile until it is
+  classified — closing the recurring "scan pass missing an arm" class for
+  this pass rather than just patching the instance.
+- `LOF()` always returned 0 (free fn, no file-table access), silently
+  breaking invaders.bas's high-score load. Now `Runtime::qb_lof`.
+- `PRINT USING` truncated instead of rounding (`"###"; 9.6` → 9, QB gives
+  10); now uses `qb_cint` so `.5` keeps banker's rounding.
+- `--annotated` silently disabled the rustc→QBasic mapping (errmap
+  regression); the annotated file is now read directly.
+- `PLAY` applied the string's FINAL `MB`/`MF` state retroactively to
+  earlier notes; events now carry their emission-time mode.
+- Fixed-length string record fields used UTF-8 instead of the Latin-1
+  convention every sibling helper uses, breaking round-trip and the
+  byte-exact-with-DOS layout.
+- An embedded `CHR$(10)` in `print_gfx` skipped the scroll check, silently
+  clipping bottom-row text.
+- `QBC_EXIT_AFTER=idle`, the documented default, was dead code — the
+  counter was never incremented and the policy arm was hardcoded `false`.
+  Idle runs now exit in ~1 s instead of waiting out the 10 s safety cap.
+- `--opt-report` never folded `ELSEIF` despite the docs, and duplicated
+  label findings per scope.
+
+Verified: 224 unit, 49/49 integration, 55/55 build-all (`--clean`), 11/11
+goldens with checksums unchanged (the load-bearing check, since the
+promotion and headless-timing fixes could have moved them), plus graphics
+and differential fuzz spot-checks. Tiers 2–4 (four panics, eight
+emitted-Rust compile errors, two reporting issues) are catalogued in
+CLAUDE.md's Known Issues.
+
 ### M29 — Source-snippet lex/parse errors ✅
 
 A lex or parse failure now prints the offending source line with a caret
@@ -1801,7 +1842,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **48/48**, with 217 unit tests and 11 graphics golden
+The integration suite is **49/49**, with 224 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

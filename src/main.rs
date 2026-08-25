@@ -5,6 +5,7 @@ mod emitter;
 mod error;
 mod compat;
 mod optreport;
+mod errmap;
 mod archaeology;
 
 use std::path::PathBuf;
@@ -241,14 +242,38 @@ fn main() -> Result<()> {
             "-o", binary.to_str().unwrap(),
         ];
         if is_release { rustc_args.push("-C"); rustc_args.push("opt-level=3"); }
-        let status = std::process::Command::new("rustc")
+        // Capture stderr so a failure can be mapped back to .bas lines (see
+        // `errmap`). It's echoed verbatim first, so the normal rustc
+        // experience is unchanged — including color, which rustc would
+        // otherwise disable on seeing a pipe.
+        use std::io::IsTerminal;
+        if std::io::stderr().is_terminal() {
+            rustc_args.push("--color=always");
+        }
+        let output = std::process::Command::new("rustc")
             .args(&rustc_args)
-            .status()?;
-        if status.success() {
+            .stderr(std::process::Stdio::piped())
+            .output()?;
+        if output.status.success() {
+            eprint!("{}", String::from_utf8_lossy(&output.stderr));
             if !args.verbose {
                 eprintln!("Compiled: {}", binary.display());
             }
         } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            eprint!("{stderr}");
+            // Translate the failure back to QBasic source lines. Entirely
+            // best-effort: any step that can't produce a trustworthy answer
+            // yields None and we simply don't print the extra section.
+            let rs_name = out_path.to_string_lossy().to_string();
+            let diags = errmap::parse_rustc_errors(&stderr, &rs_name);
+            let line_map = emitter::emit_annotated(&program).ok()
+                .and_then(|annotated| errmap::build_line_map(&rust_source, &annotated));
+            if let Some(report) = errmap::render(
+                &diags, line_map.as_ref(), &args.input.to_string_lossy(), &source,
+            ) {
+                eprint!("{report}");
+            }
             anyhow::bail!("rustc failed");
         }
     }

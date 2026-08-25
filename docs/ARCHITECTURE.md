@@ -1062,6 +1062,40 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M28 — rustc-error → QBasic-line translation ✅
+
+When emitted Rust fails to compile, `src/errmap.rs` appends a section
+mapping each rustc diagnostic back to the `.bas` line that produced it,
+quoting that line's source text. Automatic (no flag), zero cost on the
+success path.
+
+- **The map is built without a second compile.** `--annotated` output is
+  byte-identical to plain output except for inserted `// QB: <line>`
+  comment lines — verified empirically across all 55 bundled programs
+  before anything was built on it. `build_line_map` emits both and walks
+  them with two pointers, skipping comment lines on the annotated side.
+  This sidesteps the reason a map can't simply be recorded *during*
+  emission: the postprocess passes (`inline_single_use_tmps`,
+  `strip_dead_gamestate_fields`, …) add and remove lines afterwards, so
+  emission-time line numbers are stale by the time rustc sees the file.
+- **Three independent refusals to guess**: divergence between the two
+  emissions → `None`; an annotation never leaks past its top-level item
+  (so an error inside a GOSUB-extracted fn or a GOTO `__pc` state machine
+  — neither annotated, per `--annotated`'s best-effort scope — reports
+  nothing rather than inheriting the previous item's last line); and if no
+  diagnostic maps, the section is omitted entirely.
+- **stderr** is now captured and echoed verbatim before the translation,
+  preserving the normal rustc experience including color (`--color=always`
+  when our stderr `is_terminal()`; `strip_ansi` for parsing). Only
+  `error`-level diagnostics count, a `-->` span attaches only to the most
+  recent error headline (so `note:`/`help:` sub-spans can't become phantom
+  diagnostics), and duplicate (QB line, headline) pairs collapse.
+
+11 new unit tests (`errmap_tests`), weighted toward the negative cases.
+End-to-end verified against the deliberately-unfixed local-vs-CONST
+`E0530` bug in single-error, multi-error, and unannotated-region forms.
+Verified: 205 unit, 48/48 integration, 55/55 build-all, 11/11 goldens.
+
 ### M27 — `qbc --analyze`: BASIC source archaeology ✅
 
 Given a `.bas` file of unknown provenance (the kind found on a DOS-archive
@@ -1739,7 +1773,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **48/48**, with 194 unit tests and 11 graphics golden
+The integration suite is **48/48**, with 205 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

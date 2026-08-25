@@ -260,7 +260,8 @@ qbasic-rust/
 │   ├── emitter/           # AnalyzedProgram → Rust source  (~6,300 lines total)
 │   ├── compat.rs          # --compatibility: dialect-fidelity audit
 │   ├── optreport.rs       # --opt-report: source-level findings report
-│   └── archaeology.rs     # --analyze: BASIC source archaeology
+│   ├── archaeology.rs     # --analyze: BASIC source archaeology
+│   └── errmap.rs          # rustc errors → originating .bas line
 │
 ├── runtime/src/
 │   ├── lib.rs             # Runtime struct, graphics, I/O, math  (~3875 lines)
@@ -439,6 +440,32 @@ assignment (`Mode = 9` ... `SCREEN Mode`) so real programs that negotiate
 their graphics mode at runtime are still identified correctly. Standalone
 analysis mode, same family as `--compatibility`/`--opt-report`.
 `basic-src/analyze.sh <file.bas>` is a one-liner wrapper.
+
+### rustc errors, mapped back to your `.bas`
+
+When the generated Rust fails to compile, rustc's diagnostics point at the
+*generated* file — the wrong place to be looking. qbc appends a section
+translating each error back to the QBasic line that produced it:
+
+```
+error[E0530]: let bindings cannot shadow constants
+  --> /tmp/probe.rs:23:13
+...
+── qbc: QBasic source locations ────────────────────────────
+1 of 1 rustc error(s) mapped back to probe.bas:
+
+  probe.bas:9
+    error[E0530]: let bindings cannot shadow constants
+    │ DIM cx AS INTEGER
+```
+
+Automatic — no flag, and no cost on the success path. The map is built by
+aligning the plain and `--annotated` emissions (the latter is byte-identical
+to the former plus inserted `// QB:` comment lines), so no second compile is
+needed. It's deliberately conservative: if the two emissions diverge, or the
+error lands in a region that carries no annotations (a GOSUB-extracted
+function, a GOTO state machine — see `--annotated` above), qbc prints
+nothing extra rather than a confident guess.
 
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 

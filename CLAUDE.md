@@ -88,8 +88,8 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
-- **49/49** integration (`tests/run-tests.sh`, stdout-based)
-- **224** runtime+transpiler unit tests (`cargo test --workspace`)
+- **50/50** integration (`tests/run-tests.sh`, stdout-based)
+- **229** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2765,30 +2765,40 @@ audit entry in Known Issues below.
 
 ## Known Issues / TODO
 
-- **Audit Tiers 2–4 — catalogued, not yet fixed.** The same full-codebase
-  audit that produced the Tier-1 fixes above also found 15 lower-severity
-  issues. Unlike Tier 1 these all announce themselves (a panic, or a
-  compile error in the emitted Rust), so none can silently corrupt a
-  result:
-  - **Panics (4)**: `x MOD 0` / `x \ 0` panics instead of raising QB error
-    11; `PRINT USING` `\...\` slices by BYTES so a CP437 string panics
-    mid-character; `GET`/`PUT #n, 0` computes `-1 as u64` → overflow panic
-    or a garbage far-past-EOF seek; `MID$(A$)` with one argument panics the
-    transpiler itself.
-  - **Emitted Rust won't compile (8)**: `remove_unnecessary_mut` strips
-    `mut` from a local only mutated via a method call (`push_str`) → E0596;
-    `REDIM` growing an INNER bound is a silent no-op → index panic; `UBOUND`
-    on a shared string array → E0425; `ERASE` on a local string array →
-    E0425+E0308; `REDIM` inside the `__pc` state machine → E0425;
-    `redim_declared` not reset for `main`/`emit_gosub_fn` → E0425; `ERASE`
-    on a SUB-local 2-D array → E0308; `emit_def_fns` doesn't reset the
-    string-scalar/dim sets. Two of these are further instances of the
-    "per-scope bookkeeping not reset" pattern.
-  - **Reporting/cosmetic (3)**: `--analyze` can print a reversed era range
-    (`1991–1988`) when the dialect floor exceeds the graphics ceiling;
-    `errmap`'s "N of M mapped" header counts before dedup so it can
-    overstate; (the third, `--opt-report` ELSEIF/label dedup, was fixed in
-    Tier 1).
+- **Full-codebase audit: all 25 findings fixed.** Tier 1 (ten
+  silent-wrong-behavior bugs) is written up in its own changelog section
+  above. Tiers 2–4 are now closed too:
+  - **Tier 2 — four crashes** (`x MOD 0`/`x \ 0` panicking on an unguarded
+    i64 divide; `PRINT USING`'s `\...\` field measuring and slicing by
+    BYTES so a CP437 string panicked mid-character; `GET`/`PUT #n, 0`
+    wrapping `-1 as u64` into a ~u64::MAX seek; `MID$(A$)` panicking the
+    transpiler itself). All now degrade cleanly instead of aborting — the
+    MID$ one falls through to a normal rustc arity error, which the errmap
+    work maps straight back to the `.bas` line.
+  - **Tier 3 — eight emitted-Rust compile errors**: `remove_unnecessary_mut`
+    ignoring `&mut self` METHOD mutation (E0596 on T5 string accumulation);
+    `REDIM` growing an INNER bound resizing only the outer Vec (runtime
+    index panic); `ERASE` assuming every local array is 1-D numeric (E0425/
+    E0308 for local string and SUB-local 2-D arrays — fixed with a new
+    per-scope `collect_local_array_info`, since `array_dims` is built from
+    the GLOBAL symbol table only); `UBOUND` on a shared STRING array not
+    stripping the `_s` suffix before the `shared_names` lookup (E0425);
+    REDIM'd locals not hoisted before the `__pc` loop (E0425);
+    `redim_declared` not reset for `main`/`emit_gosub_fn` (E0425); and
+    `emit_def_fns` not resetting the per-scope DIM sets. The last one is a
+    defensive fix — it is the only finding of the 25 not reproduced
+    end-to-end.
+  - **Tier 4 — two reporting issues**: `--analyze` could print a reversed
+    era range (`1991–1988`) when the dialect floor exceeded the graphics
+    ceiling — non-overlapping ranges now collapse to the dialect floor;
+    `errmap`'s "N of M mapped" header counted before the dedup, so it could
+    claim more locations than it printed.
+
+  Three of the 25 were instances of patterns this file already documents:
+  two more "per-scope bookkeeping not reset for main/gosub/def_fns", and one
+  more "scan pass missing an arm" — that last one is now structurally
+  impossible in `collect_scalar_names_stmt`, whose match was made exhaustive
+  rather than merely patched.
 
 - **Idiomatic-output audit round 2 is COMPLETE** (A1–A5 + T6 all landed — see
   the changelog section above). Audit non-findings, recorded so nobody

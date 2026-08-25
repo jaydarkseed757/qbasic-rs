@@ -316,6 +316,14 @@ fn estimate_era(compat: &CompatReport, line_numbers: bool, procedures: usize, gr
         Some((glo, ghi)) => (dialect_range.0.max(glo), dialect_range.1.min(ghi).max(glo)),
         None => dialect_range,
     };
+    // The two ranges can fail to overlap at all — a dialect-clean, CRLF,
+    // non-line-numbered QB1.1 program using SCREEN 1 has a dialect FLOOR of
+    // 1991 and a CGA CEILING of 1988, which rendered as the nonsense
+    // "1991–1988". The `.max(glo)` above only guards hi < glo, not hi < lo.
+    // When they don't overlap the dialect is the stronger signal (the
+    // hardware may simply be an older mode still supported), so collapse to
+    // the dialect floor rather than print a reversed range.
+    let hi = hi.max(lo);
     if lo == hi { lo.to_string() } else { format!("{lo}–{hi}") }
 }
 
@@ -375,6 +383,32 @@ mod archaeology_tests {
         let tokens = crate::lexer::tokenize(src).expect("lex");
         let ast = crate::parser::parse(tokens.clone()).expect("parse");
         analyze(src, src.as_bytes(), &tokens, &ast)
+    }
+
+    /// The dialect floor and the graphics ceiling can fail to overlap (a
+    /// CRLF, dialect-clean QB1.1 program using SCREEN 1 has a 1991 floor and
+    /// a 1988 CGA ceiling), which used to render as the nonsense
+    /// "1991–1988".
+    #[test]
+    fn era_range_is_never_reversed() {
+        let src = "SCREEN 1\r\nPRINT \"hi\"\r\n";
+        let tokens = crate::lexer::tokenize(src).unwrap();
+        let ast = crate::parser::parse(tokens.clone()).unwrap();
+        let r = analyze(src, src.as_bytes(), &tokens, &ast);
+        let era = &r.era;
+        assert!(!era.contains('–'),
+                "non-overlapping ranges must collapse to the dialect floor, got {era}");
+        assert_eq!(era, "1991", "dialect floor wins when the ranges don't overlap");
+    }
+
+    /// The ordinary overlapping case must still render as a real range.
+    #[test]
+    fn era_range_still_spans_when_ranges_overlap() {
+        let src = "SCREEN 13\r\nPRINT \"hi\"\r\n";
+        let tokens = crate::lexer::tokenize(src).unwrap();
+        let ast = crate::parser::parse(tokens.clone()).unwrap();
+        let r = analyze(src, src.as_bytes(), &tokens, &ast);
+        assert!(r.era.contains('–'), "expected a span, got {}", r.era);
     }
 
     #[test]

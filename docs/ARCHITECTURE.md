@@ -1096,12 +1096,22 @@ neither the test suites nor the fuzzers would surface them. All ten fixed:
 - `--opt-report` never folded `ELSEIF` despite the docs, and duplicated
   label findings per scope.
 
-Verified: 224 unit, 49/49 integration, 55/55 build-all (`--clean`), 11/11
-goldens with checksums unchanged (the load-bearing check, since the
-promotion and headless-timing fixes could have moved them), plus graphics
-and differential fuzz spot-checks. Tiers 2–4 (four panics, eight
-emitted-Rust compile errors, two reporting issues) are catalogued in
-CLAUDE.md's Known Issues.
+Tiers 2–4 followed in the same pass, so **all 25 findings are fixed**:
+four crashes now degrade cleanly (`MOD`/`\` by zero, `PRINT USING`'s
+byte-sliced `\...\` field on CP437 text, a negative record index wrapping
+to a ~u64::MAX seek, and `MID$(A$)` panicking the transpiler); eight cases
+where emitted Rust wouldn't compile (method-mutation invisible to
+`remove_unnecessary_mut`, `REDIM` not resizing inner dimensions, `ERASE`
+assuming local arrays are 1-D numeric, `UBOUND` not stripping `_s` before
+the shared lookup, REDIM'd locals not hoisted before the `__pc` loop, and
+two more per-scope-bookkeeping resets); and two reporting issues (a
+reversed `--analyze` era range, an `errmap` header counted before dedup).
+
+Verified: 229 unit, 50/50 integration (new `file_flush_on_end.bas` and
+`array_ops_edge.bas`), 55/55 build-all (`--clean`), 11/11 goldens with
+checksums unchanged (the load-bearing check, since the promotion and
+headless-timing fixes could have moved them), plus 40-seed differential
+and 20-seed graphics fuzz runs.
 
 ### M29 — Source-snippet lex/parse errors ✅
 
@@ -1842,7 +1852,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **49/49**, with 224 unit tests and 11 graphics golden
+The integration suite is **50/50**, with 229 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

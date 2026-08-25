@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
 - **48/48** integration (`tests/run-tests.sh`, stdout-based)
-- **194** runtime+transpiler unit tests (`cargo test --workspace`)
+- **205** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
@@ -2556,6 +2556,80 @@ PC-speaker + 7 direct-memory hits); `kingdom.bas` → line-numbered + GOTO,
 1991–1995 era. 194 unit, 48/48 integration, 55/55 build-all, 11/11
 goldens (checksums unchanged — read-only over the parsed `Program`, never
 reaches the emitter).
+
+### rustc-error → QBasic-line translation (`src/errmap.rs`)
+
+When emitted Rust fails to compile, rustc's diagnostics point at lines in
+the *generated* `.rs` — the wrong place to be looking when the real cause
+is a `.bas` construct (or the emitter rule that handled it). qbc now
+appends a section mapping each error back to its originating QBasic line:
+
+```
+error[E0530]: let bindings cannot shadow constants
+  --> /tmp/probe.rs:23:13
+...
+── qbc: QBasic source locations ────────────────────────────
+1 of 1 rustc error(s) mapped back to probe.bas:
+
+  probe.bas:9
+    error[E0530]: let bindings cannot shadow constants
+    │ DIM cx AS INTEGER
+```
+
+**Automatic — no flag.** It costs nothing on the success path and fires
+only when a build actually fails, which is exactly when it's wanted.
+
+**How the map is built, WITHOUT a second compile.** The key observation:
+`--annotated` output is byte-identical to plain output except for inserted
+`// QB: <line>` comment lines — **verified empirically across all 55
+bundled programs** (strip the comment lines from the annotated emission
+and you get the plain emission back, byte for byte) before anything was
+built on top of it. So `build_line_map` emits both and walks them with two
+pointers, skipping comment lines on the annotated side, producing a
+plain-`.rs`-line → QB-line map for the very file rustc just compiled. This
+matters because the postprocess passes (`inline_single_use_tmps`,
+`strip_dead_gamestate_fields`, …) add and remove lines after emission, so
+a map built *during* emission would be stale — aligning two finished
+emissions sidesteps that entirely.
+
+**Self-validating, and it refuses to guess.** Three independent ways it
+declines rather than mislead:
+- If the two emissions ever disagree on a non-comment line, the alignment
+  assumption has broken → `build_line_map` returns `None`, no section is
+  printed.
+- An annotation only applies within the top-level item it appears in
+  (`starts_top_level_item` resets it at each `fn`/`struct`/`const`/…).
+  Without this, an error inside an UNannotated body — a GOSUB-extracted
+  fn, or a GOTO `__pc` state machine, neither of which carries annotations
+  (see `--annotated`'s documented best-effort scope) — would silently
+  inherit the previous item's last QB line and report a confidently wrong
+  location. Verified by hand: a CONST collision inside a `GOSUB Helper`
+  target prints no mapping section at all, rather than a plausible-looking
+  wrong line.
+- If no diagnostic maps, `render` returns `None` — the section is omitted
+  entirely instead of printing an empty shell.
+
+**stderr handling**: rustc's stderr is now captured (`Stdio::piped`) rather
+than inherited, then echoed verbatim BEFORE the translation, so the normal
+rustc experience is unchanged — including color, which rustc would
+otherwise disable on seeing a pipe (`--color=always` is passed when our own
+stderr `is_terminal()`, and `strip_ansi` handles the escapes when parsing).
+Only `error`-level diagnostics are collected; warnings never cause a build
+failure, and emitted code carries broad `#![allow(...)]` anyway. A `-->`
+span attaches only to the most recent `error` headline, so the `note:`/
+`help:` sub-spans rustc prints afterwards can't become phantom
+diagnostics. Duplicate (QB line, headline) pairs collapse — one `.bas`
+statement expands to several Rust lines, and a single mistake would
+otherwise report once per expanded line.
+
+11 new unit tests (`errmap_tests`), including the negative cases that
+matter (divergence → `None`; annotation must not leak across top-level
+items; note-spans must not re-attach; nothing-maps → no section).
+End-to-end verified against a real, documented bug — the deliberately
+unfixed local-variable-vs-CONST `E0530` collision (see Known Issues) —
+in single-error, multi-error, and unannotated-region forms. Verified: 205
+unit, 48/48 integration, 55/55 build-all (`--clean`), 11/11 goldens
+(checksums unchanged — the success path is untouched).
 
 ## Known Issues / TODO
 

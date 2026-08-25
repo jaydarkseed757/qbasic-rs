@@ -517,6 +517,45 @@ pub(super) fn array_param_used_dims(name: &str, stmts: &[Stmt]) -> usize {
 /// Collect bare-lowercase names of non-shared local DIM'd string arrays.
 /// Used by emit_lvalue to emit `name_s[...]` for arrays declared `DIM name(...) AS STRING`
 /// even when accessed without the `$` sigil (so the parser records type as Single).
+/// Per-scope map of locally-DIM'd array names → (dimension count, is_string).
+///
+/// `array_dims` is built once from the GLOBAL symbol table and never reset,
+/// so it knows nothing about a SUB-local array. `ERASE` consequently
+/// defaulted every local to 1-D numeric: a local 2-D array emitted one
+/// `iter_mut` level too few (E0308) and a local string array emitted the
+/// un-suffixed name with a `0.0` default (E0425 + E0308). This is collected
+/// per scope alongside `local_string_arrays`, so it can't leak between
+/// scopes the way inserting into `array_dims` would.
+pub(super) fn collect_local_array_info(stmts: &[Stmt]) -> HashMap<String, (usize, bool)> {
+    let mut out = HashMap::new();
+    fn visit(stmts: &[Stmt], out: &mut HashMap<String, (usize, bool)>) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Dim(d) | Stmt::ReDim(d) if !d.dims.is_empty() && !d.shared => {
+                    out.insert(d.name.to_lowercase(),
+                               (d.dims.len().max(1), d.ty == QbType::String));
+                }
+                Stmt::If { then_body, elseif_branches, else_body, .. } => {
+                    visit(then_body, out);
+                    for (_, b) in elseif_branches { visit(b, out); }
+                    if let Some(b) = else_body { visit(b, out); }
+                }
+                Stmt::For { body, .. } | Stmt::While { body, .. } | Stmt::Do { body, .. } => {
+                    visit(body, out);
+                }
+                Stmt::Select { cases, default, .. } => {
+                    for c in cases { visit(&c.body, out); }
+                    if let Some(b) = default { visit(b, out); }
+                }
+                Stmt::Block(inner) => visit(inner, out),
+                _ => {}
+            }
+        }
+    }
+    visit(stmts, &mut out);
+    out
+}
+
 pub(super) fn collect_local_string_arrays(stmts: &[Stmt]) -> HashSet<String> {
     let mut names = HashSet::new();
     fn visit(stmts: &[Stmt], names: &mut HashSet<String>) {
@@ -1767,7 +1806,12 @@ pub(super) fn collect_sm_local_arrays_inner(
 ) {
     for stmt in stmts {
         match stmt {
-            Stmt::Dim(decl) if !decl.dims.is_empty() && !decl.shared => {
+            // ReDim as well as Dim: a REDIM'd local array also needs its
+            // `let mut` hoisted before the `__pc` loop, otherwise the
+            // declaration lands inside one match arm and every OTHER arm
+            // fails with E0425.
+            Stmt::Dim(decl) | Stmt::ReDim(decl)
+                if !decl.dims.is_empty() && !decl.shared => {
                 let lc = decl.name.to_lowercase();
                 if !shared_names.contains(&lc) {
                     let name = rust_ident_typed(&decl.name, &decl.ty);

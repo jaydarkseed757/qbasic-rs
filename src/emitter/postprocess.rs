@@ -125,6 +125,16 @@ pub(super) fn is_mutated_in_scope(lines: &[&str], varname: &str) -> bool {
     let index    = format!("{varname}[");   // index-assignment: arr[i] = …
     let byref    = format!("&mut {varname}");
     let for_in   = format!("for {varname} in");
+    // Mutation through a &mut-self METHOD, e.g. T5's string accumulation
+    // `s.push_str(...)`. Without these the pass stripped `mut` from a local
+    // whose only mutation was a method call, producing E0596 in the emitted
+    // Rust. Matched as `{var}.{method}(` at statement start.
+    const MUT_METHODS: &[&str] = &[
+        "push_str(", "push(", "insert_str(", "insert(", "clear(",
+        "truncate(", "resize(", "swap(", "sort(", "sort_by(", "reverse(",
+        "extend(", "extend_from_slice(", "remove(", "pop(", "retain(",
+        "make_ascii_uppercase(", "make_ascii_lowercase(", "fill(",
+    ];
     for line in lines {
         let t = line.trim_start();
         if t.starts_with(assign.as_str())
@@ -138,6 +148,11 @@ pub(super) fn is_mutated_in_scope(lines: &[&str], varname: &str) -> bool {
             || t.starts_with(for_in.as_str())
         {
             return true;
+        }
+        if let Some(rest) = t.strip_prefix(&format!("{varname}.")) {
+            if MUT_METHODS.iter().any(|m| rest.starts_with(m)) {
+                return true;
+            }
         }
     }
     false

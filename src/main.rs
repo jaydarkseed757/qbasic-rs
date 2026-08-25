@@ -279,8 +279,20 @@ fn main() -> Result<()> {
             // yields None and we simply don't print the extra section.
             let rs_name = out_path.to_string_lossy().to_string();
             let diags = errmap::parse_rustc_errors(&stderr, &rs_name);
-            let line_map = emitter::emit_annotated(&program).ok()
-                .and_then(|annotated| errmap::build_line_map(&rust_source, &annotated));
+            // `build_line_map` aligns the PLAIN emission (the file rustc
+            // actually compiled, so its line numbers are the ones in the
+            // diagnostics) against the annotated one. Under `--annotated`
+            // the compiled file is ALREADY annotated, so the plain side is
+            // what has to be re-emitted — feeding it two annotated sources
+            // makes the alignment diverge on the first `// QB:` line and
+            // silently disables mapping under the very flag most likely to
+            // be in use while debugging emitter output.
+            let line_map = if args.annotated {
+                Some(errmap::build_line_map_from_annotated(&rust_source))
+            } else {
+                emitter::emit_annotated(&program).ok()
+                    .and_then(|annotated| errmap::build_line_map(&rust_source, &annotated))
+            };
             if let Some(report) = errmap::render(
                 &diags, line_map.as_ref(), &args.input.to_string_lossy(), &source,
             ) {

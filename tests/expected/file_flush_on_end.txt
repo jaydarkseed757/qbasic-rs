@@ -1,0 +1,5 @@
+LOF= 11 
+alpha
+beta
+SIZE= 11 
+done

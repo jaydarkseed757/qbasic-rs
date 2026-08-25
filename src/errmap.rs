@@ -199,20 +199,24 @@ pub fn render(
         .collect();
     if mapped.is_empty() { return None; }
 
+    // Dedup BEFORE counting: one .bas statement expands to several Rust
+    // lines, so a single mistake yields several diagnostics that collapse to
+    // one block. Counting first made the header claim more locations than it
+    // then printed.
+    let mut seen = std::collections::HashSet::new();
+    let shown: Vec<&(&RustcDiag, u32)> = mapped.iter()
+        .filter(|(d, qb)| seen.insert((*qb, d.headline.clone())))
+        .collect();
+
     let mut out = String::new();
     out.push_str("\n── qbc: QBasic source locations ────────────────────────────\n");
     let unmapped = diags.len() - mapped.len();
     out.push_str(&format!(
         "{} of {} rustc error(s) mapped back to {}:\n\n",
-        mapped.len(), diags.len(), bas_path
+        shown.len(), diags.len(), bas_path
     ));
 
-    let mut seen = std::collections::HashSet::new();
-    for (d, qb) in &mapped {
-        // Collapse duplicate reports of the same QB line + headline: one
-        // .bas statement can expand to several Rust lines, and a single
-        // mistake there otherwise prints once per expanded line.
-        if !seen.insert((*qb, d.headline.clone())) { continue; }
+    for (d, qb) in &shown {
         out.push_str(&format!("  {bas_path}:{qb}\n"));
         out.push_str(&format!("    {}\n", d.headline));
         if let Some(text) = bas_lines.get(*qb as usize - 1) {
@@ -344,6 +348,21 @@ mod errmap_tests {
         let map = HashMap::new();
         assert!(render(&diags, Some(&map), "t.bas", "PRINT 1\n").is_none());
         assert!(render(&[], None, "t.bas", "PRINT 1\n").is_none());
+    }
+
+    #[test]
+    fn header_count_reflects_blocks_actually_printed() {
+        // Two diagnostics collapsing to one block must report "1 of 2", not
+        // "2 of 2" — the count used to be taken before the dedup.
+        let diags = vec![
+            RustcDiag { headline: "error: same".into(), rs_line: 1, rs_col: 1 },
+            RustcDiag { headline: "error: same".into(), rs_line: 2, rs_col: 1 },
+        ];
+        let mut map = HashMap::new();
+        map.insert(1usize, 5u32);
+        map.insert(2usize, 5u32);
+        let r = render(&diags, Some(&map), "t.bas", "A\nB\nC\nD\nE\n").unwrap();
+        assert!(r.contains("1 of 2 rustc error(s)"), "got:\n{r}");
     }
 
     #[test]

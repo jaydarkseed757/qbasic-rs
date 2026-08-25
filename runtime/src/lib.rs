@@ -1624,6 +1624,16 @@ impl Runtime {
                 Some(n) => { *cur_record = n; n }
                 None    => { let n = *cur_record; *cur_record += 1; n }
             };
+            // QB record numbers are 1-based and the emitter passes `rec - 1`,
+            // so `GET #n, 0` arrives here as -1. Unguarded, `idx as u64`
+            // wrapped to ~u64::MAX: an overflow panic in a debug build, or a
+            // garbage far-past-EOF seek in release. QB raises error 63 (bad
+            // record number); consistent with the rest of the numeric-error
+            // model we don't raise, but we must not crash or corrupt — return
+            // a blank record instead.
+            if idx < 0 {
+                return vec![b' '; *record_len];
+            }
             let offset = (idx as u64) * (*record_len as u64);
             let rlen = *record_len;
             let _ = file.seek(SeekFrom::Start(offset));
@@ -1648,6 +1658,10 @@ impl Runtime {
                 Some(n) => { *cur_record = n; n }
                 None    => { let n = *cur_record; *cur_record += 1; n }
             };
+            // See read_record: a negative index (PUT #n, 0) would wrap to a
+            // ~u64::MAX offset. Drop the write rather than panic or scribble
+            // gigabytes into the file.
+            if idx < 0 { return; }
             let offset = (idx as u64) * (*record_len as u64);
             let rlen = *record_len;
             let _ = file.seek(SeekFrom::Start(offset));
@@ -3354,12 +3368,19 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
                 None => "",
             };
             val_idx += 1;
-            // Pad or truncate to field_len
-            if s.len() >= field_len {
-                result.push_str(&s[..field_len]);
+            // Pad or truncate to field_len — measured in CHARACTERS.
+            // `field_len` is a char count (taken from the format's char
+            // vector), but this used `s.len()`/`&s[..field_len]`, which are
+            // BYTES: a CP437/Latin-1 string (every char above 127 is two
+            // UTF-8 bytes here) got the wrong width and, when the cut landed
+            // mid-character, panicked with "byte index is not a char
+            // boundary".
+            let n = s.chars().count();
+            if n >= field_len {
+                result.extend(s.chars().take(field_len));
             } else {
                 result.push_str(s);
-                result.push_str(&" ".repeat(field_len - s.len()));
+                result.push_str(&" ".repeat(field_len - n));
             }
             continue;
         }
@@ -3851,7 +3872,16 @@ pub fn qb_cint(x: f64) -> f64 {
 /// banker's) first, then divided with truncation toward zero.
 #[inline]
 pub fn qb_idiv(l: f64, r: f64) -> f64 {
-    (qb_cint(l) as i64 / qb_cint(r) as i64) as f64
+    let d = qb_cint(r) as i64;
+    // QB raises error 11 here, but this project deliberately does not make
+    // numeric errors trappable (see CLAUDE.md — that would need per-operation
+    // checks at every arithmetic site), and plain `/` by zero already yields
+    // inf rather than erroring. So the only thing to fix is the CRASH: an
+    // unguarded i64 divide panics with a Rust backtrace, which is both
+    // un-QB and untrappable. Yield 0 and keep running, matching the
+    // silent-continue convention used for every other untrapped error.
+    if d == 0 { return 0.0; }
+    (qb_cint(l) as i64 / d) as f64
 }
 
 /// QB `MOD`. Both operands are rounded to integers (CINT, banker's) first,
@@ -3859,7 +3889,9 @@ pub fn qb_idiv(l: f64, r: f64) -> f64 {
 /// QB-correct sign (that of the dividend).
 #[inline]
 pub fn qb_mod(l: f64, r: f64) -> f64 {
-    (qb_cint(l) as i64 % qb_cint(r) as i64) as f64
+    let d = qb_cint(r) as i64;
+    if d == 0 { return 0.0; } // see qb_idiv: never panic on a zero divisor
+    (qb_cint(l) as i64 % d) as f64
 }
 #[inline] pub fn qb_sin(x: f64) -> f64   { x.sin() }
 #[inline] pub fn qb_cos(x: f64) -> f64   { x.cos() }
@@ -4410,6 +4442,18 @@ mod scancode_tests {
 
 #[cfg(test)]
 mod rng_and_logic_tests {
+
+    /// QB raises error 11 on a zero divisor; this project deliberately does
+    /// not make numeric errors trappable, but it must not CRASH either — an
+    /// unguarded i64 divide panicked with a Rust backtrace.
+    #[test]
+    fn integer_divide_and_mod_by_zero_do_not_panic() {
+        assert_eq!(qb_idiv(7.0, 0.0), 0.0);
+        assert_eq!(qb_mod(5.0, 0.0), 0.0);
+        assert_eq!(qb_mod(5.0, 0.4), 0.0, "divisor rounding to zero is the same case");
+        assert_eq!(qb_idiv(7.0, 2.0), 3.0);
+        assert_eq!(qb_mod(7.0, 2.0), 1.0);
+    }
     use super::*;
 
     #[test]
@@ -4472,6 +4516,20 @@ mod print_using_tests {
     #[test]
     fn basic_integer_field() {
         assert_eq!(pu("###", 42.0), " 42");
+    }
+
+    /// A `\\...\\` field is measured in CHARACTERS. It used to use byte
+    /// length and byte slicing, so a CP437/Latin-1 string (chars above 127
+    /// are two UTF-8 bytes here) got the wrong width and panicked outright
+    /// when the cut landed mid-character.
+    #[test]
+    fn string_field_width_is_chars_not_bytes() {
+        use super::QbVal;
+        let f = |fmt: &str, v: &str| qb_print_using(fmt, &[QbVal::Str(v)]);
+        // Field is 5 wide; the value is 6 chars → truncate to 5, no panic.
+        assert_eq!(f("\\   \\", "ABCD\u{00C9}X"), "ABCD\u{00C9}");
+        // Short value pads to 5 CHARS, not 5 bytes.
+        assert_eq!(f("\\   \\", "\u{00C9}"), "\u{00C9}    ");
     }
 
     /// A fraction-less field ROUNDS; it used to truncate via `as i64`, so

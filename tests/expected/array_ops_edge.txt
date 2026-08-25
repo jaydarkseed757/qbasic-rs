@@ -1,0 +1,6 @@
+ubound+1= 6 
+shared string array is big
+inner grown= 7 
+erased str []
+erased 2d= 0 
+done

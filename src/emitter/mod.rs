@@ -202,6 +202,10 @@ pub struct Emitter {
     /// Used by emit_lvalue to emit the correct `_s`-suffixed name for string array accesses
     /// that were parsed without the `$` sigil.
     local_string_arrays: HashSet<String>,
+    /// Per-scope locally-DIM'd arrays → (ndims, is_string). See
+    /// `collect_local_array_info`: `array_dims` is global-only, so without
+    /// this ERASE mis-shapes every local array.
+    local_array_info: HashMap<String, (usize, bool)>,
     /// Bare-lowercase names of local (non-shared) sigil-less scalar string
     /// declarations (`DIM name AS STRING`), scoped to the current SUB/FUNCTION
     /// or the main body. Consulted by is_str_expr_ctx so an assignment to one
@@ -280,6 +284,7 @@ impl Emitter {
             on_error_label: String::new(),
             gamestate_emitted: true,
             local_string_arrays: HashSet::new(),
+            local_array_info: HashMap::new(),
             local_string_scalars: HashSet::new(),
             local_dim_names: HashSet::new(),
             locals_declared: HashSet::new(),
@@ -809,6 +814,7 @@ impl Emitter {
         self.array_params.clear();
         self.numeric_params.clear();
         self.value_params.clear();
+        self.redim_declared.clear();   // per-scope, same as emit_main
         self.local_arrays = collect_local_array_names(body);
         // Same per-scope DIM bookkeeping reset as emit_main (previously these
         // three inherited whatever the last SUB/FUNCTION left behind). GOSUB
@@ -818,6 +824,7 @@ impl Emitter {
         // that are genuine locals of this extracted fn.
         self.local_dim_names      = self.retain_unpromoted(collect_local_dim_names(body));
         self.local_string_arrays  = self.retain_unpromoted(collect_local_string_arrays(body));
+        self.local_array_info     = collect_local_array_info(body);
         self.local_string_scalars = self.retain_unpromoted(collect_local_string_scalars(body));
         let mut exclude = globals.clone();
         exclude.extend(self.shared_names.clone());
@@ -848,6 +855,17 @@ impl Emitter {
                 self.numeric_params.clear();
                 self.value_params.clear();
                 self.local_arrays = collect_local_array_names(&[]);
+                // A single-line DEF FN body is an isolated expression with no
+                // locals of its own, so every per-scope DIM set must be empty
+                // too. These three were left holding whatever the last-emitted
+                // SUB/FUNCTION put there, so a DEF FN parameter whose name
+                // matched that SUB's string local was treated as a string —
+                // emitting e.g. `msg.as_str() > 5.0f64`.
+                self.local_dim_names.clear();
+                self.local_string_arrays.clear();
+                self.local_string_scalars.clear();
+                self.local_array_info.clear();
+                self.redim_declared.clear();
                 let e = self.emit_expr(expr)?;
                 self.line(&format!("{e}"));
                 self.dedent();
@@ -1081,6 +1099,7 @@ impl Emitter {
             // e.g. local integer `B` from DIM SHARED string `B$` (same base name).
             self.local_dim_names = collect_local_dim_names(&sub.body);
             self.local_string_arrays = collect_local_string_arrays(&sub.body);
+            self.local_array_info    = collect_local_array_info(&sub.body);
             self.local_string_scalars = collect_local_string_scalars(&sub.body);
 
             let mut exclude = globals.clone();
@@ -1254,6 +1273,7 @@ impl Emitter {
             // Track explicit local DIM declarations (same reason as emit_subs).
             self.local_dim_names = collect_local_dim_names(&inline_body);
             self.local_string_arrays = collect_local_string_arrays(&inline_body);
+            self.local_array_info    = collect_local_array_info(&inline_body);
             self.local_string_scalars = collect_local_string_scalars(&inline_body);
 
             let mut exclude = globals.clone();
@@ -1382,6 +1402,10 @@ impl Emitter {
         self.array_params.clear();
         self.numeric_params.clear();
         self.value_params.clear();
+        // Per-scope like its siblings: without this a main-body REDIM whose
+        // array name was already REDIM'd inside an earlier-emitted SUB was
+        // treated as "already declared" and lost its `let mut` → E0425.
+        self.redim_declared.clear();
         self.line("fn main() {");
         self.indent();
 
@@ -1441,6 +1465,7 @@ impl Emitter {
         // those names out, so the sets hold only genuine main-body locals.
         self.local_dim_names      = self.retain_unpromoted(collect_local_dim_names(body));
         self.local_string_arrays  = self.retain_unpromoted(collect_local_string_arrays(body));
+        self.local_array_info     = collect_local_array_info(body);
         self.local_string_scalars = self.retain_unpromoted(collect_local_string_scalars(body));
 
         let mut exclude = globals.clone();
@@ -3319,7 +3344,12 @@ impl Emitter {
             let lower   = rust_ident(name);
             let name_lc = name.to_lowercase();
             let is_shared = self.shared_names.contains(&name_lc);
-            let ndims = self.array_dims.get(&name_lc).copied().unwrap_or(1).max(1);
+            // A SUB-local array is absent from the global-only `array_dims`;
+            // fall back to the per-scope map before defaulting to 1-D.
+            let local_info = self.local_array_info.get(&name_lc).copied();
+            let ndims = self.array_dims.get(&name_lc).copied()
+                .or_else(|| local_info.map(|(n, _)| n))
+                .unwrap_or(1).max(1);
 
             // Typed array → zero each per-field Vec.
             if let Some(fields) = self.typed_fields.get(&lower).cloned() {
@@ -3347,7 +3377,12 @@ impl Emitter {
                 let ty = self.shared_types.get(&name_lc).cloned().unwrap_or(QbType::Single);
                 (format!("__gs.{}", rust_ident_typed(name, &ty)), ty)
             } else {
-                (lower.clone(), QbType::Single)
+                // Local array: a string one is stored under its `_s` name and
+                // zeroes to String::new(), not the bare name and 0.0.
+                let is_str = local_info.map(|(_, b)| b).unwrap_or(false)
+                    || self.local_string_arrays.contains(&name_lc);
+                let ty = if is_str { QbType::String } else { QbType::Single };
+                (rust_ident_typed(name, &ty), ty)
             };
             let dv = if elem_ty == QbType::String { "String::new()" } else { "0.0" };
             self.emit_zero_nested(&base, ndims, dv);
@@ -3368,6 +3403,36 @@ impl Emitter {
         for _ in 0..ndims {
             self.dedent();
             self.line("}");
+        }
+    }
+
+    /// After an outer `.resize()`, bring every INNER dimension to its new
+    /// bound as well.
+    ///
+    /// `resize` only changes the outermost Vec's length; inner Vecs created
+    /// by an earlier REDIM keep their old size. So `REDIM g(2,2)` followed by
+    /// `REDIM g(2,5)` silently left the rows at length 3 and `g(2,5)` then
+    /// panicked with an index-out-of-bounds at runtime. (`PRESERVE` is parsed
+    /// but discarded, so both REDIM forms share this path; resizing rather
+    /// than reallocating keeps the existing partial-preserve behavior instead
+    /// of quietly changing it.)
+    fn emit_inner_resizes(&mut self, base: &str, allocs: &[String], default_val: &str) {
+        for depth in 1..allocs.len() {
+            let mut indent = 0;
+            let mut cur = base.to_string();
+            for d in 0..depth {
+                self.line(&format!("for __rd{d} in {cur}.iter_mut() {{"));
+                self.indent();
+                indent += 1;
+                cur = format!("__rd{d}");
+            }
+            let fill = if depth + 1 == allocs.len() {
+                default_val.to_string()
+            } else {
+                nested_vec_init(default_val, &allocs[depth + 1..])
+            };
+            self.line(&format!("{cur}.resize({}, {fill});", allocs[depth]));
+            for _ in 0..indent { self.dedent(); self.line("}"); }
         }
     }
 
@@ -3422,15 +3487,22 @@ impl Emitter {
             } else {
                 // Plain N-D shared array.
                 self.line(&format!("__gs.{name}.resize({alloc0}, {inner_fill});"));
+                let base = format!("__gs.{name}");
+                self.emit_inner_resizes(&base, &allocs, default_val);
             }
         } else {
-            // Local — may need to declare first
-            if !self.redim_declared.contains(&name) {
+            // Local — may need to declare first. In state-machine mode the
+            // `let mut` is hoisted before the `__pc` loop (see
+            // collect_sm_local_arrays), so declaring here would both shadow
+            // it and be invisible to the other match arms.
+            if !self.sm_mode && !self.redim_declared.contains(&name) {
                 self.redim_declared.insert(name.clone());
                 let vec_ty = nested_vec_type(elem_ty, ndims);
                 self.line(&format!("let mut {name}: {vec_ty} = Vec::new();"));
             }
             self.line(&format!("{name}.resize({alloc0}, {inner_fill});"));
+            let base = name.clone();
+            self.emit_inner_resizes(&base, &allocs, default_val);
         }
     }
 
@@ -4971,7 +5043,7 @@ impl Emitter {
                     return format!("qb_instr(1.0, {a0}, {a1})");
                 }
                 // MID$ optional len
-                if fn_name == "qb_mid" {
+                if fn_name == "qb_mid" && args.len() >= 2 {
                     let a0 = if matches!(&args[0], Expr::StrLit(_)) { a[0].clone() } else { format!("&({})", a[0]) };
                     let a2 = if a.len() >= 3 { format!("Some({})", a[2]) } else { "None".into() };
                     return format!("qb_mid({a0}, {}, {a2})", a[1]);
@@ -5364,18 +5436,28 @@ impl Emitter {
                                 return Ok(format!("(({v}.len() as f64) - 1.0)"));
                             }
                         };
+                        // `shared_names` holds BARE names, so a string array's
+                        // `_s` suffix must come off before the lookup — the
+                        // lift_expr twin already does this. Without it a shared
+                        // string array missed the shared branch and emitted a
+                        // bare `names_s.len()` with no `__gs.` → E0425.
                         let arr_name_lc = arr_name.to_lowercase();
+                        let arr_name_lc = arr_name_lc.trim_end_matches("_s").to_string();
                         if self.shared_names.contains(&arr_name_lc) {
                             // For TYPE arrays flattened to per-field Vecs, use the first
                             // field Vec (all fields have the same length).
-                            let rname = if let Some(fields) = self.typed_fields.get(arr_name.as_str()) {
+                            // Build from the STRIPPED name (as the lift_expr
+                            // twin does) — rust_ident_typed re-appends `_s`
+                            // for a string array, so passing the already-
+                            // suffixed name produced `names_s_s`.
+                            let rname = if let Some(fields) = self.typed_fields.get(arr_name_lc.as_str()) {
                                 if let Some(f0) = fields.first() {
-                                    format!("{arr_name}__{f0}")
+                                    format!("{arr_name_lc}__{f0}")
                                 } else {
-                                    rust_ident_typed(&arr_name, &self.shared_types.get(&arr_name_lc).cloned().unwrap_or(QbType::Single))
+                                    rust_ident_typed(&arr_name_lc, &self.shared_types.get(&arr_name_lc).cloned().unwrap_or(QbType::Single))
                                 }
                             } else if let Some(ty) = self.shared_types.get(&arr_name_lc) {
-                                rust_ident_typed(&arr_name, ty)
+                                rust_ident_typed(&arr_name_lc, ty)
                             } else {
                                 arr_name.clone()
                             };
@@ -5552,7 +5634,7 @@ impl Emitter {
                 }
 
                 // ── MID$: 2-arg → None, 3-arg → Some(len) ───────────────────
-                if fn_name == "qb_mid" {
+                if fn_name == "qb_mid" && args.len() >= 2 {
                     let s0 = self.emit_expr_inner(&args[0]).unwrap_or_default();
                     let a0 = if matches!(&args[0], Expr::StrLit(_)) { s0 } else { format!("&({s0})") };
                     let a1 = self.emit_expr_inner(&args[1]).unwrap_or_default();

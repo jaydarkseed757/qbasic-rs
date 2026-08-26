@@ -1617,6 +1617,19 @@ impl Emitter {
         // CALL (`X = StillWantsToPlay`), not a variable — never declare a local that
         // would shadow the fn. (Function names are reserved in QB.)
         combined_exclude.extend(self.user_fns.iter().cloned());
+        // QB lets a scalar and an array share one name (`A` and `A()` are
+        // distinct variables); the scalar is emitted under a `__sc` suffix by
+        // `local_scalar_name`. Exclusion, however, is by BARE name, so a
+        // module-level `DIM a(5)` put `a` in `globals` and suppressed the
+        // SCALAR binding too — uses emitted `a__sc` with nothing declaring
+        // it (E0425). Sub-local DIMs aren't in `globals`, which is why this
+        // only ever bit the main body. Un-exclude names that are local
+        // arrays: `collect_locals` returns a name only where it is genuinely
+        // used as a scalar, so this adds a binding exactly when one is
+        // needed, and the array keeps its own separate declaration.
+        for arr in &self.local_arrays {
+            combined_exclude.remove(arr);
+        }
         let locals = collect_locals(body, &combined_exclude);
         // Record the names declared here (rust_ident_typed form, pre-disambiguation)
         // so emit_dim can skip re-declaring a DIM'd scalar that's already covered.

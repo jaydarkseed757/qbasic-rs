@@ -886,11 +886,29 @@ impl Parser {
                 while !self.at_eol() { self.advance(); }
                 return Ok(None);
             }
-            // Unsupported file-related or OS statements — skip silently
+            // Unsupported file-related or OS statements.
+            //
+            // These are ordinary identifiers as far as the lexer is
+            // concerned, so this arm must NOT fire when the name is simply
+            // being used as a variable. `name = 5` / `name(i) = 5` were
+            // previously swallowed whole — the entire line vanished with no
+            // warning, silently reading 0 forever after. (A sigiled `name$`
+            // is already safe: it lexes as IdentStr, which this arm doesn't
+            // match.) Every real form of these statements is followed by a
+            // string/file argument, never by `=` or `(`, so that lookahead
+            // separates the two cleanly.
+            //
+            // The raw next token is used rather than `peek_next()`, which
+            // skips newlines and would therefore see the `=` of a FOLLOWING
+            // line when one of these words appears alone on its own.
             Token::Ident(ref s) if matches!(s.to_uppercase().as_str(),
                 "SEEK" | "FLUSH" | "LOCK" | "UNLOCK" |
-                "MKDIR" | "RMDIR" | "CHDIR" | "NAME" | "KILL") => {
-                while !self.at_eol() { self.advance(); }
+                "MKDIR" | "RMDIR" | "CHDIR" | "NAME" | "KILL")
+                && !matches!(self.tokens.get(self.pos + 1).map(|t| &t.token),
+                             Some(Token::Eq) | Some(Token::LParen)) => {
+                // Warn rather than drop silently — project rule.
+                let what = s.to_uppercase();
+                self.skip_warn(&what);
                 return Ok(None);
             }
             Token::View => {

@@ -1,0 +1,7 @@
+name= 15 
+seek= 3 
+lock= 7  unlock= 8 
+kill= 2  chdir= 6 
+arr= 42  43 
+str=text
+done

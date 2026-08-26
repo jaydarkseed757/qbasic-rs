@@ -705,7 +705,7 @@ impl Parser {
                 // a runtime key-dispatch helper.
                 if let Token::Ident(ref s) = self.peek().clone() {
                     let su = s.to_uppercase();
-                    if (su == "KEY" || su == "TIMER") && {
+                    if (su == "KEY" || su == "TIMER" || su == "STRIG") && {
                         let saved = self.pos;
                         self.advance();
                         let has_paren = self.peek() == &Token::LParen;
@@ -713,6 +713,16 @@ impl Parser {
                         has_paren
                     } {
                         let is_timer = su == "TIMER";
+                        // ON STRIG(n) GOSUB — joystick-button event trap. Not
+                        // modelled, but it must be recognised HERE: falling
+                        // through to the computed-branch parser below would
+                        // read it as `ON <expr> GOSUB`, whose selector is
+                        // STRIG(n)'s -1/0 — always out of range, so the
+                        // handler would silently never run.
+                        if su == "STRIG" {
+                            self.skip_warn("ON STRIG(n) GOSUB");
+                            return Ok(None);
+                        }
                         self.advance(); // consume KEY / TIMER
                         self.expect(&Token::LParen)?;
                         let num_expr = self.parse_expr()?;
@@ -836,6 +846,15 @@ impl Parser {
             // KEY ON/OFF — IBM PC keyboard function-key display control; skip
             Token::Ident(ref s) if s.eq_ignore_ascii_case("KEY") => {
                 self.skip_warn("KEY ON/OFF");
+                return Ok(None);
+            }
+            // STRIG ON/OFF/STOP — joystick-button event trapping. The FUNCTION
+            // form STRIG(n) is supported (it polls the button); only the
+            // event-trap statement is unmodelled, so the `(` lookahead keeps
+            // this arm off `STRIG(0)` in expression-statement position.
+            Token::Ident(ref s) if s.eq_ignore_ascii_case("STRIG")
+                && self.tokens.get(self.pos + 1).map(|t| &t.token) != Some(&Token::LParen) => {
+                self.skip_warn("STRIG ON/OFF/STOP");
                 return Ok(None);
             }
             // CLEAR [, [expr] [, expr]] — QB memory/stack init; no-op for us (skip)

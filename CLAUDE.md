@@ -81,19 +81,20 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **55/55** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **56/56** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
-deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
+deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits,
+joytest). Test suites:
 - **52/52** integration (`tests/run-tests.sh`, stdout-based)
-- **229** runtime+transpiler unit tests (`cargo test --workspace`)
-- **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
+- **236** runtime+transpiler unit tests (`cargo test --workspace`)
+- **12/12** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
   checksums for 256c, screen13, screen13-sprite, palette256_expanded, reversi,
-  torus, hangman-gfx, duck, gorilla, donkey, orbits)
+  torus, hangman-gfx, duck, gorilla, donkey, orbits, joytest)
 
 gorilla.bas is **fully verified** — headless golden for the banana-throw frame,
 and audio (PLAY explosion/victory fanfares), victory animations, and multi-round
@@ -2826,6 +2827,59 @@ not local declaration. Locked by `tests/programs/ongoto_selector.bas`.
 After the fix: **300/300 seeds pass** on the widened subset. Verified: 229
 unit, 52/52 integration, 55/55 build-all (`--clean`), 11/11 goldens with
 checksums unchanged.
+
+### `STICK` / `STRIG` — joystick support (build-all 56/56)
+
+The last wholly-unmodelled input surface. Before this, a program reading
+the game port could not even be transpiled: `STICK(0)` emitted an undefined
+free-function call.
+
+**The axes and buttons are driven from the KEYBOARD** — arrows for the
+axes, SPACE and ENTER for buttons A1/A2 — which is a deliberate divergence,
+chosen because the honest alternative was worse. A real DOS box with no
+stick in the game port returns a fixed rest value and no buttons, so a
+joystick program would transpile, run, and be completely unplayable.
+Keyboard mapping makes those programs work, and nothing faithful is being
+overridden: real `STICK` returns a raw hardware timer count whose scale
+depends on the card and the stick's trim pot (which is exactly why QB
+programs calibrate at startup instead of assuming values), so there is no
+"correct" number to reproduce. The axis range is the conventional 0–255
+with a centred rest position — the shape every calibration routine expects.
+`QBC_JOYSTICK=off` restores the no-stick-attached behaviour.
+Known caveat: a program that reads the arrow keys through `INKEY$` *and*
+polls `STICK` sees both fire from one keypress. Joystick B is not modelled.
+
+**The two QB latch contracts are modelled properly**, since they're the
+part a program actually depends on:
+- `STICK(0)` samples the hardware and **latches all four axes**, returning
+  joystick A's x; `STICK(1..3)` return that sample's values rather than
+  re-reading. Without the latch, the x and y of one physical stick position
+  could come from different instants.
+- `STRIG(n)` has two flavours per button: **odd** n is the level ("down
+  right now"), **even** n is a self-clearing **edge** latch ("pressed since
+  you last asked"). The pairs are ordered A1, B1, A2, B2 — so A2 is 4/5,
+  not 2/3.
+  The edge latch is maintained by the **event pump**, not by `qb_strig` —
+  a unit test written for the contract caught the first implementation
+  updating it only on read, which silently lost a tap that began and ended
+  between two polls. Catching exactly that is the whole reason QB exposes
+  an edge flavour at all.
+
+Statement forms are recognised but not modelled, and warn via `skip_warn`
+rather than vanishing: `STRIG ON/OFF/STOP` (guarded by a `(` lookahead so
+it can't swallow the `STRIG(n)` FUNCTION), and `ON STRIG(n) GOSUB` — the
+latter matters because without an explicit arm it would fall through to the
+computed-branch parser and be read as `ON <expr> GOSUB`, whose selector is
+STRIG's −1/0, i.e. always out of range, so the handler would silently never
+run.
+
+New program `basic-src/joytest.bas` (SCREEN 13): draws the stick position
+in a calibration box plus a lamp per button and a tap counter, and is the
+12th graphics golden — headless has no window key state, so it pins the
+centred/no-button case exactly. 7 new unit tests in `scancode_tests` cover
+the latch contracts, the QB button ordering, and `QBC_JOYSTICK=off`.
+Verified: 236 unit, 52/52 integration, 56/56 build-all (`--clean`), 12/12
+goldens.
 
 ## Known Issues / TODO
 

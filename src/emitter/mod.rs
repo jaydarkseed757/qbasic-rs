@@ -4970,6 +4970,12 @@ impl Emitter {
                 if name_lc == "lof" && a.len() == 1 {
                     return hoist(self, format!("__rt.qb_lof({})", a[0]));
                 }
+                if name_lc == "stick" && a.len() == 1 {
+                    return hoist(self, format!("__rt.qb_stick({})", a[0]));
+                }
+                if name_lc == "strig" && a.len() == 1 {
+                    return hoist(self, format!("__rt.qb_strig({})", a[0]));
+                }
                 // VARSEG/VARPTR — segment/offset of a variable, used for CALL
                 // ABSOLUTE machine-code tricks we don't model. Stub to 0 so
                 // `DEF SEG = VARSEG(x)` selects segment 0 (the default) and any
@@ -5396,15 +5402,18 @@ impl Emitter {
                 // through emit_cond_expr → emit_expr_inner — emitted an undefined
                 // free fn). Inline is fine here: a condition/assignment context
                 // holds no other __rt borrow.
-                if (upper == "PEEK" || upper == "INP" || upper == "EOF" || upper == "LOF")
+                if matches!(upper.as_str(),
+                            "PEEK" | "INP" | "EOF" | "LOF" | "STICK" | "STRIG")
                     && args.len() == 1
                 {
                     let a0 = self.emit_expr_inner(&args[0])?;
                     let m = match upper.as_str() {
-                        "PEEK" => "qb_peek",
-                        "INP"  => "qb_in",
-                        "LOF"  => "qb_lof",
-                        _      => "qb_eof",
+                        "PEEK"  => "qb_peek",
+                        "INP"   => "qb_in",
+                        "LOF"   => "qb_lof",
+                        "STICK" => "qb_stick",
+                        "STRIG" => "qb_strig",
+                        _       => "qb_eof",
                     };
                     return Ok(format!("__rt.{m}({a0})"));
                 }

@@ -319,6 +319,12 @@ pub(super) fn collect_locals(stmts: &[Stmt], exclude: &HashSet<String>) -> Vec<(
                     scan_expr(file_num, result, added, exclude);
                     for a in args { scan_expr(a, result, added, exclude); }
                 }
+                // A variable used ONLY as an ON..GOTO/GOSUB selector still
+                // needs declaring — `ON ABS(F2) MOD 5 GOTO ...` with F2
+                // referenced nowhere else emitted an undeclared `f2` (E0425).
+                // Found by the differential fuzzer once mode B started
+                // generating computed branches.
+                Stmt::OnGoto { expr, .. } => scan_expr(expr, result, added, exclude),
                 Stmt::FileGet { file_num, record, record_var } |
                 Stmt::FilePut { file_num, record, record_var } => {
                     scan_expr(file_num, result, added, exclude);

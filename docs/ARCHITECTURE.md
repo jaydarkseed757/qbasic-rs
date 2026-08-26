@@ -1062,6 +1062,35 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M31 — Reserved-word variable names + fuzzer widening round 4 ✅
+
+- **`NAME`/`SEEK`/`KILL`/… used as variable names**: a statement starting
+  with one of the unsupported file/OS statement words was unconditionally
+  treated as that statement and skipped to EOL, so `name = 5` vanished with
+  no warning and the variable read 0 forever after — a direct violation of
+  the project's "never silently drop" rule. Every real form of those
+  statements is followed by a string or file argument, never `=` or `(`, so
+  a one-token lookahead separates them (the RAW next token, since
+  `peek_next()` skips newlines and would see a FOLLOWING line's `=`). The
+  genuine statements now warn via `skip_warn` instead of disappearing.
+- **Scalar/array name collision in `main`** (surfaced by that regression
+  test): the scalar half of a shared name is emitted with a `__sc` suffix,
+  but exclusion from the locals list is by BARE name, so a module-level
+  `DIM a(5)` suppressed the scalar binding too (E0425). Sub-local DIMs
+  aren't in `globals`, which is why only `main` was affected — a fourth
+  instance of the main-vs-SUB scoping pattern.
+- **Fuzzer widening round 4**: `STRING$`/`SPACE$`/`LTRIM$`/`RTRIM$`/`VAL`
+  (the last scoped to `STR$` round-trips, so the oracle's fidelity to VAL's
+  prefix parser isn't what's under test), plus `ON expr GOTO/GOSUB` and
+  `FOR`/`NEXT` inside mode B's `__pc` state machine. FOR spans are made
+  jump-safe — a jump into a body would unbalance the loop stack in both
+  engines. Found one real bug on the first run: a variable used only as an
+  `ON..GOTO` selector was never declared, because `collect_locals` had no
+  `Stmt::OnGoto` arm (a different pass from the one made exhaustive in
+  M30). 300/300 seeds pass after the fix.
+
+Verified: 229 unit, 52/52 integration, 55/55 build-all, 11/11 goldens.
+
 ### M30 — Full-codebase bug audit; all ten Tier-1 bugs fixed ✅
 
 A three-pass audit over ~21,000 lines found 25 issues. The ten in Tier 1
@@ -1852,7 +1881,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **50/50**, with 229 unit tests and 11 graphics golden
+The integration suite is **52/52**, with 229 unit tests and 11 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

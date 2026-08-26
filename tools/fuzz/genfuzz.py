@@ -111,6 +111,15 @@ class Gen:
                 return f"INSTR({self.sexpr(depth + 1)}, {self.sexpr(depth + 1)})"
             return (f"INSTR(ABS({self.atom()}) MOD 9, "
                     f"{self.sexpr(depth + 1)}, {self.sexpr(depth + 1)})")
+        if c < 0.99:
+            # VAL round-trips. Deliberately scoped to STR$ output and to
+            # digit-only literals rather than arbitrary strings: VAL parses
+            # the longest valid numeric PREFIX and ignores trailing junk, and
+            # feeding it random text would make the oracle's fidelity to that
+            # prefix parser (rather than the transpiler) the thing under test.
+            if self.r.random() < 0.6:
+                return f"VAL(STR$({self.atom()}))"
+            return f'VAL("{self.r.randint(-999, 999)}")'
         return f"LEN({self.sexpr(depth + 1)})"
 
     def cond(self, depth=1):
@@ -140,12 +149,24 @@ class Gen:
             return f"RIGHT$({a}, ABS({self.atom()}) MOD 10)"
         if c < 0.68:
             return f"MID$({a}, ABS({self.atom()}) MOD 20 + 1, ABS({self.atom()}) MOD 10)"
-        if c < 0.78:
+        if c < 0.74:
             return f"UCASE$({a})"
-        if c < 0.86:
+        if c < 0.80:
             return f"LCASE$({a})"
-        if c < 0.94:
+        if c < 0.86:
             return f"STR$({self.nexpr(depth + 1)})"
+        if c < 0.89:
+            # STRING$ in both forms: char code, and first-char-of-string.
+            n = f"ABS({self.atom()}) MOD 8"
+            if self.r.random() < 0.5:
+                return f"STRING$({n}, ABS({self.atom()}) MOD 95 + 32)"
+            return f"STRING$({n}, {a})"
+        if c < 0.92:
+            return f"SPACE$(ABS({self.atom()}) MOD 8)"
+        if c < 0.95:
+            return f"LTRIM$({a})"
+        if c < 0.97:
+            return f"RTRIM$({a})"
         return f"CHR$(ABS({self.nexpr(depth + 1)}) MOD 95 + 32)"
 
     # ── statements ──────────────────────────────────────────────────────────
@@ -436,6 +457,7 @@ class GenFlat:
         # Backward-GOTO counted loops (0-2): a dedicated counter the body
         # never touches guarantees termination. Encoded as tuples resolved to
         # concrete line numbers during the numbering pass below.
+        backloop_spans = set()   # indices occupied by backward-GOTO segments
         for loop_n, cvar in enumerate(["L8", "L9"][:r.randint(0, 2)]):
             at = r.randint(0, len(stmts) - 1)
             body_len = r.randint(1, 3)
@@ -454,6 +476,45 @@ class GenFlat:
                 if (isinstance(e, tuple) and j != at + seg_len - 1
                         and e[3] >= at):
                     stmts[j] = (e[0], e[1], e[2], e[3] + seg_len)
+            backloop_spans = {i + seg_len if i >= at else i for i in backloop_spans}
+            backloop_spans.update(range(at, at + seg_len))
+
+        # FOR/NEXT segments — the mode-A generator covers FOR heavily, but
+        # only here does a FOR body live inside the `__pc` state machine, so
+        # this exercises a genuinely different emitter path.
+        #
+        # A FOR body must be ENTERED only through its FOR line: a jump landing
+        # inside the body (or straight onto the NEXT) would leave the loop
+        # stack unbalanced in both engines and produce a spurious mismatch —
+        # or, in the oracle, pop an empty stack. So the body carries no jump
+        # slots, insertion never lands inside an existing backward-loop
+        # segment, and the interior indices are recorded here and excluded
+        # from every forward-jump target below.
+        for_interior = set()
+        for cvar in ["L6", "L7"][:r.randint(0, 2)]:
+            # Don't nest inside a backward-loop segment or another FOR.
+            choices = [i for i in range(len(stmts))
+                       if i not in backloop_spans and i not in for_interior]
+            if not choices:
+                break
+            at = r.choice(choices)
+            body_len = r.randint(1, 2)
+            lo, hi = r.randint(0, 2), r.randint(2, 5)
+            step = r.choice(["", "", " STEP 2"])
+            # Never a jump slot (None) inside the body.
+            body = [f"{r.choice(NUMVARS)} = ({g.nexpr(1)}) MOD 32749"
+                    for _ in range(body_len)]
+            seg = [f"FOR {cvar} = {lo} TO {hi}{step}"] + body + [f"NEXT {cvar}"]
+            seg_len = len(seg)
+            stmts[at:at] = seg
+            # Shift every previously-recorded index past the insertion point.
+            for j, e in enumerate(stmts):
+                if isinstance(e, tuple) and e[3] >= at:
+                    stmts[j] = (e[0], e[1], e[2], e[3] + seg_len)
+            backloop_spans = {i + seg_len if i >= at else i for i in backloop_spans}
+            for_interior = {i + seg_len if i >= at else i for i in for_interior}
+            # Interior = body + NEXT (the FOR line itself is a legal target).
+            for_interior.update(range(at + 1, at + seg_len))
 
         # Line numbering: DIMs first, then main, dump, END, subs.
         out = ["' fuzz-generated program (genfuzz.py, mode B: line-numbered)"]
@@ -493,10 +554,24 @@ class GenFlat:
                 # jump slot: forward GOTO / IF…GOTO to a later main line or
                 # the dump; or a GOSUB into the sub region.
                 c = r.random()
-                later = [n for n in main_nums if n > this] + [dump_first]
+                later = [n for k, n in enumerate(main_nums)
+                         if n > this and k not in for_interior] + [dump_first]
                 tgt = r.choice(later)
                 if c < 0.25 and sub_nums:
                     st = f"GOSUB {r.choice(sub_nums)[0]}"
+                elif c < 0.35:
+                    # ON expr GOTO/GOSUB — computed branch, 1-indexed, with a
+                    # selector range that deliberately includes 0 and an
+                    # out-of-range value so the fall-through path is covered
+                    # too. Exercises the __pc state machine's OnGoto lowering.
+                    k = r.randint(2, 3)
+                    tgts = [r.choice(later) for _ in range(k)]
+                    sel = f"ABS({g.atom()}) MOD {k + 2}"
+                    if sub_nums and r.random() < 0.4:
+                        gt = ", ".join(str(r.choice(sub_nums)[0]) for _ in range(k))
+                        st = f"ON {sel} GOSUB {gt}"
+                    else:
+                        st = f"ON {sel} GOTO {', '.join(str(t) for t in tgts)}"
                 elif c < 0.55:
                     st = f"IF {g.cond()} THEN GOTO {tgt}"
                 elif c < 0.7:

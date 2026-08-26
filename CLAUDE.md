@@ -88,7 +88,7 @@ hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprit
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits). Test suites:
-- **50/50** integration (`tests/run-tests.sh`, stdout-based)
+- **52/52** integration (`tests/run-tests.sh`, stdout-based)
 - **229** runtime+transpiler unit tests (`cargo test --workspace`)
 - **11/11** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
@@ -2762,6 +2762,70 @@ graphics and 40-seed differential fuzz spot-checks.
 Tiers 2–4 (four panics, eight emitted-Rust compile errors, three
 reporting/cosmetic issues) are catalogued but not yet fixed — see the
 audit entry in Known Issues below.
+
+### Reserved-word variable names + fuzzer widening round 4
+
+**`NAME`/`SEEK`/`KILL`/… as variable names** (`src/parser.rs`). A statement
+whose first token was one of the unsupported file/OS statement words
+(`NAME`, `SEEK`, `FLUSH`, `LOCK`, `UNLOCK`, `MKDIR`, `RMDIR`, `CHDIR`,
+`KILL`) was unconditionally treated as that statement and skipped to EOL —
+including an ordinary assignment to a variable that merely shares the name.
+`name = 5` and `name(1) = 42` vanished entirely with no warning, and the
+variable read 0 forever after; a direct violation of the project's own
+"never silently drop a statement" rule. These words are plain identifiers
+to the lexer, so the parser has to separate the two cases: every real form
+(`NAME "a" AS "b"`, `KILL "f"`, `SEEK #1, 5`) is followed by a string or
+file argument, never by `=` or `(`, so a one-token lookahead does it. The
+RAW next token is used rather than `peek_next()`, which skips newlines and
+would otherwise see the `=` of a FOLLOWING line when one of these words
+appears alone. A sigiled `name$` was never affected (it lexes as
+`IdentStr`, which the arm doesn't match). The genuine statements are still
+skipped but now go through `skip_warn`. Locked by
+`tests/programs/reserved_name_vars.bas`.
+
+**Scalar/array name collision in the MAIN body** — found by that same
+regression test. QB lets a scalar and an array share one name, and the
+scalar is emitted with a `__sc` suffix (`local_scalar_name`), but exclusion
+from the locals list is by BARE name: a module-level `DIM a(5)` put `a` in
+`globals` and suppressed the SCALAR binding too, leaving uses of `a__sc`
+with nothing declaring it (E0425). Sub-local DIMs aren't in `globals`,
+which is why this only ever bit `main` — a **fourth** instance of the
+main-vs-SUB scoping pattern. `emit_locals` now un-excludes names that are
+local arrays; `collect_locals` returns a name only where it is genuinely
+used as a scalar, so this adds a binding exactly where one is needed.
+
+**Fuzzer widening round 4** (`tools/fuzz/`), three additions:
+- **More string builtins**: `STRING$` (both the char-code and
+  first-char-of-string forms), `SPACE$`, `LTRIM$`/`RTRIM$`, and `VAL`.
+  `VAL` is deliberately scoped to `STR$` round-trips and digit-only
+  literals rather than arbitrary text: it parses the longest valid numeric
+  PREFIX and ignores trailing junk, so feeding it random strings would make
+  the ORACLE's fidelity to that prefix parser the thing under test rather
+  than the transpiler. `qbref.py` mirrors `qb_val` exactly (including the
+  `&H`/`&O` prefixes and the "bare `e` is not consumed" rule) so the two
+  can't drift.
+- **`ON expr GOTO/GOSUB` in mode B** — computed branches inside the `__pc`
+  state machine, with selector ranges that deliberately include 0 and an
+  out-of-range value so the fall-through path is covered.
+- **`FOR`/`NEXT` in mode B** — the mode-A generator already covers FOR
+  heavily, but only here does a FOR body live inside the `__pc` state
+  machine. A FOR body must be entered ONLY through its FOR line, or the
+  loop stack unbalances in both engines (and the oracle pops an empty
+  stack), so the body carries no jump slots, insertion never lands inside
+  an existing backward-loop segment, and the interior indices are recorded
+  and excluded from every forward-jump target.
+
+**Bug found on the first widened run** (seed 72, now fixed): a variable
+used ONLY as an `ON..GOTO` selector was never declared — `collect_locals`
+had no `Stmt::OnGoto` arm, so `ON ABS(F2) MOD 5 GOTO …` with `F2`
+referenced nowhere else emitted an undeclared `f2` (E0425). Note this is a
+DIFFERENT pass from `collect_scalar_names_stmt`, whose match was made
+exhaustive during the Tier-1 audit work — that hardening covers promotion,
+not local declaration. Locked by `tests/programs/ongoto_selector.bas`.
+
+After the fix: **300/300 seeds pass** on the widened subset. Verified: 229
+unit, 52/52 integration, 55/55 build-all (`--clean`), 11/11 goldens with
+checksums unchanged.
 
 ## Known Issues / TODO
 

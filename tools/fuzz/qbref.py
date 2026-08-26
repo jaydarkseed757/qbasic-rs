@@ -296,6 +296,26 @@ class Expr:
             return self.args()[0].upper()
         if name == 'LCASE$':
             return self.args()[0].lower()
+        if name == 'LTRIM$':
+            # QB trims spaces only; Python's default strip() also eats \t\n
+            return self.args()[0].lstrip(' ')
+        if name == 'RTRIM$':
+            return self.args()[0].rstrip(' ')
+        if name == 'SPACE$':
+            n = int(self.args()[0])
+            return ' ' * max(n, 0)
+        if name == 'STRING$':
+            a = self.args()
+            n = max(int(a[0]), 0)
+            # STRING$(n, code) and STRING$(n, s$) — the latter repeats the
+            # FIRST character of s$ (qb_string / qb_string_s in the runtime).
+            if isinstance(a[1], str):
+                ch = a[1][0] if a[1] else ' '
+            else:
+                ch = chr(int(a[1]))
+            return ch * n
+        if name == 'VAL':
+            return qb_val(self.args()[0])
         # Array element or scalar variable
         if self.peek() == ('op', '('):
             idx = tuple(int(x) for x in self.args())
@@ -303,6 +323,55 @@ class Expr:
         if name.endswith('$'):
             return env.svars.get(name, '')
         return env.nvars.get(name, 0.0)
+
+
+def qb_val(s):
+    """VAL(s$) — mirrors runtime qb_val exactly.
+
+    QB parses the LONGEST VALID NUMERIC PREFIX after leading whitespace and
+    ignores the rest, so VAL("1-2") == 1 and VAL("12e") == 12 (a bare `e`
+    with no digits after it is not consumed). &H/&O prefixes are handled
+    first. Deliberately hand-written rather than a bare float() so the
+    oracle can't disagree with the runtime on the trailing-junk cases.
+    """
+    t = s.lstrip()
+    if t[:2] in ('&H', '&h'):
+        hexs = t[2:]
+        j = 0
+        while j < len(hexs) and hexs[j] in '0123456789abcdefABCDEF':
+            j += 1
+        return float(int(hexs[:j], 16)) if j else 0.0
+    if t[:2] in ('&O', '&o'):
+        octs = t[2:]
+        j = 0
+        while j < len(octs) and octs[j] in '01234567':
+            j += 1
+        return float(int(octs[:j], 8)) if j else 0.0
+
+    b = t
+    n = len(b)
+    i = 0
+    if i < n and b[i] in '+-':
+        i += 1
+    while i < n and b[i].isdigit():
+        i += 1
+    if i < n and b[i] == '.':
+        i += 1
+        while i < n and b[i].isdigit():
+            i += 1
+    if i < n and b[i] in 'eE':
+        j = i + 1
+        if j < n and b[j] in '+-':
+            j += 1
+        if j < n and b[j].isdigit():
+            j += 1
+            while j < n and b[j].isdigit():
+                j += 1
+            i = j
+    try:
+        return float(b[:i])
+    except ValueError:
+        return 0.0
 
 
 def cint(x):
@@ -769,6 +838,7 @@ def run_flat(src):
 
     env = Env()
     stack = []
+    forstack = []      # (var, limit, step, body_start_pc)
     pc = 0
     while pc < len(prog):
         env.tick()
@@ -787,6 +857,64 @@ def run_flat(src):
         elif up.startswith('GOSUB '):
             stack.append(pc + 1)
             nxt = index[int(st[6:])]
+        elif up.startswith('FOR '):
+            # FOR v = a TO b [STEP s] on its own numbered line; the matching
+            # NEXT jumps back here's SUCCESSOR. Entry runs the QB pre-test, so
+            # a loop whose range is empty skips the body entirely.
+            body = st[4:]
+            eq = body.index('=')
+            var = body[:eq].strip().upper()
+            rest = body[eq + 1:]
+            ru = rest.upper()
+            ti = ru.index(' TO ')
+            start = ev(env, rest[:ti])
+            after = rest[ti + 4:]
+            au = after.upper()
+            if ' STEP ' in au:
+                si = au.index(' STEP ')
+                limit = ev(env, after[:si])
+                step = ev(env, after[si + 6:])
+            else:
+                limit, step = ev(env, after), 1.0
+            env.nvars[var] = start
+            forstack.append((var, limit, step, pc + 1))
+            if (step > 0 and start > limit) or (step < 0 and start < limit):
+                # Empty range: skip to the line after the matching NEXT.
+                depth = 0
+                j = pc + 1
+                while j < len(prog):
+                    u2 = prog[j][1].upper()
+                    if u2.startswith('FOR '):
+                        depth += 1
+                    elif u2.startswith('NEXT'):
+                        if depth == 0:
+                            break
+                        depth -= 1
+                    j += 1
+                forstack.pop()
+                nxt = j + 1
+        elif up.startswith('NEXT'):
+            var, limit, step, body = forstack[-1]
+            env.nvars[var] = env.nvars.get(var, 0.0) + step
+            v = env.nvars[var]
+            if (step > 0 and v <= limit) or (step < 0 and v >= limit):
+                nxt = body
+            else:
+                forstack.pop()
+        elif up.startswith('ON '):
+            # ON expr GOTO n1, n2, ...  /  ON expr GOSUB n1, n2, ...
+            # 1-indexed; 0 or out-of-range falls through to the next line.
+            if ' GOSUB ' in up:
+                kw, is_gosub = ' GOSUB ', True
+            else:
+                kw, is_gosub = ' GOTO ', False
+            k = up.index(kw)
+            sel = int(cint(ev(env, st[3:k])))
+            targets = [int(t.strip()) for t in st[k + len(kw):].split(',')]
+            if 1 <= sel <= len(targets):
+                if is_gosub:
+                    stack.append(pc + 1)
+                nxt = index[targets[sel - 1]]
         elif up.startswith('IF '):
             thn = up.rindex(' THEN')
             cond = st[3:thn]

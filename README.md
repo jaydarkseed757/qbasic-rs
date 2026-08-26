@@ -30,6 +30,7 @@ Native binaries, captured headless via the runtime's `QBC_DUMP` driver (see
 </tr>
 <tr>
 <td align="center"><img src="docs/screenshots/orbits.png" width="420"><br><b>orbits.bas</b> — deterministic orbital mechanics (SCREEN 13, TYPE-in-TYPE nesting)</td>
+<td align="center"><img src="docs/screenshots/joytest.png" width="420"><br><b>joytest.bas</b> — <code>STICK</code>/<code>STRIG</code> joystick demo (SCREEN 13, keyboard-driven)</td>
 </tr>
 </table>
 
@@ -133,9 +134,10 @@ bash tools/doctor.sh
 | `qbricks.bas` | Microsoft brick-breaker demo (SCREEN 7, paddle/ball physics, GET/PUT sprites) | ✅ |
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 | `orbits.bas` | Deterministic orbital-mechanics demo (SCREEN 13) — genuine `TYPE`-in-`TYPE` nesting (`Vec2` nested inside `Body`) and an array of the nested TYPE, real Newtonian gravity, exact circular-orbit initial velocities | ✅ |
+| `joytest.bas` | Joystick demo (SCREEN 13) — `STICK`/`STRIG` polling with QB's axis-latch and edge/level button contracts; driven from the keyboard so it needs no joystick | ✅ |
 
-All **55 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 55/55). The full set also includes `nibbles`,
+All **56 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 56/56). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
 `towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
@@ -488,6 +490,30 @@ nothing extra rather than a confident guess.
 `qbc` auto-locates the runtime rlib relative to its own executable, so `cargo run` works without manual `-L` flags.
 
 ---
+
+### Joystick: `STICK` / `STRIG`
+
+The stick and its buttons are driven from the **keyboard** — arrows for the
+axes, SPACE and ENTER for buttons A1/A2 — so joystick programs are playable
+with nothing plugged in. This is a deliberate divergence, but nothing
+faithful is lost: real `STICK` returns a raw hardware timer count whose
+scale depends on the card and the stick's trim pot (which is why QB
+programs calibrate at startup rather than assuming values), and a DOS box
+with no stick attached just reports a rest value and no buttons. Axes span
+0–255 with a centred rest position. `QBC_JOYSTICK=off` restores the
+no-stick-attached behaviour.
+
+Both QB latch contracts are modelled, since they're what programs actually
+rely on: `STICK(0)` samples and **latches all four axes** (so `STICK(1)`
+returns that sample's y rather than re-reading, and one physical position
+can't be split across two instants), and `STRIG(n)` is a **level** read for
+odd `n` but a self-clearing **edge** latch for even `n`, maintained by the
+event pump so a tap beginning and ending between two polls is still caught.
+Button pairs follow QB's interleaved order A1, B1, A2, B2. Joystick B is
+not modelled. `STRIG ON/OFF/STOP` and `ON STRIG(n) GOSUB` are recognised
+but not modelled — they warn rather than vanish.
+
+See `basic-src/joytest.bas` for a worked example.
 
 ## Dependencies
 

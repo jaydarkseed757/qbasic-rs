@@ -1062,6 +1062,37 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M32 — `STICK`/`STRIG` joystick support ✅
+
+The last wholly-unmodelled input surface: before this a program reading the
+game port couldn't even be transpiled (`STICK(0)` emitted an undefined free
+function).
+
+- **Keyboard-driven** (arrows for the axes, SPACE/ENTER for A1/A2), a
+  deliberate divergence. Real `STICK` returns a raw hardware timer count
+  whose scale depends on the card and the stick's trim pot — which is why QB
+  programs calibrate at startup — so there is no "correct" value being
+  overridden, and a DOS box with no stick attached would leave such a
+  program unplayable. Axes span 0–255 centred; `QBC_JOYSTICK=off` restores
+  the no-stick behaviour. Joystick B is not modelled.
+- **Both QB latch contracts are modelled**, since they're what programs
+  depend on: `STICK(0)` samples and latches all four axes (so `STICK(1)`
+  can't pair its y with a different instant's x), and `STRIG(n)` is a level
+  read for odd `n` and a self-clearing edge latch for even `n`, with QB's
+  interleaved A1/B1/A2/B2 pair order. The edge latch lives in the **event
+  pump**, not in `qb_strig` — a unit test written to the contract caught the
+  first implementation updating it only on read, which silently dropped a
+  tap that began and ended between two polls.
+- `STRIG ON/OFF/STOP` and `ON STRIG(n) GOSUB` warn via `skip_warn` instead
+  of vanishing. The latter needs an explicit arm: otherwise it falls through
+  to the computed-branch parser as `ON <expr> GOSUB`, whose selector is
+  STRIG's −1/0 — always out of range, so the handler would silently never
+  run.
+
+New program `basic-src/joytest.bas` (SCREEN 13), added as the 12th graphics
+golden. Verified: 236 unit (7 new), 52/52 integration, 56/56 build-all,
+12/12 goldens.
+
 ### M31 — Reserved-word variable names + fuzzer widening round 4 ✅
 
 - **`NAME`/`SEEK`/`KILL`/… used as variable names**: a statement starting
@@ -1881,7 +1912,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **52/52**, with 229 unit tests and 11 graphics golden
+The integration suite is **52/52**, with 236 unit tests and 12 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

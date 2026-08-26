@@ -456,6 +456,22 @@ pub struct Runtime {
     sc_queue: std::collections::VecDeque<u8>,
     sc_last: u8,
     sc_prev_down: Vec<Key>,
+    /// Joystick axis values latched by the most recent `STICK(0)`.
+    /// QB semantics: STICK(0) samples the hardware and latches all four
+    /// axes, returning joystick A's x; STICK(1..3) return the values that
+    /// sample latched, NOT a fresh read. Programs rely on this to get a
+    /// coherent x/y pair.
+    joy_latched: [f64; 4],
+    /// Edge latch behind `STRIG(0/2/4/6)` ("has this button been pressed
+    /// since the last time you asked?"). Set on a press, cleared by the
+    /// read. `STRIG(1/3/5/7)` is the level ("is it down right now?") and
+    /// doesn't touch this.
+    joy_pressed_since: [bool; 4],
+    /// Previous sampled button levels, for detecting the press edge above.
+    joy_prev_btn: [bool; 4],
+    /// `QBC_JOYSTICK=off` disables the keyboard-driven stick, restoring the
+    /// no-stick-attached behaviour (centred axes, no buttons).
+    joystick_enabled: bool,
     // RNG (LCG matching QB's generator)
     rng: u32,
     /// Last value returned by rnd() — QB's RND(0) repeats it.
@@ -733,6 +749,10 @@ impl Runtime {
             sc_queue:     std::collections::VecDeque::new(),
             sc_last:      0,
             sc_prev_down: Vec::new(),
+            joy_latched: [JOY_CENTER; 4],
+            joy_pressed_since: [false; 4],
+            joy_prev_btn: [false; 4],
+            joystick_enabled: true,
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
@@ -837,6 +857,10 @@ impl Runtime {
             sc_queue:     std::collections::VecDeque::new(),
             sc_last:      0,
             sc_prev_down: Vec::new(),
+            joy_latched: [JOY_CENTER; 4],
+            joy_pressed_since: [false; 4],
+            joy_prev_btn: [false; 4],
+            joystick_enabled: true,
             rng:          0x50000, // QB power-on seed: first RND = .7055475
             last_rnd:     0.0,
             view_x1: 0.0, view_y1: 0.0, view_x2: 0.0, view_y2: 0.0, view_active: false,
@@ -911,6 +935,11 @@ impl Runtime {
         }
         if let Ok(v) = std::env::var("QBC_SLOWMO") {
             if let Ok(f) = v.trim().parse::<f64>() { self.set_slowmo(f); }
+        }
+        if let Ok(v) = std::env::var("QBC_JOYSTICK") {
+            // `off`/`0` → behave like a machine with no stick attached.
+            let v = v.trim().to_ascii_lowercase();
+            self.joystick_enabled = !(v == "off" || v == "0" || v == "false");
         }
     }
 
@@ -1920,10 +1949,118 @@ impl Runtime {
         self.feed_scancodes(down_keys);
     }
 
+    // ── Joystick: STICK / STRIG ──────────────────────────────────────────
+    //
+    // No joystick is emulated at the hardware level; the stick and its
+    // buttons are driven from the KEYBOARD (arrows for the axes, Space and
+    // Enter for buttons A1/A2). This is a deliberate divergence, and the
+    // honest alternative was worse: a real DOS box with no stick plugged in
+    // returns a fixed rest value and no buttons, so a joystick program
+    // transpiles and runs but is simply unplayable. Keyboard mapping makes
+    // those programs actually work, and nothing is being overridden — there
+    // is no faithful reading to lose. Set `QBC_JOYSTICK=off` to get the
+    // no-stick-attached behaviour instead.
+    //
+    // Caveat worth knowing: a program that reads the arrow keys through
+    // INKEY$ *and* polls STICK will see both fire from one keypress.
+    // Joystick B is always centred and unpressed — only one stick is
+    // modelled.
+
+    /// True when `k` is currently held. Windowed runs get this from the
+    /// event pump's held-key set; headless runs have no window key state,
+    /// so the stick reads centred there (which is what the goldens pin).
+    fn key_held(&self, k: Key) -> bool {
+        self.sc_prev_down.contains(&k)
+    }
+
+    /// Sample the four axes right now: [A-x, A-y, B-x, B-y].
+    fn joy_sample(&self) -> [f64; 4] {
+        if !self.joystick_enabled {
+            return [JOY_CENTER; 4];
+        }
+        let axis = |neg: Key, pos: Key| -> f64 {
+            match (self.key_held(neg), self.key_held(pos)) {
+                (true, false) => JOY_MIN,
+                (false, true) => JOY_MAX,
+                _             => JOY_CENTER,   // centred, and both-held cancels
+            }
+        };
+        [
+            axis(Key::Left, Key::Right),
+            axis(Key::Up,   Key::Down),
+            JOY_CENTER,   // joystick B is not modelled
+            JOY_CENTER,
+        ]
+    }
+
+    /// Button levels for a given held-key set: [A1, A2, B1, B2].
+    fn joy_buttons_of(&self, down: &[Key]) -> [bool; 4] {
+        if !self.joystick_enabled {
+            return [false; 4];
+        }
+        [down.contains(&Key::Space), down.contains(&Key::Enter), false, false]
+    }
+
+    /// Current button levels.
+    fn joy_buttons(&self) -> [bool; 4] {
+        self.joy_buttons_of(&self.sc_prev_down)
+    }
+
+    /// Update the "pressed since last asked" latches from a new held-key
+    /// set. Called on every event pump — NOT from `qb_strig` — because the
+    /// latch models hardware that catches the press whether or not the
+    /// program happened to be polling: a tap that begins and ends between
+    /// two `STRIG` reads must still register, which is the entire reason
+    /// QB exposes an edge flavour alongside the level one.
+    fn joy_update_edges(&mut self, down: &[Key]) {
+        let levels = self.joy_buttons_of(down);
+        for b in 0..4 {
+            if levels[b] && !self.joy_prev_btn[b] {
+                self.joy_pressed_since[b] = true;
+            }
+        }
+        self.joy_prev_btn = levels;
+    }
+
+    /// `STICK(n)` — 0: sample the hardware and return joystick A's x;
+    /// 1..3: return A-y / B-x / B-y as latched by that sample.
+    ///
+    /// The latch is the whole point of the QB contract: reading each axis
+    /// independently would let the x and y of one physical position come
+    /// from different instants.
+    pub fn qb_stick(&mut self, n: f64) -> f64 {
+        let i = (n as i64).clamp(0, 3) as usize;
+        if i == 0 {
+            self.joy_latched = self.joy_sample();
+        }
+        self.joy_latched[i]
+    }
+
+    /// `STRIG(n)` — even n: "pressed since last asked" (edge, self-clearing);
+    /// odd n: "down right now" (level). n selects the button:
+    /// 0/1 = A1, 2/3 = B1, 4/5 = A2, 6/7 = B2 (QB's interleaved order).
+    pub fn qb_strig(&mut self, n: f64) -> f64 {
+        let n = (n as i64).clamp(0, 7) as usize;
+        // QB orders the pairs A1, B1, A2, B2 — not A1, A2, B1, B2.
+        let btn = match n / 2 { 0 => 0, 1 => 2, 2 => 1, _ => 3 };
+
+        let levels = self.joy_buttons();
+        if n % 2 == 1 {
+            qb_from_bool(levels[btn])
+        } else {
+            let was = self.joy_pressed_since[btn];
+            self.joy_pressed_since[btn] = false;   // reading clears the latch
+            qb_from_bool(was)
+        }
+    }
+
     /// Diff the window's currently-held key set against the previous pump and
     /// translate transitions into XT make/break scancodes for `INP(&H60)`.
     /// Bounded so a program that never reads the port can't grow the queue.
     fn feed_scancodes(&mut self, down: Vec<Key>) {
+        // Joystick buttons ride the same held-key transitions as the
+        // scancode queue, so latch their press edges here.
+        self.joy_update_edges(&down);
         for k in &down {
             if !self.sc_prev_down.contains(k) {
                 if let Some(sc) = minifb_key_to_scancode(*k) { self.push_scancode(sc); }
@@ -3589,6 +3726,16 @@ pub fn qb_print_using(fmt: &str, values: &[QbVal]) -> String {
 /// space/enter/esc/tab/backspace, arrows, shifts/ctrl/alt, F1–F10.
 /// Arrow keys return their bare codes (72/75/77/80) without the 0xE0 extended
 /// prefix — QB-era pollers index a 0..127 `kd()` array and treat them so.
+/// Joystick axis range. Real QB `STICK` returns a raw hardware timer count
+/// whose scale depends on the card and the stick's trim pot, which is why QB
+/// programs calibrate at startup rather than assuming values. There is no
+/// "correct" number to reproduce, so this uses the conventional 0..255 span
+/// with a centred rest position — the shape every calibration routine
+/// expects.
+const JOY_CENTER: f64 = 128.0;
+const JOY_MIN:    f64 = 0.0;
+const JOY_MAX:    f64 = 255.0;
+
 fn minifb_key_to_scancode(key: Key) -> Option<u8> {
     use Key::*;
     Some(match key {
@@ -4405,6 +4552,102 @@ mod deferred_wrap_tests {
 #[cfg(test)]
 mod scancode_tests {
     use super::*;
+
+    // ── Joystick (STICK / STRIG) ─────────────────────────────────────────
+    // `feed_scancodes` sets the held-key set the stick reads from, so these
+    // drive it exactly the way a windowed event pump would.
+
+    #[test]
+    fn stick_reads_centred_with_nothing_held() {
+        let mut rt = Runtime::headless();
+        assert_eq!(rt.qb_stick(0.0), JOY_CENTER);
+        assert_eq!(rt.qb_stick(1.0), JOY_CENTER);
+        // Joystick B is not modelled — always centred.
+        assert_eq!(rt.qb_stick(2.0), JOY_CENTER);
+        assert_eq!(rt.qb_stick(3.0), JOY_CENTER);
+    }
+
+    #[test]
+    fn stick_axes_follow_the_arrow_keys() {
+        let mut rt = Runtime::headless();
+        rt.feed_scancodes(vec![Key::Left, Key::Down]);
+        assert_eq!(rt.qb_stick(0.0), JOY_MIN, "Left deflects x to minimum");
+        assert_eq!(rt.qb_stick(1.0), JOY_MAX, "Down deflects y to maximum");
+        rt.feed_scancodes(vec![Key::Right, Key::Up]);
+        assert_eq!(rt.qb_stick(0.0), JOY_MAX);
+        assert_eq!(rt.qb_stick(1.0), JOY_MIN);
+        // Opposite directions held together cancel to centre.
+        rt.feed_scancodes(vec![Key::Left, Key::Right]);
+        assert_eq!(rt.qb_stick(0.0), JOY_CENTER);
+    }
+
+    /// The QB contract: STICK(0) samples and LATCHES all four axes, and
+    /// STICK(1..3) return that sample. Reading each axis independently could
+    /// otherwise pair an x and y captured at different instants.
+    #[test]
+    fn stick_1_returns_the_value_latched_by_stick_0() {
+        let mut rt = Runtime::headless();
+        rt.feed_scancodes(vec![Key::Up]);
+        assert_eq!(rt.qb_stick(0.0), JOY_CENTER);
+        // Move the stick AFTER the sample — STICK(1) must still report the
+        // latched y, not a fresh read.
+        rt.feed_scancodes(vec![Key::Down]);
+        assert_eq!(rt.qb_stick(1.0), JOY_MIN, "y comes from the STICK(0) sample");
+        // A new sample picks up the change.
+        rt.qb_stick(0.0);
+        assert_eq!(rt.qb_stick(1.0), JOY_MAX);
+    }
+
+    #[test]
+    fn strig_odd_is_level_even_is_self_clearing_edge() {
+        let mut rt = Runtime::headless();
+        assert_eq!(rt.qb_strig(1.0), 0.0, "A1 not held");
+
+        rt.feed_scancodes(vec![Key::Space]);
+        assert_eq!(rt.qb_strig(1.0), -1.0, "A1 held right now");
+        assert_eq!(rt.qb_strig(0.0), -1.0, "pressed since last asked");
+        assert_eq!(rt.qb_strig(0.0), 0.0, "reading the edge latch clears it");
+        assert_eq!(rt.qb_strig(1.0), -1.0, "level is unaffected by the clear");
+
+        // Releasing drops the level; the edge only re-arms on a new press.
+        rt.feed_scancodes(vec![]);
+        assert_eq!(rt.qb_strig(1.0), 0.0);
+        assert_eq!(rt.qb_strig(0.0), 0.0);
+        rt.feed_scancodes(vec![Key::Space]);
+        assert_eq!(rt.qb_strig(0.0), -1.0, "new press re-arms the edge");
+    }
+
+    /// A tap that starts AND ends between two polls must still be caught —
+    /// that is the whole reason the even-numbered STRIG latch exists.
+    #[test]
+    fn strig_edge_catches_a_press_released_before_the_poll() {
+        let mut rt = Runtime::headless();
+        rt.qb_strig(0.0);                       // prime / clear
+        rt.feed_scancodes(vec![Key::Space]);    // press
+        rt.feed_scancodes(vec![]);              // and release, no poll between
+        assert_eq!(rt.qb_strig(1.0), 0.0, "not held any more");
+        assert_eq!(rt.qb_strig(0.0), -1.0, "but the press was latched");
+    }
+
+    #[test]
+    fn strig_maps_qb_button_order_and_b_stick_is_dead() {
+        let mut rt = Runtime::headless();
+        rt.feed_scancodes(vec![Key::Enter]);
+        // QB interleaves the pairs A1, B1, A2, B2 — so A2 is 4/5, not 2/3.
+        assert_eq!(rt.qb_strig(5.0), -1.0, "Enter drives A2");
+        assert_eq!(rt.qb_strig(1.0), 0.0,  "A1 untouched");
+        assert_eq!(rt.qb_strig(3.0), 0.0,  "joystick B is not modelled");
+        assert_eq!(rt.qb_strig(7.0), 0.0);
+    }
+
+    #[test]
+    fn joystick_can_be_disabled() {
+        let mut rt = Runtime::headless();
+        rt.joystick_enabled = false;
+        rt.feed_scancodes(vec![Key::Left, Key::Space]);
+        assert_eq!(rt.qb_stick(0.0), JOY_CENTER, "no stick attached");
+        assert_eq!(rt.qb_strig(1.0), 0.0);
+    }
 
     #[test]
     fn inp_60_returns_make_break_and_persists() {

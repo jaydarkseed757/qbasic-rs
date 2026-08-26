@@ -84,6 +84,11 @@ TESTS=(
     # ms cap is just a safety net (runs near-instantly under the simulated
     # clock, real wall time is irrelevant to the virtual-time step count).
     "orbits|1||ms:5000"
+    # joytest: STICK/STRIG demo. Headless has no window key state, so the
+    # stick reads centred and no button is ever down — which is exactly the
+    # no-joystick-attached case worth pinning. Runs a fixed 240 WAIT-paced
+    # frames then ENDs; the ms cap is only a safety net.
+    "joytest|1||ms:5000"
 )
 
 echo "Building runtime + transpiler (release)..."

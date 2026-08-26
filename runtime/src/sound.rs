@@ -257,6 +257,13 @@ fn events_to_pcm(events: &[PlayEvent]) -> Vec<f32> {
 // ── Public API called by Runtime ──────────────────────────────────────────────
 
 /// Play a sequence of events synchronously (blocks until done).
+/// Total wall-clock duration of a run of events, in milliseconds. Used by
+/// the headless path to advance the VIRTUAL clock by exactly what real
+/// playback would have taken, instead of really sleeping.
+pub fn total_ms(events: &[PlayEvent]) -> u64 {
+    events.iter().map(|e| e.dur_ms).sum()
+}
+
 pub fn play_events_blocking(events: &[PlayEvent]) {
     if events.is_empty() { return; }
     let pcm = events_to_pcm(events);
@@ -299,9 +306,17 @@ pub fn play_events_background_flagged(
 }
 
 /// SOUND statement: freq Hz for duration/18.2 seconds.
+/// Duration in ms of a `SOUND freq, ticks` statement (18.2 ticks/sec, the
+/// PC timer rate), capped like `play_sound` itself. Exposed so the headless
+/// path can advance the virtual clock by the same amount it would have
+/// spent playing.
+pub fn sound_ms(duration_ticks: f64) -> u64 {
+    ((duration_ticks / 18.2) * 1000.0).min(60_000.0).max(0.0) as u64
+}
+
 pub fn play_sound(freq: f64, duration_ticks: f64) {
     if freq < 37.0 || freq > 32_767.0 || duration_ticks <= 0.0 { return; }
-    let dur_ms = ((duration_ticks / 18.2) * 1000.0).min(60_000.0) as u64;
+    let dur_ms = sound_ms(duration_ticks);
     let events = vec![PlayEvent { bg: false, freq_hz: freq as f32, dur_ms }];
     play_events_blocking(&events);
 }

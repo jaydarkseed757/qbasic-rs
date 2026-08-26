@@ -76,9 +76,12 @@ TESTS=(
     # presents:80 always lands on a mid-flight frame with seed 42.
     "gorilla|42|DRAIN,ENTER,ENTER,ENTER,1,ENTER,9.8,ENTER,P,DRAIN,4,5,ENTER,DRAIN,5,0,ENTER|presents:80"
     # donkey: SCREEN 1 (CGA), DRAIN stops title-screen buffer flush, SPACE
-    # continues past the title.  presents:10 captures road + car + donkey all
-    # visible in their seed-42 positions.
-    "donkey|42|DRAIN,SPACE|presents:10"
+    # continues past the title.  presents:40 captures road + car + donkey all
+    # visible in their seed-42 positions.  (Was presents:10 until headless
+    # PLAY/SOUND started advancing the virtual clock by the audio duration —
+    # correct modelling, since those statements block on real hardware — which
+    # shifted the animation later relative to the present count.)
+    "donkey|42|DRAIN,SPACE|presents:40"
     # orbits: fully deterministic two-body-per-planet gravity sim (no RND, no
     # input) — 900 WAIT-vsync-paced simulation steps then END on its own; the
     # ms cap is just a safety net (runs near-instantly under the simulated
@@ -114,7 +117,12 @@ for entry in "${TESTS[@]}"; do
         echo "FAIL: $name  [transpile error]"; ((fail++)) || true
         errors+=("$name: transpile failed"); continue
     fi
-    if ! rustc "$rs" --edition 2021 -L "$DEPS" \
+    # -C opt-level=3 matches what `qbc` itself passes for a release build
+    # (src/main.rs), so the goldens guard the SAME binary users actually run
+    # via build-all.sh. Without it the harness compiled unoptimized and the
+    # two could diverge on float-sensitive code — historically gorilla had
+    # one checksum per opt level, one simulation frame apart.
+    if ! rustc "$rs" --edition 2021 -C opt-level=3 -L "$DEPS" \
             --extern qbasic_runtime="$RLIB" -o "$bin" 2>"$TMP/$name.cc"; then
         echo "FAIL: $name  [compile error]"
         grep "^error" "$TMP/$name.cc" | head -3 | sed 's/^/  /'

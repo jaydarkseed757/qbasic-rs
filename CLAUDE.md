@@ -89,7 +89,7 @@ kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, poke
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits,
 joytest, chain1, chain2, chain3). Test suites:
-- **55/55** integration (`tests/run-tests.sh`, stdout-based)
+- **56/56** integration (`tests/run-tests.sh`, stdout-based)
 - **236** runtime+transpiler unit tests (`cargo test --workspace`)
 - **12/12** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
@@ -1229,8 +1229,10 @@ verified headlessly). Regression test `tests/programs/sigil_coexist.bas`
 (numeric/string same-base-name pairs in one DIM, SUB + main scopes).
 Verified: 137 unit, 40/40 integration, **54/54 build-all** (mario now
 included), 10/10 goldens (checksums unchanged). Related latent (not fixed,
-noted): SUB **params** `SUB Foo(t, t$)` would hit the same conflation via
-`str_params`' `rust_ident_typed` lookup — no program does this.
+noted at the time, **since FIXED** — see the housekeeping-batch entry
+below): SUB **params** `SUB Foo(t, t$)` hit the same conflation via
+`str_params`' `rust_ident_typed` lookup. No bundled program does this,
+which is why it stayed latent.
 
 ### `INP(&H60)` keyboard data port — real held-key scancode polling (mario, pin)
 
@@ -2917,6 +2919,69 @@ the windowing layer across `exec`, it goes to **stderr** only, and stdout
 Verified: 236 unit, 55/55 integration (3 new), 59/59 build-all (`--clean`),
 12/12 goldens.
 
+### Housekeeping batch: the four remaining oddments, all closed
+
+The tail of the roadmap — three real defects and one config question.
+
+**1. A local variable colliding with a module CONST failed to compile**
+(`E0530: let bindings cannot shadow constants`). This is the `let`-binding
+twin of the parameter collision already handled by `disambig()`/
+`value_params`, and it needed the same POSITIVE gating for the same reason:
+`emit_lvalue`'s generic fallback is also how a genuine CONST *reference*
+resolves, so renaming there unconditionally would rewrite real CONST reads.
+New per-scope `local_const_shadows` set, populated at both declaration
+sites (`emit_locals` for inferred locals, `emit_dim` for explicit ones —
+main-body DIMs live in `globals`, so `collect_locals` never sees them and
+one site alone wouldn't reach them), with a `_v` suffix mirroring the
+parameter fix's `_p`. Verified on the case that is actually legal QB — a
+SUB-local shadowing a module CONST — which now yields the local inside the
+SUB and the constant outside it.
+**A same-scope collision is a different matter and now warns**: `CONST CX`
+plus a module-level `DIM cx` is a QB "Duplicate definition" — the program
+would not load at all — so rather than quietly picking one of the two
+meanings, qbc says so on stderr.
+
+**2. mario.bas's documented latent gap was real.** `SUB Foo(t, t$)` gives
+the procedure TWO distinct parameters sharing a base name, and every bare
+`t` resolved to the string one (`E0369: cannot add f64 to &mut String`).
+`rust_ident_typed` already distinguishes them — a bare `t` parses as Single
+and yields `t`, a `t$` use yields `t_s` — so only the bare form can collide
+with a numeric param. New `is_str_param()` helper applies that guard at all
+four sites that mapped a bare name onto `name_s` (`emit_lvalue`,
+`is_str_expr_ctx`, and both `Stmt::Let` arms). Reads AND the compound-assign
+path both had to be fixed; getting only the reads right left
+`**t = (*t + 1.0).to_string()`.
+
+**3. A foreground `PLAY` really did sleep in headless runs** — confirmed:
+`play_events_blocking` ends in `sink.sleep_until_end()` with no headless
+check. Worse than slow, it was *environment-dependent*: with no audio
+device `OutputStream::try_default()` fails and it returns instantly, so the
+same scripted run took different wall-clock time on different machines, and
+a long jingle could push one past the 10 s real-time safety cap. Headless
+`PLAY`/`SOUND`/`BEEP` now advance the VIRTUAL clock by exactly the duration
+playback would have taken, exactly as `SLEEP` already does. toccata.bas
+headless dropped from blocking-for-the-whole-piece to 0.34 s.
+**This moved donkey's golden**, the one intended consequence: donkey uses
+`PLAY "p16"` and `SOUND`, so virtual time now advances during audio and the
+animation sits earlier relative to the present count. Its exit policy moved
+`presents:10` → `presents:40` to restore the frame the golden was written
+to capture (road + car + donkey all visible), and the new checksum was
+confirmed stable across three runs.
+
+**4. The golden opt-level nuance turned out to be obsolete.** The harness
+compiled unoptimized while `build-all.sh` (via `qbc`) uses `-C
+opt-level=3`, so the goldens weren't guarding the binary users actually
+run. Pinning the harness to `-O` closed that — and **every checksum stayed
+identical**, gorilla included, despite the historical note that it had one
+value per opt level. The simulated headless clock had already removed the
+sensitivity: the captured frame is now fixed by deterministic virtual time
+rather than by how fast the machine computes. No golden regeneration was
+needed and the suite cost ~2 s more.
+
+Verified: 236 unit, 56/56 integration (new
+`tests/programs/const_shadow_param.bas` covers both emitter fixes), 59/59
+build-all (`--clean`), 12/12 goldens.
+
 ## Known Issues / TODO
 
 - **Full-codebase audit: all 25 findings fixed.** Tier 1 (ten
@@ -2966,11 +3031,15 @@ Verified: 236 unit, 55/55 integration (3 new), 59/59 build-all (`--clean`),
   checksum. Headless time is now fully virtual, all 10 goldens are
   deterministic and the whole graphics suite runs in ~8 s. One nuance
   discovered while fixing this: the two historical gorilla checksums were
-  actually the OPT-LEVEL split — `rustc -O` builds yield `0d7695…`, the
-  harness's unoptimized builds yield `617f38…` (a tiny f64 difference in
-  trajectory math crossing an INT() boundary → one simulation frame apart).
-  Golden values are therefore tied to the harness's own (unoptimized) build
-  config; gorilla's golden is canonicalized to `617f38…`.
+  actually the OPT-LEVEL split — `rustc -O` builds yielded `0d7695…` and
+  unoptimized ones `617f38…` (a tiny f64 difference in trajectory math
+  crossing an INT() boundary → one simulation frame apart).
+  **That split is gone too, and the harness now compiles with `-C
+  opt-level=3`** so the goldens guard the same binary `build-all.sh`
+  produces. Every checksum was identical either way once the virtual clock
+  landed — the captured frame is fixed by deterministic virtual time, not
+  by how fast the machine computes — so no regeneration was needed and
+  gorilla stays on `617f38…`.
   - The `tests/run-graphics-tests.sh` pipefail guard fix from the original
     debugging (a `grep` no-match aborting the whole script) remains in place.
 - **`SCREEN 13` (320×200, 256 colors) — SUPPORTED.** `palette_rgb` is a

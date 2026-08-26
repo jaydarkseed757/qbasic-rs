@@ -1,0 +1,7 @@
+module CX = 160 
+local cx = 7 
+module CX still = 160 
+num = 5 
+str =hi
+num2 = 6 
+str2 =hi!

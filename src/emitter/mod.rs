@@ -202,6 +202,17 @@ pub struct Emitter {
     /// Used by emit_lvalue to emit the correct `_s`-suffixed name for string array accesses
     /// that were parsed without the `$` sigil.
     local_string_arrays: HashSet<String>,
+    /// Per-scope LOCAL scalar names that collide with a module-level CONST.
+    ///
+    /// Rust refuses `let cx = ...` when a `const cx` is in scope (E0530:
+    /// "let bindings cannot shadow constants"), but QB is happy to let a
+    /// local shadow a CONST. This is the `let`-binding twin of the
+    /// parameter collision `disambig()`/`value_params` already handle, and
+    /// it needs the same POSITIVE gating: `emit_lvalue`'s generic fallback
+    /// is also how a genuine CONST reference resolves, so renaming there
+    /// unconditionally would rewrite real CONST reads too. Membership here
+    /// is the only thing that distinguishes them.
+    local_const_shadows: HashSet<String>,
     /// Per-scope locally-DIM'd arrays → (ndims, is_string). See
     /// `collect_local_array_info`: `array_dims` is global-only, so without
     /// this ERASE mis-shapes every local array.
@@ -284,6 +295,7 @@ impl Emitter {
             on_error_label: String::new(),
             gamestate_emitted: true,
             local_string_arrays: HashSet::new(),
+            local_const_shadows: HashSet::new(),
             local_array_info: HashMap::new(),
             local_string_scalars: HashSet::new(),
             local_dim_names: HashSet::new(),
@@ -475,13 +487,36 @@ impl Emitter {
 
     /// Context-aware string-type check that can look up TYPE field types from type_defs
     /// and shared array types from shared_types.
+    /// True when `name`, used with parsed type `ty`, refers to a
+    /// `&mut String` SUB parameter.
+    ///
+    /// Guarded against `SUB Foo(t, t$)`, where QB gives the procedure TWO
+    /// distinct parameters sharing a base name. A bare `t` parses as Single
+    /// so `rust_ident_typed` yields `t`, while a `t$` use yields `t_s` —
+    /// only the bare one can collide with a numeric param, so checking the
+    /// numeric sets first separates them.
+    fn is_str_param(&self, name: &str, ty: &QbType) -> bool {
+        let rn = self.disambig(&rust_ident_typed(name, ty));
+        if self.numeric_params.contains(&rn) || self.value_params.contains(&rn) {
+            return false;
+        }
+        self.str_params
+            .contains(&self.disambig(&rust_ident_typed(name, &QbType::String)))
+    }
+
     fn is_str_expr_ctx(&self, expr: &Expr) -> bool {
         if is_str_expr(expr) { return true; }
-        if let Expr::Var(LValue::Scalar { name, .. }) = expr {
+        if let Expr::Var(LValue::Scalar { name, ty }) = expr {
             let lc = name.to_lowercase();
             // String param declared with `AS STRING` (no sigil): name_s is in str_params.
+            // Guarded the same way as emit_lvalue: when the SUB also takes a
+            // NUMERIC param of the same base name (`SUB Foo(t, t$)`), a bare
+            // `t` is that numeric one, not the string.
             let rn_s = rust_ident_typed(name, &QbType::String);
-            if self.str_params.contains(&rn_s) { return true; }
+            let rn = rust_ident_typed(name, ty);
+            let bare_is_numeric = self.numeric_params.contains(&rn)
+                || self.value_params.contains(&rn);
+            if self.str_params.contains(&rn_s) && !bare_is_numeric { return true; }
             // Purely-local sigil-less `DIM name AS STRING` scalar: the parser
             // has no way to record this as String at use sites (it defaults to
             // Single), so this explicit local-declaration lookup is the only
@@ -1635,9 +1670,18 @@ impl Emitter {
         // so emit_dim can skip re-declaring a DIM'd scalar that's already covered.
         self.locals_declared.clear();
         self.locals_declared.extend(locals.iter().map(|(n, _)| n.clone()));
+        // Any of these that shadow a module CONST must be renamed at BOTH
+        // the declaration below and every use site (emit_lvalue) — Rust
+        // rejects `let cx` while a `const cx` is in scope.
+        self.collect_const_shadows(locals.iter().map(|(n, _)| n.clone()));
         for (name, ty) in &locals {
-            // Disambiguate a scalar that shares its name with a local array.
-            let name = self.local_scalar_name(name);
+            // Disambiguate a scalar that shares its name with a local array,
+            // or one that shadows a module CONST.
+            let name = if self.local_const_shadows.contains(name) {
+                self.disambig_local(name)
+            } else {
+                self.local_scalar_name(name)
+            };
             match ty {
                 QbType::UserType(s) if s == "vec_f64" => {
                     // Flattened TYPE field array — size unknown, use resizable Vec
@@ -1765,8 +1809,8 @@ impl Emitter {
                 // only when the counter is the *left* operand (so `x = 1 + x` is
                 // left alone, since Rust `+=` requires the lvalue on the left).
                 let is_str_lhs = match var {
-                    LValue::Scalar { name, .. }
-                        if self.str_params.contains(&rust_ident_typed(name, &QbType::String)) => true,
+                    LValue::Scalar { name, ty }
+                        if self.is_str_param(name, ty) => true,
                     LValue::Scalar { ty: QbType::String, .. } => true,
                     LValue::Index  { ty: QbType::String, .. } => true,
                     LValue::Index  { name, .. }
@@ -1824,8 +1868,8 @@ impl Emitter {
                 };
                 match var {
                     // &mut String param (with $ sigil or AS STRING) → deref-assign
-                    LValue::Scalar { name, .. }
-                        if self.str_params.contains(&rust_ident_typed(name, &QbType::String)) =>
+                    LValue::Scalar { name, ty }
+                        if self.is_str_param(name, ty) =>
                     {
                         self.line(&format!("*{lhs} = {srhs};"));
                     }
@@ -3210,6 +3254,30 @@ impl Emitter {
             // shadow the Single-typed binding collect_locals infers from the bare
             // name — removing it would re-expose the f64 and break the assignment.
             let ty  = qb_type_to_rust(&decl.ty);
+            // A DIM'd local whose name collides with a module CONST has to be
+            // renamed here too — this is the other declaration site (main-body
+            // DIMs are in `globals`, so collect_locals never sees them and
+            // emit_locals' rename doesn't reach them). Uses go through
+            // emit_lvalue's local_const_shadows branch, so the set must know
+            // about the name either way.
+            let name = if self.const_names.contains(&name) {
+                // A PROCEDURE-local shadowing a module CONST is ordinary QB
+                // (same as a parameter doing it). At MODULE level, though,
+                // DIM-ing a name already taken by a CONST is a QB "Duplicate
+                // definition" error — the program wouldn't load at all — so
+                // say so rather than quietly picking one of the two meanings.
+                if self.in_main {
+                    eprintln!(
+                        "warning: DIM {} shares its name with a CONST — QB rejects \
+                         this as a duplicate definition; treating it as a local",
+                        decl.name
+                    );
+                }
+                self.local_const_shadows.insert(name.clone());
+                self.disambig_local(&name)
+            } else {
+                name
+            };
             if decl.ty != QbType::String {
                 let typed = rust_ident_typed(&decl.name, &decl.ty);
                 if self.locals_declared.contains(&typed) { return; }
@@ -3775,6 +3843,22 @@ impl Emitter {
         self.emit_expr_inner(expr).unwrap_or_else(|_| "/*err*/".into())
     }
 
+    /// Rust binding name for a local scalar that shadows a module CONST.
+    /// `_v` ("variable") mirrors `disambig`'s `_p` ("parameter") so the two
+    /// can never collide with each other.
+    fn disambig_local(&self, rn: &str) -> String {
+        format!("{rn}_v")
+    }
+
+    /// Record which of this scope's local scalars shadow a module CONST.
+    /// Called at each scope boundary alongside the other per-scope sets.
+    fn collect_const_shadows(&mut self, names: impl IntoIterator<Item = String>) {
+        self.local_const_shadows = names
+            .into_iter()
+            .filter(|n| self.const_names.contains(n))
+            .collect();
+    }
+
     /// Rust binding name for a local scalar. When the scalar's name collides with
     /// a local array of the same name (QB lets `A$` and `A$()` coexist as distinct
     /// variables), suffix the scalar so the two don't share one Rust binding.
@@ -3918,10 +4002,18 @@ impl Emitter {
                 // handles dereferencing separately.
                 let rn_s = rust_ident_typed(name, &QbType::String);
                 let rn_s_p = self.disambig(&rn_s); // see disambig() doc comment
-                if self.str_params.contains(&rn_s_p) {
+                let rn_p = self.disambig(&rn);
+                // QB lets a SUB take BOTH `t` and `t$` — distinct variables.
+                // A bare `t` types as Single, so `rn` is `t` while a `t$` use
+                // types as String and `rn` is `t_s`; only the bare one can
+                // collide with a numeric param of the same base name. Without
+                // this guard every bare `t` resolved to the string param
+                // `t_s` (mario.bas's documented latent gap).
+                let bare_is_numeric = self.numeric_params.contains(&rn_p)
+                    || self.value_params.contains(&rn_p);
+                if self.str_params.contains(&rn_s_p) && !bare_is_numeric {
                     return rn_s_p;
                 }
-                let rn_p = self.disambig(&rn);
                 if self.numeric_params.contains(&rn_p) {
                     // Byref numeric param — parameters shadow any shared var with the same
                     // base name (e.g. SUB DrawPlayer(Player%) shadows DIM SHARED Player(1 TO 2)).
@@ -3945,6 +4037,12 @@ impl Emitter {
                     // a genuine CONST read reaches this point, and the two are
                     // textually indistinguishable without this separate set).
                     rn_p
+                } else if self.local_const_shadows.contains(&rn) {
+                    // A local that shadows a module CONST — see
+                    // local_const_shadows. Must be checked BEFORE the
+                    // fallback below, which is also how a genuine CONST
+                    // reference resolves.
+                    self.disambig_local(&rn)
                 } else {
                     // QB allows a scalar `A$` and an array `A$()` to coexist — they
                     // are distinct variables. Disambiguate the scalar binding.

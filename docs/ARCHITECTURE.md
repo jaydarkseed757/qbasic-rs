@@ -1062,6 +1062,24 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M33 — `CHAIN` showcase pipeline ✅
+
+`CHAIN` was implemented and unit-covered, but only across a single hop.
+`basic-src/chain1|chain2|chain3.bas` demonstrate the idiom it existed for —
+splitting a program too large for DOS's 640K into modules that hand state
+over through `COMMON` — and make the position-not-name matching rule
+visible. Each runs standalone printing type defaults, as QB does.
+
+New integration coverage: `chain_hopstart` → `chain_hopmid` →
+`chain_hopend` exercises a CHAINed-into process CHAINing again. The test
+documents why its names sort the way they do — the runner compiles into one
+directory alphabetically and CHAIN resolves next to the running executable,
+so a program must sort after everything it chains to (`chain_main`/
+`chain_child` has always depended on this too).
+
+Verified: 236 unit, 55/55 integration (3 new), 59/59 build-all, 12/12
+goldens.
+
 ### M32 — `STICK`/`STRIG` joystick support ✅
 
 The last wholly-unmodelled input surface: before this a program reading the
@@ -1912,7 +1930,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **52/52**, with 236 unit tests and 12 graphics golden
+The integration suite is **55/55**, with 236 unit tests and 12 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

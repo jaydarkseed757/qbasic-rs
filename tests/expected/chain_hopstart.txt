@@ -1,0 +1,4 @@
+start n= 3 
+mid n= 30 
+end n= 30 
+end note=ab

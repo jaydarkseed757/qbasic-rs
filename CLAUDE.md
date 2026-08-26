@@ -81,15 +81,15 @@ file.bas
 ## Current Status
 
 **Every bundled DOS program in `basic-src/` transpiles, compiles, AND renders**
-— `bash basic-src/build-all.sh` is **56/56** (gorilla, torus, reversi, mandel,
+— `bash basic-src/build-all.sh` is **59/59** (gorilla, torus, reversi, mandel,
 donkey, nibbles, sortdemo, money, pi, pi-gw, primes, hangman, hangman-gfx,
 hangman-gw, q_sort, fuzzbuzz, hello-world, sound, step, screen13, screen13-sprite,
 256c, palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom, vgadac,
 deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits,
-joytest). Test suites:
-- **52/52** integration (`tests/run-tests.sh`, stdout-based)
+joytest, chain1, chain2, chain3). Test suites:
+- **55/55** integration (`tests/run-tests.sh`, stdout-based)
 - **236** runtime+transpiler unit tests (`cargo test --workspace`)
 - **12/12** graphics golden tests (`tests/run-graphics-tests.sh` — deterministic
   under the simulated headless clock, whole suite ~8 s; framebuffer
@@ -2880,6 +2880,42 @@ centred/no-button case exactly. 7 new unit tests in `scancode_tests` cover
 the latch contracts, the QB button ordering, and `QBC_JOYSTICK=off`.
 Verified: 236 unit, 52/52 integration, 56/56 build-all (`--clean`), 12/12
 goldens.
+
+### `CHAIN` showcase pipeline (`chain1`/`chain2`/`chain3`, build-all 59/59)
+
+`CHAIN` was already implemented and unit-covered, but only by a single-hop
+test pair. These three bundled programs demonstrate what the statement was
+FOR: DOS gave you 640K, so a program too large to fit was split into
+modules that CHAINed to one another and handed their working state over
+through `COMMON`. `chain1` seeds a value, `chain2` transforms it, `chain3`
+reports — every value in the final report crossed two process boundaries.
+
+The point worth showing is that COMMON is matched by **position, not
+name**: each program declares the same list in the same order, so renaming
+a variable is harmless but REORDERING one silently makes the next stage
+read a string as a number. Each program also runs standalone, printing
+type defaults, which is exactly what QB does when nothing hands you
+anything.
+
+**New coverage from the integration side**: `chain_hopstart` →
+`chain_hopmid` → `chain_hopend` exercises a CHAINed-into process CHAINing
+AGAIN, which the existing `chain_main`/`chain_child` pair never did.
+Naming matters there and is documented in the test: the runner compiles
+every program into one directory in alphabetical order, and `CHAIN`
+resolves its target next to the running executable, so a program must sort
+AFTER everything it chains to or the target won't exist yet when it runs
+(hence hopend < hopmid < hopstart). `chain_main`/`chain_child` has always
+depended on the same ordering. Hitting this is undramatic — the missing
+target just raises the trappable err 53 and, untrapped, continues silently
+— but it makes an ordering mistake look like a CHAIN bug.
+
+Note for anyone running the demo on macOS: exec'ing prints a
+`Task policy set failed` line per hop. That is the OS complaining about
+the windowing layer across `exec`, it goes to **stderr** only, and stdout
+(and therefore every test) is unaffected.
+
+Verified: 236 unit, 55/55 integration (3 new), 59/59 build-all (`--clean`),
+12/12 goldens.
 
 ## Known Issues / TODO
 

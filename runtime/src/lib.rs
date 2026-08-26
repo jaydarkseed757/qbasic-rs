@@ -2949,6 +2949,16 @@ impl Runtime {
                     let flag = self.bg_playing.clone();
                     sound::play_events_background_flagged(run, flag);
                 }
+            } else if self.headless_cfg.is_some() {
+                // Headless: a foreground PLAY blocks on sink.sleep_until_end()
+                // for the real duration of the audio — and, worse, only when
+                // an audio device actually opens, so the same run takes
+                // different wall-clock time on different machines. Advance
+                // the virtual clock by what playback would have cost and
+                // skip it, exactly as SLEEP does. Keeps headless runs both
+                // fast and deterministic, and stops a long jingle pushing a
+                // scripted run past the 10 s real-time safety cap.
+                virt_advance_us(sound::total_ms(&run) * 1000);
             } else {
                 sound::play_events_blocking(&run);
             }
@@ -2964,6 +2974,11 @@ impl Runtime {
 
     /// BEEP — short 800 Hz tone (~220 ms).
     pub fn beep(&mut self) {
+        // See `sound()` — BEEP is a fixed 800 Hz / 4-tick tone.
+        if self.headless_cfg.is_some() {
+            virt_advance_us(sound::sound_ms(4.0) * 1000);
+            return;
+        }
         sound::play_beep();
     }
 
@@ -3169,6 +3184,18 @@ impl Runtime {
 
     /// SOUND freq, duration — freq in Hz, duration in PC timer ticks (18.2/sec).
     pub fn sound(&mut self, freq: f64, dur: f64) {
+        // Headless: SOUND blocks for its duration on real hardware, so
+        // advance the VIRTUAL clock by that much rather than really
+        // sleeping — same reasoning as PLAY and SLEEP. Under-modelling it
+        // (the old behaviour: zero virtual time, and real time only when an
+        // audio device happened to open) made simulated timing depend on
+        // whether the machine had sound.
+        if self.headless_cfg.is_some() {
+            if freq >= 37.0 && freq <= 32_767.0 && dur > 0.0 {
+                virt_advance_us(sound::sound_ms(dur) * 1000);
+            }
+            return;
+        }
         sound::play_sound(freq, dur);
     }
     /// DRAW "turtle-graphics-string" — stub until full implementation

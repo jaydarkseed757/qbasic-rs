@@ -1062,6 +1062,34 @@ cargo run -- basic-src/gorilla.bas --emit-only --verbose
 
 ## Milestone Status
 
+### M34 — Housekeeping: the last four oddments ✅
+
+- **Local-vs-CONST `E0530`**: the `let`-binding twin of the parameter
+  collision. Same positive gating (`local_const_shadows`, `_v` suffix
+  mirroring `_p`), because `emit_lvalue`'s fallback is also how a genuine
+  CONST reference resolves. Populated at BOTH declaration sites, since
+  main-body DIMs live in `globals` and never reach `collect_locals`. A
+  same-scope collision (`CONST CX` + module `DIM cx`) is a QB "Duplicate
+  definition" and now warns rather than silently picking a meaning.
+- **mario.bas's latent `SUB Foo(t, t$)` gap was real** — every bare `t`
+  resolved to the string param. `rust_ident_typed` already separates them
+  (`t` vs `t_s`), so a guard on the numeric sets suffices; applied at all
+  four sites via a new `is_str_param()` helper. Both reads and the
+  compound-assign path needed it.
+- **Headless foreground `PLAY` really slept** (`sink.sleep_until_end()`,
+  no headless check) and was environment-dependent — instant with no audio
+  device, blocking with one. `PLAY`/`SOUND`/`BEEP` now advance the virtual
+  clock by the playback duration, as `SLEEP` does. This intentionally moved
+  donkey's golden (it uses `PLAY`/`SOUND`); its policy moved to
+  `presents:40` to restore the intended frame.
+- **The golden opt-level split was obsolete.** The harness now compiles
+  with `-C opt-level=3`, matching what `qbc` emits for release, so goldens
+  guard the binary users actually run — and every checksum stayed
+  identical, because the simulated headless clock had already removed the
+  opt-level sensitivity gorilla once showed.
+
+Verified: 236 unit, 56/56 integration, 59/59 build-all, 12/12 goldens.
+
 ### M33 — `CHAIN` showcase pipeline ✅
 
 `CHAIN` was implemented and unit-covered, but only across a single hop.
@@ -1930,7 +1958,7 @@ palette256_expanded, random-pixel, qblocks, qbricks, kitchen_sink-gw,
 kitchen_sink-qbasic, loopyloop, pixel-gw, evil, pokeit, demo1, demo, bench, pokemix,
 qmaze, duck, etto, invaders, toccata, gotorama, blackjak, textpaint, kingdom,
 vgadac, deffn-multi, onerror, farkle, pin, towers, pride, pride256c, mario, orbits).
-The integration suite is **55/55**, with 236 unit tests and 12 graphics golden
+The integration suite is **56/56**, with 236 unit tests and 12 graphics golden
 tests (deterministic on any machine under the simulated headless clock; the
 whole graphics suite runs in ~8 s). A differential fuzz harness
 (`tools/fuzz/`) checks qbc-transpiled output against an independent Python

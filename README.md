@@ -135,9 +135,10 @@ bash tools/doctor.sh
 | `textpaint.bas` | Text-mode paint program (SCREEN 0, color picker, keyboard drawing) | ✅ |
 | `orbits.bas` | Deterministic orbital-mechanics demo (SCREEN 13) — genuine `TYPE`-in-`TYPE` nesting (`Vec2` nested inside `Body`) and an array of the nested TYPE, real Newtonian gravity, exact circular-orbit initial velocities | ✅ |
 | `joytest.bas` | Joystick demo (SCREEN 13) — `STICK`/`STRIG` polling with QB's axis-latch and edge/level button contracts; driven from the keyboard so it needs no joystick | ✅ |
+| `chain1.bas` / `chain2.bas` / `chain3.bas` | Three-stage `CHAIN` pipeline — the DOS 640K idiom of splitting a program into modules that hand state over through `COMMON` (matched by position, not name) | ✅ |
 
-All **56 bundled programs** in `basic-src/` transpile and run
-(`bash basic-src/build-all.sh` → 56/56). The full set also includes `nibbles`,
+All **59 bundled programs** in `basic-src/` transpile and run
+(`bash basic-src/build-all.sh` → 59/59). The full set also includes `nibbles`,
 `q_sort`, `fuzzbuzz`, `step`, `256c`, `palette256_expanded`, `random-pixel`,
 `qblocks`, `loopyloop`, `pixel-gw`, `pokemix`, `qmaze`, `farkle`, `pin`,
 `towers`, `pride`, `bench`, and the `pi-gw`/`hangman-gw` GW-BASIC variants.
